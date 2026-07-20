@@ -1,0 +1,145 @@
+Billow MVP checklist
+
+Foundation
+- [ ] 🏗️ Split Prisma database code into a workspace package
+- [ ] 🏗️ Split BetterAuth setup into a workspace package
+- [ ] 🔧 Add shared TypeScript config for workspace packages
+- [ ] 🔧 Add shared ESLint config for workspace packages
+- [ ] 🧪 Add repository test fixtures for auth-owned workspace data
+- [ ] 🧪 Add migration smoke test against Postgres in CI
+- [ ] 📝 Update docs for workspace package boundaries
+
+Authentication
+- [ ] 🔐 Add BetterAuth sign-up and sign-in pages
+- [ ] 🔐 Add BetterAuth sign-out action and session menu
+- [ ] 🔐 Add password reset request page
+- [ ] 🔐 Add password reset completion page
+- [ ] 🗃️ Add user settings model for role, currency, and numbering
+- [ ] 🛂 Promote first registered user to admin
+- [ ] 🛂 Block registration when admin closes sign-ups
+- [ ] 🛂 Add admin registration mode setting
+- [ ] 🛂 Add admin user list
+- [ ] 🧪 Test first-user admin promotion
+- [ ] 🧪 Test open and closed registration behavior
+- [ ] 🧪 Test signed-out redirects for protected routes
+
+User-owned data model
+- [ ] 🗃️ Add user ownership to sender profiles
+- [ ] 🗃️ Add user ownership to bank accounts
+- [ ] 🗃️ Add user ownership to client companies
+- [ ] 🗃️ Add user ownership to invoices
+- [ ] 🗃️ Add user default currency field
+- [ ] 🗃️ Add invoice numbering settings
+- [ ] 🗃️ Add frozen sender snapshot to invoices
+- [ ] 🗃️ Add frozen bank snapshot to invoices
+- [ ] 🗃️ Add frozen client snapshot to invoices
+- [ ] 🗃️ Change invoice number uniqueness to per-user scope
+- [ ] 🧪 Test user data isolation in repositories
+- [ ] 🧪 Test duplicate invoice number validation per user
+
+Workspace repositories and actions
+- [ ] ✨ Add current user workspace loader
+- [ ] ✨ Add onboarding save action for sender profile
+- [ ] ✨ Add onboarding save action for bank account
+- [ ] ✨ Add onboarding save action for client company
+- [ ] ✨ Add user settings save action
+- [ ] ✨ Add create invoice action with snapshot capture
+- [ ] ✨ Add update invoice action with revision capture
+- [ ] ✨ Add invoice status update action
+- [ ] ✨ Add bank account create and update actions
+- [ ] ✨ Add client company create and update actions
+- [ ] ✨ Add sender profile update action
+- [ ] 🔒 Scope all workspace reads to the signed-in user
+- [ ] 🔒 Scope all workspace writes to the signed-in user
+- [ ] 🧪 Test invoice snapshot creation
+- [ ] 🧪 Test invoice revision history creation
+
+Onboarding
+- [ ] ✨ Add signed-in empty workspace onboarding page
+- [ ] ✨ Add skippable sender profile section
+- [ ] ✨ Add skippable bank account section
+- [ ] ✨ Add skippable client company section
+- [ ] ✨ Add invoice numbering setup section
+- [ ] ✨ Add default currency picker with USD, MXN, CAD, and EUR
+- [ ] 🚸 Gate invoice creation when required records are missing
+- [ ] 💄 Add setup progress UI to the dashboard
+- [ ] 🧪 Test onboarding skip and resume behavior
+
+Dashboard
+- [ ] ✨ Replace metadata placeholder with signed-in dashboard shell
+- [ ] ✨ Add time-based invoice grouping
+- [ ] ✨ Add current month invoice cards
+- [ ] ✨ Add future invoice cards
+- [ ] ✨ Add past invoice section
+- [ ] ✨ Add open invoice total
+- [ ] ✨ Add paid invoice total
+- [ ] ✨ Add next invoice number display
+- [ ] ✨ Add recent invoices list
+- [ ] ✨ Add bank accounts summary with masked details
+- [ ] ✨ Add client companies summary
+- [ ] 💄 Add responsive dashboard layout
+- [ ] ♿ Add keyboard and screen-reader coverage for dashboard controls
+- [ ] 🧪 Test dashboard grouping by invoice date
+
+Invoice creation and editing
+- [ ] ✨ Add create invoice route
+- [ ] ✨ Add invoice detail route
+- [ ] ✨ Add invoice edit form
+- [ ] ✨ Add sender profile selector
+- [ ] ✨ Add bank account selector
+- [ ] ✨ Add client company selector
+- [ ] ✨ Add line item editor
+- [ ] ✨ Add invoice status selector
+- [ ] ✨ Add notes, payment terms, due date, and purchase order fields
+- [ ] ✨ Default invoice date to current month end
+- [ ] ✨ Default invoice currency to user preference
+- [ ] ✨ Suggest next invoice number from user settings
+- [ ] ✨ Allow manual invoice number override
+- [ ] ♻️ Recalculate line item totals on save
+- [ ] 🧪 Test invoice creation defaults
+- [ ] 🧪 Test manual invoice number override
+- [ ] 🧪 Test invoice edit revision records
+
+Invoice preview, print, and PDF
+- [ ] ✨ Add invoice preview component
+- [ ] ✨ Render sender details in invoice preview
+- [ ] ✨ Render bill-to details in invoice preview
+- [ ] ✨ Render invoice line item table
+- [ ] ✨ Render totals with selected currency
+- [ ] ✨ Render bank payment instructions
+- [ ] 🙈 Mask bank details outside explicit invoice views
+- [ ] 🖨️ Add print stylesheet for invoices
+- [ ] 📄 Add downloadable PDF export
+- [ ] 🧪 Test invoice preview data mapping
+- [ ] 🧪 Test masked bank details in summary views
+
+Import and export
+- [ ] 📤 Add JSON export route for signed-in user's workspace
+- [ ] 📤 Export sender profiles, bank accounts, clients, invoices, snapshots, and revisions
+- [ ] 📥 Add JSON import route
+- [ ] 📥 Validate import payload before writing
+- [ ] 📥 Preserve invoice numbers and dates during import
+- [ ] 📥 Report skipped records and validation errors
+- [ ] 📄 Document the Billow export JSON format
+- [ ] 🧪 Test export payload shape
+- [ ] 🧪 Test import validation failures
+- [ ] 🧪 Test import success path
+
+Local development and deployment
+- [ ] 🔧 Verify Docker dev database startup outside nono sandbox
+- [ ] 🔧 Add reset-local-db command
+- [ ] 🔧 Add seed-local command for current demo records
+- [ ] 🐳 Verify production Docker image after workspace move
+- [ ] 🐳 Update Docker build docs for Turborepo workspace
+- [ ] 🚀 Confirm GHCR publish workflow after workspace move
+- [ ] 🚀 Confirm Umbrel app starts with BetterAuth env vars
+- [ ] 📝 Document required Umbrel environment variables
+
+Quality pass
+- [ ] 🧪 Add Playwright smoke test for sign-up to dashboard
+- [ ] 🧪 Add Playwright smoke test for invoice creation
+- [ ] 🧪 Add Playwright smoke test for print/PDF route
+- [ ] ♿ Run accessibility pass on auth, onboarding, dashboard, and invoice forms
+- [ ] 💄 Polish mobile layout for dashboard and invoice editor
+- [ ] 🔥 Remove obsolete metadata-only UI paths
+- [ ] 📝 Update README once MVP flow replaces placeholder UI
