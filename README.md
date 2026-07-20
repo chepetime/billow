@@ -17,15 +17,31 @@ npm run build
 
 `npm run build` runs `prisma generate && next build --webpack`.
 
-For local database work, start Postgres and set `DATABASE_URL` using
-`app/.env.example` as the template. Set `BETTER_AUTH_SECRET` to at least 32
-random characters and `BETTER_AUTH_URL` to your local app URL. Then run:
+For the normal local setup, run Postgres in Docker and Next.js on your host:
 
 ```bash
-npm run db:migrate
-npm run db:seed
-npm run dev
+cd app
+npm install
+npm run dev:local
 ```
+
+`npm run dev:local` creates an ignored `app/.env` if one does not exist, starts
+Postgres from `docker-compose.dev.yml`, generates the Prisma client, applies
+migrations, seeds local data, and starts `next dev`.
+
+Useful local commands:
+
+```bash
+npm run db:up      # start local Postgres only
+npm run dev:setup  # start Postgres, generate Prisma, migrate, and seed
+npm run dev        # start Next.js only
+npm run db:logs    # follow Postgres logs
+npm run db:down    # stop local Postgres
+```
+
+If you create `app/.env` yourself, use `app/.env.example` as the template. Set
+`BETTER_AUTH_SECRET` to at least 32 random characters and `BETTER_AUTH_URL` to
+your local app URL.
 
 Useful routes:
 
