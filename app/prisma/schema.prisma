@@ -25,6 +25,67 @@ model AppMetadata {
   updatedAt     DateTime @updatedAt
 }
 
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -33,60 +94,60 @@ enum InvoiceStatus {
 }
 
 model UserProfile {
-  id          Int           @id @default(autoincrement())
-  displayName String
-  legalName   String
-  email       String
-  taxId       String?
-  address     String
-  department  String?
-  manager     String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           Int           @id @default(autoincrement())
+  displayName  String
+  legalName    String
+  email        String
+  taxId        String?
+  address      String
+  department   String?
+  manager      String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   bankAccounts BankAccount[]
-  invoices    Invoice[]
+  invoices     Invoice[]
 }
 
 model BankAccount {
-  id                Int         @id @default(autoincrement())
-  userProfileId     Int
-  label             String
-  bankName          String
-  bankAddress       String?
-  bankPhone         String?
-  accountHolderName String
+  id                   Int         @id @default(autoincrement())
+  userProfileId        Int
+  label                String
+  bankName             String
+  bankAddress          String?
+  bankPhone            String?
+  accountHolderName    String
   accountHolderAddress String?
-  accountNumber     String
-  accountType       String?
-  institutionNumber String?
-  transitNumber     String?
-  routingNumber     String?
-  swift             String?
-  iban              String?
-  clabe             String?
-  isDefault         Boolean     @default(false)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  userProfile       UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  invoices          Invoice[]
+  accountNumber        String
+  accountType          String?
+  institutionNumber    String?
+  transitNumber        String?
+  routingNumber        String?
+  swift                String?
+  iban                 String?
+  clabe                String?
+  isDefault            Boolean     @default(false)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  userProfile          UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  invoices             Invoice[]
 
   @@index([userProfileId])
 }
 
 model ClientCompany {
-  id          Int       @id @default(autoincrement())
-  name        String
-  legalName   String?
-  address1    String
-  address2    String?
+  id              Int       @id @default(autoincrement())
+  name            String
+  legalName       String?
+  address1        String
+  address2        String?
   cityStatePostal String
-  country     String
-  email       String
-  attentionTo String?
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  invoices    Invoice[]
+  country         String
+  email           String
+  attentionTo     String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  invoices        Invoice[]
 }
 
 model Invoice {

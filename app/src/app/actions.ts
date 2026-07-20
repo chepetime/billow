@@ -2,10 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  InvoiceStatus,
-  type InvoiceStatus as InvoiceStatusValue,
-} from "@/generated/prisma/enums";
+import { parseInvoiceStatus } from "@/lib/invoice-status";
 import { getPrisma } from "@/lib/prisma";
 
 function readString(formData: FormData, key: string) {
@@ -32,15 +29,6 @@ function readDecimal(formData: FormData, key: string) {
     throw new Error(`${key} must be a number.`);
   }
   return value;
-}
-
-function readInvoiceStatus(formData: FormData) {
-  const status = readString(formData, "status") || InvoiceStatus.DRAFT;
-  if (Object.values(InvoiceStatus).includes(status as InvoiceStatusValue)) {
-    return status as InvoiceStatusValue;
-  }
-
-  throw new Error(`Unsupported invoice status: ${status}`);
 }
 
 function readInvoiceItems(formData: FormData) {
@@ -232,7 +220,7 @@ export async function createInvoice(formData: FormData) {
   const invoiceNumber = readInt(formData, "invoiceNumber");
   const invoiceDate = new Date(readString(formData, "invoiceDate"));
   const lineItems = readInvoiceItems(formData);
-  const status = readInvoiceStatus(formData);
+  const status = parseInvoiceStatus(readString(formData, "status"));
 
   if (Number.isNaN(invoiceDate.getTime())) {
     throw new Error("Invoice date is required.");

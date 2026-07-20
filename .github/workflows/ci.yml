@@ -37,6 +37,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://billow:billow-password@localhost:5432/billow
+      BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
 
     steps:
       - name: Check out repository
@@ -63,6 +65,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm run test:run
 
       - name: Build
         run: npm run build
