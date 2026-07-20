@@ -6,6 +6,15 @@ This is the Billow app repository. The Umbrel store metadata lives separately in
 /Users/jlugo/Projects/personal/developer-umbrel-community-app-store
 ```
 
+Remote:
+
+```text
+https://github.com/chepetime/billow
+```
+
+The app was split out of the store repo in initial commit
+`3c9fc0d Initial Billow app`.
+
 ## App Shape
 
 - `app`: Next.js App Router app.
@@ -102,6 +111,18 @@ Umbrel target:
 ghcr.io/chepetime/billow:v0.1.6
 ghcr.io/chepetime/billow:latest
 ```
+
+The package `ghcr.io/chepetime/billow` was originally created by the store repo
+workflow. After the repo split, the first publish from this repo built
+successfully but failed to push with:
+
+```text
+denied: permission_denied: write_package
+```
+
+The fix was a one-time GHCR package setting change: grant `chepetime/billow`
+write access to the existing package. After that, workflow rerun `29778177872`
+completed successfully.
 
 If the target Umbrel is ARM-based later, add `linux/arm64` back and restore QEMU
 setup. GitHub-hosted amd64 runners build arm64 through QEMU, so the Next.js
