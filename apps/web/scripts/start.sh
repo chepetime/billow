@@ -3,7 +3,7 @@ set -eu
 
 attempt=0
 
-until npm exec -- prisma migrate deploy; do
+until pnpm exec prisma migrate deploy; do
   attempt=$((attempt + 1))
 
   if [ "$attempt" -ge 30 ]; then
@@ -15,4 +15,4 @@ until npm exec -- prisma migrate deploy; do
   sleep 2
 done
 
-exec npm run start
+exec pnpm run start

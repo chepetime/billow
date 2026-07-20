@@ -446,10 +446,10 @@ Export requirements:
 
 ### Phase 5: Verification
 
-- Run `npm run db:generate`.
-- Run `npx prisma validate`.
-- Run `npm run lint`.
-- Run `npm run build`.
+- Run `pnpm run db:generate`.
+- Run `pnpm run db:validate`.
+- Run `pnpm run lint`.
+- Run `pnpm run build`.
 - Start the app locally and check desktop/mobile layouts.
 
 ## Migration Questions

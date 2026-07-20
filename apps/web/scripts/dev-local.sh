@@ -40,13 +40,13 @@ fi
 
 cd "$APP_DIR"
 
-npm run db:generate
-npm run db:migrate
-npm run db:seed
+pnpm run db:generate
+pnpm run db:migrate
+pnpm run db:seed
 
 if [ "${1:-}" = "--setup-only" ]; then
   echo "Local database is ready."
   exit 0
 fi
 
-npm run dev
+pnpm run dev

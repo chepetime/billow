@@ -14,6 +14,7 @@ next-env.d.ts
 src/generated/prisma
 .turbo
 **/.turbo
+.pnpm-store
 
 # misc
 .DS_Store
