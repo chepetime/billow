@@ -31,6 +31,13 @@ Useful routes:
 - `/`: Server Component rendering app metadata.
 - `/api/metadata`: API route returning metadata JSON.
 
+## CI
+
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
+`master`. It installs dependencies from `app/package-lock.json`, generates the
+Prisma client, validates the Prisma schema, applies migrations against a
+Postgres service, runs ESLint, and builds the Next.js app.
+
 ## Docker
 
 Build from the repository root:
