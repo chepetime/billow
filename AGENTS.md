@@ -1,0 +1,131 @@
+# Repository Notes
+
+This is the Billow app repository. The Umbrel store metadata lives separately in:
+
+```text
+/Users/jlugo/Projects/personal/developer-umbrel-community-app-store
+```
+
+## App Shape
+
+- `app`: Next.js App Router app.
+- `app/prisma/schema.prisma`: Prisma schema.
+- `app/prisma/migrations`: SQL migrations.
+- `app/prisma/seed.mjs`: Explicit dev/bootstrap seed.
+- `app/scripts/start.sh`: Production startup script.
+- `Dockerfile`: Production image build.
+- `.github/workflows/publish.yml`: GHCR image publishing workflow.
+
+## Local Commands
+
+Run from `app`:
+
+```bash
+npm install
+npm run db:generate
+npm run lint
+npm run build
+npx prisma validate
+```
+
+For local DB work:
+
+```bash
+docker run --rm \
+  --name billow-postgres \
+  -e POSTGRES_DB=billow \
+  -e POSTGRES_USER=billow \
+  -e POSTGRES_PASSWORD=billow-password \
+  -p 5432:5432 \
+  postgres:16-alpine
+```
+
+Then:
+
+```bash
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+## Build Notes
+
+`npm run build` uses:
+
+```bash
+prisma generate && next build --webpack
+```
+
+Webpack is intentional. Turbopack previously hit a local sandbox port-binding
+failure during CSS processing.
+
+Prisma 7 reads seed configuration from `prisma.config.ts`:
+
+```ts
+migrations: {
+  path: "prisma/migrations",
+  seed: "node prisma/seed.mjs",
+}
+```
+
+Production startup does not seed. The app must tolerate an empty metadata table.
+
+## Docker Runtime
+
+Build from this repo root:
+
+```bash
+docker build -t ghcr.io/chepetime/billow:v0.1.6 .
+```
+
+The container starts with:
+
+```text
+app/scripts/start.sh
+```
+
+Startup sequence:
+
+```bash
+prisma migrate deploy
+npm run start
+```
+
+The script retries migrations while Postgres starts.
+
+## Publishing
+
+The workflow publishes only `linux/amd64` for fast iteration on the current
+Umbrel target:
+
+```text
+ghcr.io/chepetime/billow:v0.1.6
+ghcr.io/chepetime/billow:latest
+```
+
+If the target Umbrel is ARM-based later, add `linux/arm64` back and restore QEMU
+setup. GitHub-hosted amd64 runners build arm64 through QEMU, so the Next.js
+build can sit at `Creating an optimized production build ...` for several
+minutes.
+
+Use Node 24-compatible action majors:
+
+- `actions/checkout@v6`
+- `docker/setup-buildx-action@v4`
+- `docker/login-action@v4`
+- `docker/build-push-action@v7`
+
+## Umbrel Store Update Flow
+
+After publishing a new image tag:
+
+1. Update the image tag in the store repo's
+   `sparkles-billow/docker-compose.yml`.
+2. Bump `version` and `releaseNotes` in
+   `sparkles-billow/umbrel-app.yml`.
+3. Keep `id: sparkles-billow` unchanged.
+4. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
+5. Push the store repo and refresh the alt store in Umbrel.
+
+The current Umbrel host port is `46247`. Earlier installs failed because the
+template port `4000` was already allocated, leaving `app_proxy` in `Created`.
