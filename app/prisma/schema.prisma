@@ -24,3 +24,122 @@ model AppMetadata {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  VOID
+}
+
+model UserProfile {
+  id          Int           @id @default(autoincrement())
+  displayName String
+  legalName   String
+  email       String
+  taxId       String?
+  address     String
+  department  String?
+  manager     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  bankAccounts BankAccount[]
+  invoices    Invoice[]
+}
+
+model BankAccount {
+  id                Int         @id @default(autoincrement())
+  userProfileId     Int
+  label             String
+  bankName          String
+  bankAddress       String?
+  bankPhone         String?
+  accountHolderName String
+  accountHolderAddress String?
+  accountNumber     String
+  accountType       String?
+  institutionNumber String?
+  transitNumber     String?
+  routingNumber     String?
+  swift             String?
+  iban              String?
+  clabe             String?
+  isDefault         Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  userProfile       UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  invoices          Invoice[]
+
+  @@index([userProfileId])
+}
+
+model ClientCompany {
+  id          Int       @id @default(autoincrement())
+  name        String
+  legalName   String?
+  address1    String
+  address2    String?
+  cityStatePostal String
+  country     String
+  email       String
+  attentionTo String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id              Int               @id @default(autoincrement())
+  invoiceNumber   Int               @unique
+  invoiceDate     DateTime
+  status          InvoiceStatus     @default(DRAFT)
+  currency        String            @default("MXN")
+  notes           String?
+  userProfileId   Int
+  bankAccountId   Int
+  clientCompanyId Int
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  userProfile     UserProfile       @relation(fields: [userProfileId], references: [id], onDelete: Restrict)
+  bankAccount     BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  clientCompany   ClientCompany     @relation(fields: [clientCompanyId], references: [id], onDelete: Restrict)
+  lineItems       InvoiceLineItem[]
+  revisions       InvoiceRevision[]
+
+  @@index([invoiceDate])
+  @@index([status])
+  @@index([userProfileId])
+  @@index([bankAccountId])
+  @@index([clientCompanyId])
+}
+
+model InvoiceLineItem {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  description String
+  note        String?
+  quantity    Decimal  @db.Decimal(12, 2)
+  rate        Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model InvoiceRevision {
+  id             Int      @id @default(autoincrement())
+  invoiceId      Int
+  revisionNumber Int
+  editor         String
+  summary        String
+  payload        Json
+  createdAt      DateTime @default(now())
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, revisionNumber])
+  @@index([invoiceId])
+}

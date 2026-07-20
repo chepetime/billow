@@ -54,4 +54,176 @@ await pool.query(
   ],
 );
 
+const existingProfiles = await pool.query(`SELECT COUNT(*)::int AS count FROM "UserProfile"`);
+
+if (existingProfiles.rows[0]?.count === 0) {
+  const userProfile = await pool.query(
+    `
+      INSERT INTO "UserProfile" (
+        "displayName",
+        "legalName",
+        "email",
+        "taxId",
+        "address",
+        "department",
+        "manager",
+        "updatedAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      RETURNING "id"
+    `,
+    [
+      "Jose",
+      "Alex Doe",
+      "alex@example.com",
+      "XAXX010101000",
+      "Av. Insurgentes Sur 123, Col. Roma Norte, 06700, Mexico City, Mexico",
+      "Engineering",
+      "Taylor Reed",
+    ],
+  );
+
+  const bankAccount = await pool.query(
+    `
+      INSERT INTO "BankAccount" (
+        "userProfileId",
+        "label",
+        "bankName",
+        "bankAddress",
+        "bankPhone",
+        "accountHolderName",
+        "accountHolderAddress",
+        "accountNumber",
+        "accountType",
+        "swift",
+        "clabe",
+        "isDefault",
+        "updatedAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW())
+      RETURNING "id"
+    `,
+    [
+      userProfile.rows[0].id,
+      "Primary account",
+      "Banco Ejemplo, S.A.",
+      "Paseo de la Reforma 100, Col. Juárez, 06600, Mexico City, Mexico",
+      "55 5555 5555",
+      "Alex Doe",
+      "Av. Insurgentes Sur 123, Col. Roma Norte, 06700, Mexico City, Mexico",
+      "012345678901234567",
+      "Checking",
+      "EXMPMXMM",
+      "012345678901234567",
+    ],
+  );
+
+  const clientCompany = await pool.query(
+    `
+      INSERT INTO "ClientCompany" (
+        "name",
+        "legalName",
+        "address1",
+        "address2",
+        "cityStatePostal",
+        "country",
+        "email",
+        "attentionTo",
+        "updatedAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      RETURNING "id"
+    `,
+    [
+      "Acme Corporation",
+      "Acme Corporation",
+      "123 Market Street, Suite 100",
+      "Attn: Accounts Payable",
+      "San Francisco, CA 94105",
+      "United States",
+      "ap@acme.example",
+      "Accounts Payable",
+    ],
+  );
+
+  const invoice = await pool.query(
+    `
+      INSERT INTO "Invoice" (
+        "invoiceNumber",
+        "invoiceDate",
+        "status",
+        "currency",
+        "userProfileId",
+        "bankAccountId",
+        "clientCompanyId",
+        "updatedAt"
+      )
+      VALUES ($1, $2, 'DRAFT', 'MXN', $3, $4, $5, NOW())
+      RETURNING "id"
+    `,
+    [
+      63,
+      "2026-07-31T00:00:00.000Z",
+      userProfile.rows[0].id,
+      bankAccount.rows[0].id,
+      clientCompany.rows[0].id,
+    ],
+  );
+
+  const lineItems = [
+    ["Monthly Salary", 1, 192313],
+    ["Healthcare support for private healthcare", 1, 2000],
+    ["Pension support", 1, 3846.26],
+    ["Accounting support", 1, 1000],
+    ["Hardware support", 1, 540],
+    ["End of year support", 1, 7396.65],
+  ];
+
+  for (const [index, item] of lineItems.entries()) {
+    const [description, quantity, rate] = item;
+    await pool.query(
+      `
+        INSERT INTO "InvoiceLineItem" (
+          "invoiceId",
+          "description",
+          "quantity",
+          "rate",
+          "amount",
+          "position",
+          "updatedAt"
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `,
+      [
+        invoice.rows[0].id,
+        description,
+        quantity,
+        rate,
+        Number(quantity) * Number(rate),
+        index,
+      ],
+    );
+  }
+
+  await pool.query(
+    `
+      INSERT INTO "InvoiceRevision" (
+        "invoiceId",
+        "revisionNumber",
+        "editor",
+        "summary",
+        "payload"
+      )
+      VALUES ($1, 1, 'seed', 'Created seed invoice.', $2)
+    `,
+    [
+      invoice.rows[0].id,
+      JSON.stringify({
+        invoiceNumber: 63,
+        source: "prisma/seed.mjs",
+      }),
+    ],
+  );
+}
+
 await pool.end();
