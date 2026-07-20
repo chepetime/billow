@@ -3,7 +3,7 @@ set -eu
 
 attempt=0
 
-until ./node_modules/.bin/prisma migrate deploy; do
+until npm exec -- prisma migrate deploy; do
   attempt=$((attempt + 1))
 
   if [ "$attempt" -ge 30 ]; then

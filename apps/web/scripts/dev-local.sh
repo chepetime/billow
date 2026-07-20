@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-APP_DIR="$ROOT_DIR/app"
+ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
+APP_DIR="$ROOT_DIR/apps/web"
 ENV_FILE="$APP_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.dev.yml"
 
@@ -17,7 +17,7 @@ BETTER_AUTH_SECRET="${secret}"
 BETTER_AUTH_URL="http://localhost:3000"
 `);
 NODE
-  echo "Created app/.env with local development defaults."
+  echo "Created apps/web/.env with local development defaults."
 fi
 
 docker compose -f "$COMPOSE_FILE" up -d postgres

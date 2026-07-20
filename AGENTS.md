@@ -17,49 +17,47 @@ The app was split out of the store repo in initial commit
 
 ## App Shape
 
-- `app`: Next.js App Router app.
-- `app/prisma/schema.prisma`: Prisma schema.
-- `app/prisma/migrations`: SQL migrations.
-- `app/prisma/seed.mjs`: Explicit dev/bootstrap seed.
-- `app/scripts/start.sh`: Production startup script.
+- npm workspaces + Turborepo monorepo.
+- `apps/web`: Next.js App Router app.
+- `apps/web/prisma/schema.prisma`: Prisma schema.
+- `apps/web/prisma/migrations`: SQL migrations.
+- `apps/web/prisma/seed.mjs`: Explicit dev/bootstrap seed.
+- `apps/web/scripts/start.sh`: Production startup script.
 - `Dockerfile`: Production image build.
 - `.github/workflows/publish.yml`: GHCR image publishing workflow.
 
 ## Local Commands
 
-Run from `app`:
+Run from the repo root:
 
 ```bash
 npm install
 npm run db:generate
+npm run db:validate
 npm run lint
+npm run test:run
 npm run build
-npx prisma validate
 ```
 
-For local DB work:
+For local DB work, run Postgres in Docker and Next.js on the host:
 
 ```bash
-docker run --rm \
-  --name billow-postgres \
-  -e POSTGRES_DB=billow \
-  -e POSTGRES_USER=billow \
-  -e POSTGRES_PASSWORD=billow-password \
-  -p 5432:5432 \
-  postgres:16-alpine
+npm run dev:local
 ```
 
-Then:
+Useful local commands:
 
 ```bash
-npm run db:migrate
-npm run db:seed
+npm run db:up
+npm run dev:setup
 npm run dev
+npm run db:logs
+npm run db:down
 ```
 
 ## Build Notes
 
-`npm run build` uses:
+The web package build uses:
 
 ```bash
 prisma generate && next build --webpack
@@ -90,7 +88,7 @@ docker build -t ghcr.io/chepetime/billow:v0.1.6 .
 The container starts with:
 
 ```text
-app/scripts/start.sh
+apps/web/scripts/start.sh
 ```
 
 Startup sequence:

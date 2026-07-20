@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "@billow/web",
   "version": "0.1.6",
   "private": true,
   "scripts": {
@@ -11,9 +11,9 @@
     "test:run": "vitest run",
     "dev:local": "sh scripts/dev-local.sh",
     "dev:setup": "sh scripts/dev-local.sh --setup-only",
-    "db:up": "docker compose -f ../docker-compose.dev.yml up -d postgres",
-    "db:down": "docker compose -f ../docker-compose.dev.yml down",
-    "db:logs": "docker compose -f ../docker-compose.dev.yml logs -f postgres",
+    "db:up": "docker compose -f ../../docker-compose.dev.yml up -d postgres",
+    "db:down": "docker compose -f ../../docker-compose.dev.yml down",
+    "db:logs": "docker compose -f ../../docker-compose.dev.yml logs -f postgres",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed"
