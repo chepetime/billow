@@ -7,6 +7,8 @@
     "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest",
+    "test:run": "vitest run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed"
@@ -15,6 +17,7 @@
     "@base-ui/react": "^1.6.0",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
+    "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
@@ -36,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

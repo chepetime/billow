@@ -18,7 +18,8 @@ npm run build
 `npm run build` runs `prisma generate && next build --webpack`.
 
 For local database work, start Postgres and set `DATABASE_URL` using
-`app/.env.example` as the template. Then run:
+`app/.env.example` as the template. Set `BETTER_AUTH_SECRET` to at least 32
+random characters and `BETTER_AUTH_URL` to your local app URL. Then run:
 
 ```bash
 npm run db:migrate
@@ -36,7 +37,7 @@ Useful routes:
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
 `master`. It installs dependencies from `app/package-lock.json`, generates the
 Prisma client, validates the Prisma schema, applies migrations against a
-Postgres service, runs ESLint, and builds the Next.js app.
+Postgres service, runs ESLint, runs Vitest, and builds the Next.js app.
 
 ## Docker
 
