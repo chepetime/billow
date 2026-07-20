@@ -17,7 +17,7 @@ The app was split out of the store repo in initial commit
 
 ## App Shape
 
-- npm workspaces + Turborepo monorepo.
+- pnpm workspaces + Turborepo monorepo.
 - `apps/web`: Next.js App Router app.
 - `apps/web/prisma/schema.prisma`: Prisma schema.
 - `apps/web/prisma/migrations`: SQL migrations.
@@ -31,28 +31,28 @@ The app was split out of the store repo in initial commit
 Run from the repo root:
 
 ```bash
-npm install
-npm run db:generate
-npm run db:validate
-npm run lint
-npm run test:run
-npm run build
+pnpm install
+pnpm run db:generate
+pnpm run db:validate
+pnpm run lint
+pnpm run test:run
+pnpm run build
 ```
 
 For local DB work, run Postgres in Docker and Next.js on the host:
 
 ```bash
-npm run dev:local
+pnpm run dev:local
 ```
 
 Useful local commands:
 
 ```bash
-npm run db:up
-npm run dev:setup
-npm run dev
-npm run db:logs
-npm run db:down
+pnpm run db:up
+pnpm run dev:setup
+pnpm run dev
+pnpm run db:logs
+pnpm run db:down
 ```
 
 ## Build Notes
@@ -95,7 +95,7 @@ Startup sequence:
 
 ```bash
 prisma migrate deploy
-npm run start
+pnpm run start
 ```
 
 The script retries migrations while Postgres starts.

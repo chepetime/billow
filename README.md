@@ -8,34 +8,34 @@ React Server Components, Tailwind, shadcn/ui, Prisma, and Postgres.
 Run project commands from the repository root:
 
 ```bash
-npm install
-npm run db:generate
-npm run lint
-npm run build
+pnpm install
+pnpm run db:generate
+pnpm run lint
+pnpm run build
 ```
 
-`npm run build` runs the Turborepo build pipeline. The web app package still
+`pnpm run build` runs the Turborepo build pipeline. The web app package still
 runs `prisma generate && next build --webpack`.
 
 For the normal local setup, run Postgres in Docker and Next.js on your host:
 
 ```bash
-npm install
-npm run dev:local
+pnpm install
+pnpm run dev:local
 ```
 
-`npm run dev:local` creates an ignored `apps/web/.env` if one does not exist,
+`pnpm run dev:local` creates an ignored `apps/web/.env` if one does not exist,
 starts Postgres from `docker-compose.dev.yml`, generates the Prisma client,
 applies migrations, seeds local data, and starts `next dev`.
 
 Useful local commands:
 
 ```bash
-npm run db:up      # start local Postgres only
-npm run dev:setup  # start Postgres, generate Prisma, migrate, and seed
-npm run dev        # start Next.js only
-npm run db:logs    # follow Postgres logs
-npm run db:down    # stop local Postgres
+pnpm run db:up      # start local Postgres only
+pnpm run dev:setup  # start Postgres, generate Prisma, migrate, and seed
+pnpm run dev        # start Next.js only
+pnpm run db:logs    # follow Postgres logs
+pnpm run db:down    # stop local Postgres
 ```
 
 If you create `apps/web/.env` yourself, use `apps/web/.env.example` as the
@@ -50,7 +50,7 @@ Useful routes:
 ## CI
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
-`master`. It installs dependencies from `package-lock.json`, generates the
+`master`. It installs dependencies from `pnpm-lock.yaml`, generates the
 Prisma client, validates the Prisma schema, applies migrations against a
 Postgres service, runs ESLint, runs Vitest, and builds the Next.js app.
 
