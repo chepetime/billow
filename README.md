@@ -5,29 +5,28 @@ React Server Components, Tailwind, shadcn/ui, Prisma, and Postgres.
 
 ## Local Development
 
-Run app commands from `app`:
+Run project commands from the repository root:
 
 ```bash
-cd app
 npm install
 npm run db:generate
 npm run lint
 npm run build
 ```
 
-`npm run build` runs `prisma generate && next build --webpack`.
+`npm run build` runs the Turborepo build pipeline. The web app package still
+runs `prisma generate && next build --webpack`.
 
 For the normal local setup, run Postgres in Docker and Next.js on your host:
 
 ```bash
-cd app
 npm install
 npm run dev:local
 ```
 
-`npm run dev:local` creates an ignored `app/.env` if one does not exist, starts
-Postgres from `docker-compose.dev.yml`, generates the Prisma client, applies
-migrations, seeds local data, and starts `next dev`.
+`npm run dev:local` creates an ignored `apps/web/.env` if one does not exist,
+starts Postgres from `docker-compose.dev.yml`, generates the Prisma client,
+applies migrations, seeds local data, and starts `next dev`.
 
 Useful local commands:
 
@@ -39,9 +38,9 @@ npm run db:logs    # follow Postgres logs
 npm run db:down    # stop local Postgres
 ```
 
-If you create `app/.env` yourself, use `app/.env.example` as the template. Set
-`BETTER_AUTH_SECRET` to at least 32 random characters and `BETTER_AUTH_URL` to
-your local app URL.
+If you create `apps/web/.env` yourself, use `apps/web/.env.example` as the
+template. Set `BETTER_AUTH_SECRET` to at least 32 random characters and
+`BETTER_AUTH_URL` to your local app URL.
 
 Useful routes:
 
@@ -51,7 +50,7 @@ Useful routes:
 ## CI
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
-`master`. It installs dependencies from `app/package-lock.json`, generates the
+`master`. It installs dependencies from `package-lock.json`, generates the
 Prisma client, validates the Prisma schema, applies migrations against a
 Postgres service, runs ESLint, runs Vitest, and builds the Next.js app.
 
@@ -63,7 +62,7 @@ Build from the repository root:
 docker build -t ghcr.io/chepetime/billow:v0.1.6 .
 ```
 
-The production image starts with `app/scripts/start.sh`, runs
+The production image starts with `apps/web/scripts/start.sh`, runs
 `prisma migrate deploy`, then runs `next start` on port `3000`.
 
 ## Publishing
