@@ -1,0 +1,27 @@
+{
+  "name": "@billow/db",
+  "version": "0.1.6",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./generated/prisma/client.ts",
+    "./enums": "./generated/prisma/enums.ts"
+  },
+  "scripts": {
+    "build": "prisma generate",
+    "lint": "eslint src",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "prisma": "^7.9.0"
+  }
+}

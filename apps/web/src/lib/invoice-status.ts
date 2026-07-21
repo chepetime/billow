@@ -1,7 +1,7 @@
 import {
   InvoiceStatus,
   type InvoiceStatus as InvoiceStatusValue,
-} from "@/generated/prisma/enums";
+} from "@billow/db/enums";
 
 export function parseInvoiceStatus(value: string | null | undefined) {
   const status = value?.trim() || InvoiceStatus.DRAFT;

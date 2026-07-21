@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InvoiceStatus } from "@/generated/prisma/enums";
+import { InvoiceStatus } from "@billow/db/enums";
 import { parseInvoiceStatus } from "@/lib/invoice-status";
 
 describe("parseInvoiceStatus", () => {
