@@ -15,10 +15,10 @@
     "db:up": "pnpm --filter @billow/web db:up",
     "db:down": "pnpm --filter @billow/web db:down",
     "db:logs": "pnpm --filter @billow/web db:logs",
-    "db:generate": "turbo db:generate",
+    "db:generate": "pnpm --filter @billow/db db:generate",
     "db:validate": "pnpm --filter @billow/db exec prisma validate",
-    "db:migrate": "turbo db:migrate",
-    "db:seed": "turbo db:seed"
+    "db:migrate": "pnpm --filter @billow/db db:migrate",
+    "db:seed": "pnpm --filter @billow/db db:seed"
   },
   "devDependencies": {
     "turbo": "^2.7.0"
