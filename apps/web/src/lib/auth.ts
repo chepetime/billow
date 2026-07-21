@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 
 import { getAuthEnv } from "@/lib/auth-env";
-import { getPrisma } from "@/lib/prisma";
+import { getPrisma } from "@billow/db";
 
 const authEnv = getAuthEnv(process.env, {
   allowBuildFallback: process.env.NEXT_PHASE === "phase-production-build",

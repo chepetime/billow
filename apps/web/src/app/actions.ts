@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { parseInvoiceStatus } from "@/lib/invoice-status";
-import { getPrisma } from "@/lib/prisma";
+import { getPrisma } from "@billow/db";
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);

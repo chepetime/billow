@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getPrisma } from "@/lib/prisma";
+import { getPrisma } from "@billow/db";
 
 export async function listAppMetadata() {
   try {

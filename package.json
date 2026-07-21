@@ -16,7 +16,7 @@
     "db:down": "pnpm --filter @billow/web db:down",
     "db:logs": "pnpm --filter @billow/web db:logs",
     "db:generate": "turbo db:generate",
-    "db:validate": "pnpm --filter @billow/web exec prisma validate",
+    "db:validate": "pnpm --filter @billow/db exec prisma validate",
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed"
   },

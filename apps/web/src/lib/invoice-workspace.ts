@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getPrisma } from "@/lib/prisma";
+import { getPrisma } from "@billow/db";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
