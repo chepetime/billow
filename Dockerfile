@@ -29,6 +29,9 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV PORT=3000
+# Cap V8's heap so the idle server returns memory instead of holding it.
+# ~halves idle RSS (~145MiB -> ~60MiB) with ample headroom for this app.
+ENV NODE_OPTIONS=--max-old-space-size=128
 
 RUN corepack enable
 
