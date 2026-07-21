@@ -12,7 +12,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <header className="border-b">
+      <header className="border-b print:hidden">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-4 sm:px-8">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="text-sm font-semibold">
