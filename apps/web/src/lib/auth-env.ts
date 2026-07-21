@@ -1,5 +1,8 @@
 export interface AuthEnv {
-  baseUrl: string;
+  // Optional: when unset, BetterAuth infers the base URL from the request,
+  // so the app works across umbrel.local / Tailscale / Cloudflare / IP
+  // without pinning a domain.
+  baseUrl: string | undefined;
   secret: string;
 }
 
@@ -27,10 +30,6 @@ export function getAuthEnv(
     throw new Error(
       `BETTER_AUTH_SECRET must be at least ${minimumSecretLength} characters.`,
     );
-  }
-
-  if (!baseUrl) {
-    throw new Error("BETTER_AUTH_URL is required.");
   }
 
   return {

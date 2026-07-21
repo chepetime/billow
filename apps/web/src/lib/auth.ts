@@ -25,6 +25,40 @@ export const auth = betterAuth({
       );
     },
   },
+  // Trust the origin this request is actually served on so auth works behind
+  // any front door (umbrel.local, Tailscale, Cloudflare, raw IP) without
+  // pinning BETTER_AUTH_URL to a domain.
+  //
+  // Umbrel's app_proxy is known to drop X-Forwarded-* headers, so the
+  // reverse-proxy host is unreliable. The browser's Origin header, however,
+  // is a normal request header the proxy passes through verbatim, so we trust
+  // it. Trade-off: this weakens BetterAuth's cross-site (CSRF) check, which is
+  // acceptable for a single-user app that already sits behind Umbrel/Tailscale/
+  // Cloudflare network auth. Sensitive mutations (password change) still
+  // require the current password.
+  trustedOrigins: async (request) => {
+    if (!request) {
+      return [];
+    }
+
+    const origins = new Set<string>();
+
+    const origin = request.headers.get("origin");
+    if (origin) {
+      origins.add(origin);
+    }
+
+    const forwardedHost =
+      request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+    if (forwardedHost) {
+      const proto =
+        request.headers.get("x-forwarded-proto") ??
+        (request.url.startsWith("https") ? "https" : "http");
+      origins.add(`${proto}://${forwardedHost}`);
+    }
+
+    return [...origins];
+  },
   databaseHooks: {
     user: {
       create: {
