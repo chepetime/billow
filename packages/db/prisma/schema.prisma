@@ -204,3 +204,14 @@ model InvoiceRevision {
   @@unique([invoiceId, revisionNumber])
   @@index([invoiceId])
 }
+
+model ErrorLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  context   String
+  message   String
+  stack     String?
+  meta      Json?
+
+  @@index([createdAt])
+}

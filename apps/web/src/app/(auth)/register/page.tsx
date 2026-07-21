@@ -6,6 +6,8 @@ import { requireGuest } from "@/lib/auth-session";
 import { canRegister } from "@/lib/registration";
 import { getPrisma } from "@billow/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function RegisterPage() {
   await requireGuest();
 

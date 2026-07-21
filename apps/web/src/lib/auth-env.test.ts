@@ -38,15 +38,24 @@ describe("getAuthEnv", () => {
     ).toThrow("BETTER_AUTH_SECRET must be at least 32 characters.");
   });
 
-  it("leaves the base URL undefined when none is provided", () => {
+  it("defaults the base URL to the in-container address when none is provided", () => {
     expect(
       getAuthEnv({
         BETTER_AUTH_SECRET: validSecret,
       }),
     ).toEqual({
       secret: validSecret,
-      baseUrl: undefined,
+      baseUrl: "http://localhost:3000",
     });
+  });
+
+  it("uses PORT for the default base URL", () => {
+    expect(
+      getAuthEnv({
+        BETTER_AUTH_SECRET: validSecret,
+        PORT: "4321",
+      }).baseUrl,
+    ).toBe("http://localhost:4321");
   });
 
   it("allows build-only fallback values when requested", () => {
