@@ -40,15 +40,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # setup-node v5 auto-caches the package manager from the
+          # `packageManager` field, which probes for pnpm before it is
+          # installed. We install pnpm via corepack below, so disable it.
+          # https://github.com/actions/setup-node/issues/1357
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -60,7 +63,7 @@ jobs:
         run: pnpm run db:validate
 
       - name: Apply migrations
-        run: pnpm run db:migrate
+        run: pnpm --filter @billow/db db:migrate
 
       - name: Lint
         run: pnpm run lint
