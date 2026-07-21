@@ -1,27 +1,31 @@
 Billow MVP checklist
 
 Foundation
-- [ ] 🏗️ Split Prisma database code into a workspace package
+- [x] 🏗️ Split Prisma database code into a workspace package
 - [ ] 🏗️ Split BetterAuth setup into a workspace package
 - [ ] 🔧 Add shared TypeScript config for workspace packages
 - [ ] 🔧 Add shared ESLint config for workspace packages
 - [ ] 🧪 Add repository test fixtures for auth-owned workspace data
-- [ ] 🧪 Add migration smoke test against Postgres in CI
-- [ ] 📝 Update docs for workspace package boundaries
+- [x] 🧪 Add migration smoke test against Postgres in CI
+- [x] 📝 Update docs for workspace package boundaries
 
 Authentication
-- [ ] 🔐 Add BetterAuth sign-up and sign-in pages
-- [ ] 🔐 Add BetterAuth sign-out action and session menu
+- [x] 🔐 Add BetterAuth sign-up and sign-in pages
+- [x] 🔐 Add BetterAuth sign-out action and session menu
 - [ ] 🔐 Add password reset request page
 - [ ] 🔐 Add password reset completion page
 - [ ] 🗃️ Add user settings model for role, currency, and numbering
 - [ ] 🛂 Promote first registered user to admin
-- [ ] 🛂 Block registration when admin closes sign-ups
+- [x] 🛂 Block registration when admin closes sign-ups
 - [ ] 🛂 Add admin registration mode setting
 - [ ] 🛂 Add admin user list
 - [ ] 🧪 Test first-user admin promotion
-- [ ] 🧪 Test open and closed registration behavior
+- [x] 🧪 Test open and closed registration behavior
 - [ ] 🧪 Test signed-out redirects for protected routes
+
+Note: registration is currently first-user-only (owner setup, then closed)
+via a BetterAuth databaseHooks.user.create.before guard. The admin
+role/toggle model above is a future refinement.
 
 User-owned data model
 - [ ] 🗃️ Add user ownership to sender profiles
@@ -66,7 +70,7 @@ Onboarding
 - [ ] 🧪 Test onboarding skip and resume behavior
 
 Dashboard
-- [ ] ✨ Replace metadata placeholder with signed-in dashboard shell
+- [x] ✨ Replace metadata placeholder with signed-in dashboard shell
 - [ ] ✨ Add time-based invoice grouping
 - [ ] ✨ Add current month invoice cards
 - [ ] ✨ Add future invoice cards
@@ -80,6 +84,9 @@ Dashboard
 - [ ] 💄 Add responsive dashboard layout
 - [ ] ♿ Add keyboard and screen-reader coverage for dashboard controls
 - [ ] 🧪 Test dashboard grouping by invoice date
+
+Account settings
+- [x] ⚙️ Add account settings page (update name, change password)
 
 Invoice creation and editing
 - [ ] ✨ Add create invoice route
@@ -129,9 +136,9 @@ Local development and deployment
 - [ ] 🔧 Verify Docker dev database startup outside nono sandbox
 - [ ] 🔧 Add reset-local-db command
 - [ ] 🔧 Add seed-local command for current demo records
-- [ ] 🐳 Verify production Docker image after workspace move
-- [ ] 🐳 Update Docker build docs for Turborepo workspace
-- [ ] 🚀 Confirm GHCR publish workflow after workspace move
+- [x] 🐳 Verify production Docker image after workspace move
+- [x] 🐳 Update Docker build docs for Turborepo workspace
+- [x] 🚀 Confirm GHCR publish workflow after workspace move
 - [ ] 🚀 Confirm Umbrel app starts with BetterAuth env vars
 - [ ] 📝 Document required Umbrel environment variables
 
