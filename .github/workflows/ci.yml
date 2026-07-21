@@ -12,7 +12,44 @@ permissions:
   contents: read
 
 jobs:
-  app:
+  check:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [lint, test:run, build]
+
+    env:
+      # Build compiles the better-auth route; give it a valid dummy secret.
+      BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ matrix.task }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ matrix.task }}-
+
+      - name: Generate Prisma client
+        run: pnpm run db:generate
+
+      - name: Run ${{ matrix.task }}
+        run: pnpm run ${{ matrix.task }}
+
+  migrations:
+    name: migrations
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -33,43 +70,16 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://billow:billow-password@localhost:5432/billow
-      BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
-      BETTER_AUTH_URL: http://localhost:3000
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          # setup-node v5 auto-caches the package manager from the
-          # `packageManager` field, which probes for pnpm before it is
-          # installed. We install pnpm via corepack below, so disable it.
-          # https://github.com/actions/setup-node/issues/1357
-          package-manager-cache: false
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm run db:generate
+      - name: Set up workspace
+        uses: ./.github/actions/setup
 
       - name: Validate Prisma schema
         run: pnpm run db:validate
 
       - name: Apply migrations
         run: pnpm --filter @billow/db db:migrate
-
-      - name: Lint
-        run: pnpm run lint
-
-      - name: Test
-        run: pnpm run test:run
-
-      - name: Build
-        run: pnpm run build

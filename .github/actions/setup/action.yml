@@ -1,0 +1,36 @@
+name: Setup workspace
+description: Set up Node 24 + pnpm and install dependencies with a checksum-keyed store cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24
+        # setup-node v5 auto-caches the package manager from the
+        # `packageManager` field, which probes for pnpm before corepack
+        # installs it. We manage the pnpm store cache ourselves below.
+        # https://github.com/actions/setup-node/issues/1357
+        package-manager-cache: false
+
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+
+    - name: Locate pnpm store
+      id: pnpm-store
+      shell: bash
+      run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache pnpm store
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.dir }}
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
