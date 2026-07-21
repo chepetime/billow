@@ -14,8 +14,11 @@ pnpm run lint
 pnpm run build
 ```
 
-`pnpm run build` runs the Turborepo build pipeline. The web app package still
-runs `prisma generate && next build --webpack`.
+`pnpm run build` runs the Turborepo build pipeline. Prisma lives in the
+`@billow/db` workspace package (`packages/db`), which owns the schema,
+migrations, seed, and generated client. The web app consumes it via
+`getPrisma()` and builds with
+`pnpm --filter @billow/db db:generate && next build --webpack`.
 
 For the normal local setup, run Postgres in Docker and Next.js on your host:
 
@@ -54,27 +57,46 @@ Useful routes:
 Prisma client, validates the Prisma schema, applies migrations against a
 Postgres service, runs ESLint, runs Vitest, and builds the Next.js app.
 
-## Docker
+## Deployment
+
+### Build the image locally
 
 Build from the repository root:
 
 ```bash
-docker build -t ghcr.io/chepetime/billow:v0.1.6 .
+docker build -t ghcr.io/chepetime/billow:local .
 ```
 
-The production image starts with `apps/web/scripts/start.sh`, runs
-`prisma migrate deploy`, then runs `next start` on port `3000`.
+The production image starts with `apps/web/scripts/start.sh`, which runs
+`prisma migrate deploy` (retrying while Postgres comes up) and then
+`next start` on port `3000`. The runtime needs `DATABASE_URL`,
+`BETTER_AUTH_SECRET` (≥32 chars), and `BETTER_AUTH_URL`.
 
-## Publishing
+### Releases (tag-driven)
 
-`.github/workflows/publish.yml` publishes:
+Releases are decoupled from CI. Pushing to `main` runs `ci.yml` only — it
+never publishes. `.github/workflows/publish.yml` runs **only** when a `v*`
+tag is pushed (or via a manual `workflow_dispatch` with a `version` input),
+and the image tags are derived from the git tag, so there is no hardcoded
+version to maintain.
+
+To cut a release:
+
+```bash
+# 1. bump the version in the package.json files and commit
+# 2. tag and push the tag
+git tag v0.1.7
+git push origin v0.1.7
+```
+
+That builds and pushes (`linux/amd64`):
 
 ```text
-ghcr.io/chepetime/billow:v0.1.6
+ghcr.io/chepetime/billow:v0.1.7   # from the git tag
 ghcr.io/chepetime/billow:latest
 ```
 
-The Umbrel app store repo references the versioned image from its
+The Umbrel app store repo then references the new versioned image from its
 `sparkles-billow/docker-compose.yml`.
 
 ## Umbrel Store Contract

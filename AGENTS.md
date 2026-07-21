@@ -19,9 +19,11 @@ The app was split out of the store repo in initial commit
 
 - pnpm workspaces + Turborepo monorepo.
 - `apps/web`: Next.js App Router app.
-- `apps/web/prisma/schema.prisma`: Prisma schema.
-- `apps/web/prisma/migrations`: SQL migrations.
-- `apps/web/prisma/seed.mjs`: Explicit dev/bootstrap seed.
+- `packages/db`: `@billow/db` package — owns Prisma and exports `getPrisma()`.
+- `packages/db/prisma/schema.prisma`: Prisma schema.
+- `packages/db/prisma/migrations`: SQL migrations.
+- `packages/db/prisma/seed.mjs`: Explicit dev/bootstrap seed.
+- `packages/db/generated/prisma`: Generated Prisma client (gitignored).
 - `apps/web/scripts/start.sh`: Production startup script.
 - `Dockerfile`: Production image build.
 - `.github/workflows/publish.yml`: GHCR image publishing workflow.
@@ -102,13 +104,28 @@ The script retries migrations while Postgres starts.
 
 ## Publishing
 
-The workflow publishes only `linux/amd64` for fast iteration on the current
-Umbrel target:
+Releases are tag-driven. `publish.yml` runs only on a pushed `v*` tag (or a
+manual `workflow_dispatch` with a `version` input) — never on a plain push to
+`main`. Pushing to `main` runs `ci.yml` only. The published image tags are
+derived from the git tag, so there is no hardcoded version to keep in sync.
+
+To cut a release:
+
+```bash
+# bump version in package.json files first, commit, then:
+git tag v0.1.7
+git push origin v0.1.7
+```
+
+This builds and pushes:
 
 ```text
-ghcr.io/chepetime/billow:v0.1.6
+ghcr.io/chepetime/billow:v0.1.7   # from the git tag
 ghcr.io/chepetime/billow:latest
 ```
+
+The workflow publishes only `linux/amd64` for fast iteration on the current
+Umbrel target.
 
 The package `ghcr.io/chepetime/billow` was originally created by the store repo
 workflow. After the repo split, the first publish from this repo built
