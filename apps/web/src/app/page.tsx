@@ -51,6 +51,10 @@ export default async function Home() {
             View API JSON
           </Button>
         </form>
+
+        <footer className="mt-auto pt-8 text-sm text-muted-foreground">
+          Billow v{process.env.NEXT_PUBLIC_APP_VERSION}
+        </footer>
       </section>
     </main>
   );
