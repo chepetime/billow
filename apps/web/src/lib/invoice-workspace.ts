@@ -26,6 +26,43 @@ export function formatInvoiceDate(value: Date) {
   return dateFormatter.format(value);
 }
 
+export function formatCurrency(value: number, currency: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    currencyDisplay: "code",
+  }).format(value);
+}
+
+export async function getInvoiceById(id: number) {
+  try {
+    const prisma = getPrisma();
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        userProfile: true,
+        bankAccount: true,
+        clientCompany: true,
+        lineItems: { orderBy: { position: "asc" } },
+        revisions: { orderBy: { revisionNumber: "desc" } },
+      },
+    });
+
+    if (!invoice) {
+      return null;
+    }
+
+    const total = invoice.lineItems.reduce((sum, lineItem) => {
+      return sum + Number(lineItem.amount);
+    }, 0);
+
+    return { ...invoice, total };
+  } catch (error) {
+    console.error("Failed to load invoice", error);
+    return null;
+  }
+}
+
 export async function getInvoiceWorkspace() {
   try {
     const prisma = getPrisma();
