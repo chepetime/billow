@@ -38,12 +38,15 @@ describe("getAuthEnv", () => {
     ).toThrow("BETTER_AUTH_SECRET must be at least 32 characters.");
   });
 
-  it("requires a base URL", () => {
-    expect(() =>
+  it("leaves the base URL undefined when none is provided", () => {
+    expect(
       getAuthEnv({
         BETTER_AUTH_SECRET: validSecret,
       }),
-    ).toThrow("BETTER_AUTH_URL is required.");
+    ).toEqual({
+      secret: validSecret,
+      baseUrl: undefined,
+    });
   });
 
   it("allows build-only fallback values when requested", () => {
