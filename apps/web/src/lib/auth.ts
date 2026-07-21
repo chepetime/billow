@@ -1,6 +1,7 @@
 import "server-only";
 
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 
 import { getAuthEnv } from "@/lib/auth-env";
@@ -22,6 +23,20 @@ export const auth = betterAuth({
       console.info(
         `Password reset requested for ${user.email}. Reset URL: ${url}`,
       );
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async () => {
+          const userCount = await getPrisma().user.count();
+          if (userCount >= 1) {
+            throw new APIError("FORBIDDEN", {
+              message: "Registration is closed.",
+            });
+          }
+        },
+      },
     },
   },
 });

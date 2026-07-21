@@ -1,5 +1,8 @@
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+
+import { Button, buttonVariants } from "@/components/ui/button";
 import { getAppMetadata } from "@/lib/app-metadata";
+import { getSession } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +13,10 @@ const metadataRows = [
 ] as const;
 
 export default async function Home() {
-  const metadata = await getAppMetadata();
+  const [metadata, session] = await Promise.all([
+    getAppMetadata(),
+    getSession(),
+  ]);
 
   return (
     <main className="flex min-h-svh flex-col bg-background text-foreground">
@@ -46,11 +52,26 @@ export default async function Home() {
           </dl>
         </div>
 
-        <form action="/api/metadata" method="get">
-          <Button type="submit" variant="outline" size="lg">
-            View API JSON
-          </Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-3">
+          <form action="/api/metadata" method="get">
+            <Button type="submit" variant="outline" size="lg">
+              View API JSON
+            </Button>
+          </form>
+
+          {session ? (
+            <Link
+              href="/dashboard"
+              className={buttonVariants({ size: "lg" })}
+            >
+              Go to dashboard
+            </Link>
+          ) : (
+            <Link href="/login" className={buttonVariants({ size: "lg" })}>
+              Sign in
+            </Link>
+          )}
+        </div>
 
         <footer className="mt-auto pt-8 text-sm text-muted-foreground">
           Billow v{process.env.NEXT_PUBLIC_APP_VERSION}
