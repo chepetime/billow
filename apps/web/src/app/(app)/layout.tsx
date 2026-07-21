@@ -3,6 +3,8 @@ import Link from "next/link";
 import { SignOutButton } from "@/app/(app)/_components/sign-out-button";
 import { requireSession } from "@/lib/auth-session";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: Readonly<{

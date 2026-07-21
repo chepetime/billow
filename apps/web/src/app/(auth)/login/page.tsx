@@ -1,6 +1,8 @@
 import { SignInForm } from "@/app/(auth)/_components/sign-in-form";
 import { requireGuest } from "@/lib/auth-session";
 
+export const dynamic = "force-dynamic";
+
 export default async function LoginPage() {
   await requireGuest();
 
