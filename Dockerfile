@@ -1,4 +1,4 @@
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 
 WORKDIR /repo
 
@@ -6,9 +6,10 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
+COPY packages/db/package.json ./packages/db/package.json
 RUN pnpm install --frozen-lockfile
 
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /repo
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -17,10 +18,11 @@ RUN corepack enable
 
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /repo/packages/db/node_modules ./packages/db/node_modules
 COPY . .
 RUN pnpm --filter @billow/web build
 
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /repo
 ENV HOSTNAME=0.0.0.0
@@ -35,14 +37,16 @@ RUN addgroup --system --gid 1001 nodejs \
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
+COPY packages/db/package.json ./packages/db/package.json
 RUN pnpm install --prod --frozen-lockfile
 
-COPY apps/web/prisma ./apps/web/prisma
-COPY apps/web/prisma.config.ts ./apps/web/prisma.config.ts
+COPY packages/db/prisma ./packages/db/prisma
+COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
+COPY packages/db/src ./packages/db/src
 COPY apps/web/scripts ./apps/web/scripts
 COPY --from=builder /repo/apps/web/.next ./apps/web/.next
 COPY --from=builder /repo/apps/web/public ./apps/web/public
-COPY --from=builder /repo/apps/web/src/generated/prisma ./apps/web/src/generated/prisma
+COPY --from=builder /repo/packages/db/generated/prisma ./packages/db/generated/prisma
 
 USER nextjs
 
