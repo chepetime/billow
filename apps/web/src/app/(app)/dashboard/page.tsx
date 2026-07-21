@@ -113,27 +113,29 @@ export default async function DashboardPage() {
                 {workspace.invoices
                   .slice(0, RECENT_INVOICE_LIMIT)
                   .map((invoice) => (
-                    <li
-                      key={invoice.id}
-                      className="flex items-center justify-between gap-4 py-2.5 text-sm first:pt-0 last:pb-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          #{invoice.invoiceNumber}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {invoice.clientCompany.name}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {formatInvoiceDate(invoice.invoiceDate)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          {formatMoney(invoice.total)}
-                        </span>
-                        <InvoiceStatusBadge status={invoice.status} />
-                      </div>
+                    <li key={invoice.id} className="text-sm">
+                      <Link
+                        href={`/invoices/${invoice.id}`}
+                        className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0 hover:text-foreground"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">
+                            #{invoice.invoiceNumber}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {invoice.clientCompany.name}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {formatInvoiceDate(invoice.invoiceDate)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">
+                            {formatMoney(invoice.total)}
+                          </span>
+                          <InvoiceStatusBadge status={invoice.status} />
+                        </div>
+                      </Link>
                     </li>
                   ))}
               </ul>

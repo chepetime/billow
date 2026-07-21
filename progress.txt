@@ -90,7 +90,7 @@ Account settings
 
 Invoice creation and editing
 - [ ] ✨ Add create invoice route
-- [ ] ✨ Add invoice detail route
+- [x] ✨ Add invoice detail route
 - [ ] ✨ Add invoice edit form
 - [ ] ✨ Add sender profile selector
 - [ ] ✨ Add bank account selector
@@ -108,13 +108,13 @@ Invoice creation and editing
 - [ ] 🧪 Test invoice edit revision records
 
 Invoice preview, print, and PDF
-- [ ] ✨ Add invoice preview component
-- [ ] ✨ Render sender details in invoice preview
-- [ ] ✨ Render bill-to details in invoice preview
-- [ ] ✨ Render invoice line item table
-- [ ] ✨ Render totals with selected currency
-- [ ] ✨ Render bank payment instructions
-- [ ] 🙈 Mask bank details outside explicit invoice views
+- [x] ✨ Add invoice preview component
+- [x] ✨ Render sender details in invoice preview
+- [x] ✨ Render bill-to details in invoice preview
+- [x] ✨ Render invoice line item table
+- [x] ✨ Render totals with selected currency
+- [x] ✨ Render bank payment instructions
+- [x] 🙈 Mask bank details outside explicit invoice views
 - [ ] 🖨️ Add print stylesheet for invoices
 - [ ] 📄 Add downloadable PDF export
 - [ ] 🧪 Test invoice preview data mapping
