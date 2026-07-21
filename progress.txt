@@ -75,13 +75,13 @@ Dashboard
 - [ ] ✨ Add current month invoice cards
 - [ ] ✨ Add future invoice cards
 - [ ] ✨ Add past invoice section
-- [ ] ✨ Add open invoice total
-- [ ] ✨ Add paid invoice total
-- [ ] ✨ Add next invoice number display
-- [ ] ✨ Add recent invoices list
-- [ ] ✨ Add bank accounts summary with masked details
-- [ ] ✨ Add client companies summary
-- [ ] 💄 Add responsive dashboard layout
+- [x] ✨ Add open invoice total
+- [x] ✨ Add paid invoice total
+- [x] ✨ Add next invoice number display
+- [x] ✨ Add recent invoices list
+- [x] ✨ Add bank accounts summary with masked details
+- [x] ✨ Add client companies summary
+- [x] 💄 Add responsive dashboard layout
 - [ ] ♿ Add keyboard and screen-reader coverage for dashboard controls
 - [ ] 🧪 Test dashboard grouping by invoice date
 
