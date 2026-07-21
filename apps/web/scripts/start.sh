@@ -3,7 +3,7 @@ set -eu
 
 attempt=0
 
-until pnpm exec prisma migrate deploy; do
+until pnpm --filter @billow/db exec prisma migrate deploy; do
   attempt=$((attempt + 1))
 
   if [ "$attempt" -ge 30 ]; then
@@ -15,4 +15,4 @@ until pnpm exec prisma migrate deploy; do
   sleep 2
 done
 
-exec pnpm run start
+exec node node_modules/next/dist/bin/next start

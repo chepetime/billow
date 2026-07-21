@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "src/generated/prisma/**"]
+      "outputs": [".next/**", "!.next/cache/**", "generated/prisma/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
