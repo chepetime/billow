@@ -115,7 +115,7 @@ Invoice preview, print, and PDF
 - [x] ✨ Render totals with selected currency
 - [x] ✨ Render bank payment instructions
 - [x] 🙈 Mask bank details outside explicit invoice views
-- [ ] 🖨️ Add print stylesheet for invoices
+- [x] 🖨️ Add print stylesheet for invoices
 - [ ] 📄 Add downloadable PDF export
 - [ ] 🧪 Test invoice preview data mapping
 - [ ] 🧪 Test masked bank details in summary views
