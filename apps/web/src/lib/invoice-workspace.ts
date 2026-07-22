@@ -1,5 +1,6 @@
 import "server-only";
 
+import { recordError } from "@/lib/error-log";
 import { getPrisma } from "@billow/db";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -155,6 +156,7 @@ export async function getInvoiceWorkspace() {
     };
   } catch (error) {
     console.error("Failed to load invoice workspace", error);
+    await recordError("getInvoiceWorkspace", error);
     return {
       databaseAvailable: false,
       metadata: null,
