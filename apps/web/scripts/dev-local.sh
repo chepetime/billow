@@ -20,6 +20,13 @@ NODE
   echo "Created apps/web/.env with local development defaults."
 fi
 
+# Export the local env so the Prisma commands see DATABASE_URL. They run with
+# packages/db as their working directory, where `dotenv/config` (loaded by
+# prisma.config.ts) would otherwise find no .env file.
+set -a
+. "$ENV_FILE"
+set +a
+
 docker compose -f "$COMPOSE_FILE" up -d postgres
 
 printf "Waiting for Postgres"
