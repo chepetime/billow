@@ -11,16 +11,24 @@ import { authClient } from "@/lib/auth-client";
 export function AccountForm({
   name,
   email,
+  username,
 }: {
   name: string;
   email: string;
+  username: string | null;
 }) {
   const router = useRouter();
 
   const [displayName, setDisplayName] = useState(name);
+  const [handle, setHandle] = useState(username ?? "");
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [isProfilePending, setIsProfilePending] = useState(false);
+
+  const [newEmail, setNewEmail] = useState(email);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [isEmailPending, setIsEmailPending] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -34,16 +42,39 @@ export function AccountForm({
     setProfileSuccess(null);
     setIsProfilePending(true);
 
-    const { error } = await authClient.updateUser({ name: displayName });
+    const trimmedHandle = handle.trim();
+    const { error } = await authClient.updateUser({
+      name: displayName,
+      ...(trimmedHandle ? { username: trimmedHandle } : {}),
+    });
 
     if (error) {
-      setProfileError(error.message ?? "Unable to update your profile.");
+      setProfileError(error.message ?? "Unable to save your profile.");
       setIsProfilePending(false);
       return;
     }
 
-    setProfileSuccess("Profile updated.");
+    setProfileSuccess("Profile saved.");
     setIsProfilePending(false);
+    router.refresh();
+  }
+
+  async function handleEmailSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setEmailError(null);
+    setEmailSuccess(null);
+    setIsEmailPending(true);
+
+    const { error } = await authClient.changeEmail({ newEmail });
+
+    if (error) {
+      setEmailError(error.message ?? "Unable to change your email.");
+      setIsEmailPending(false);
+      return;
+    }
+
+    setEmailSuccess("Email updated.");
+    setIsEmailPending(false);
     router.refresh();
   }
 
@@ -79,7 +110,7 @@ export function AccountForm({
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Profile</h2>
           <p className="text-sm text-muted-foreground">
-            Update your display name. Your email can&apos;t be changed.
+            Your username can be used to sign in instead of your email.
           </p>
         </div>
 
@@ -98,8 +129,16 @@ export function AccountForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" value={email} disabled />
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              placeholder="Not set"
+              value={handle}
+              onChange={(event) => setHandle(event.target.value)}
+            />
           </div>
 
           {profileError ? (
@@ -117,17 +156,51 @@ export function AccountForm({
 
       <section className="space-y-4 rounded-lg border bg-card p-6">
         <div className="space-y-1">
+          <h2 className="text-base font-semibold">Email</h2>
+          <p className="text-sm text-muted-foreground">
+            Used to sign in and to recover your account.
+          </p>
+        </div>
+
+        <form className="space-y-4" onSubmit={handleEmailSubmit} noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email address</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={newEmail}
+              onChange={(event) => setNewEmail(event.target.value)}
+            />
+          </div>
+
+          {emailError ? (
+            <p className="text-sm text-destructive">{emailError}</p>
+          ) : null}
+          {emailSuccess ? (
+            <p className="text-sm text-muted-foreground">{emailSuccess}</p>
+          ) : null}
+
+          <Button
+            type="submit"
+            disabled={isEmailPending || newEmail.trim() === email}
+          >
+            {isEmailPending ? "Saving..." : "Update email"}
+          </Button>
+        </form>
+      </section>
+
+      <section className="space-y-4 rounded-lg border bg-card p-6">
+        <div className="space-y-1">
           <h2 className="text-base font-semibold">Change password</h2>
           <p className="text-sm text-muted-foreground">
             Changing your password signs you out of other sessions.
           </p>
         </div>
 
-        <form
-          className="space-y-4"
-          onSubmit={handlePasswordSubmit}
-          noValidate
-        >
+        <form className="space-y-4" onSubmit={handlePasswordSubmit} noValidate>
           <div className="space-y-1.5">
             <Label htmlFor="currentPassword">Current password</Label>
             <Input
@@ -162,7 +235,7 @@ export function AccountForm({
           ) : null}
 
           <Button type="submit" disabled={isPasswordPending}>
-            {isPasswordPending ? "Updating..." : "Change password"}
+            {isPasswordPending ? "Saving..." : "Change password"}
           </Button>
         </form>
       </section>

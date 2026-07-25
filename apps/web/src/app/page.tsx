@@ -1,75 +1,88 @@
 import Link from "next/link";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { getAppMetadata } from "@/lib/app-metadata";
 import { getSession } from "@/lib/auth-session";
+import { canRegister } from "@/lib/registration";
+import { getPrisma } from "@billow/db";
 
 export const dynamic = "force-dynamic";
 
-const metadataRows = [
-  ["App ID", "appId"],
-  ["Version", "version"],
-  ["Docker Image", "dockerImage"],
+const features = [
+  "Draft and send invoices with your own branding details.",
+  "Keep clients, bank accounts, and payment terms in one place.",
+  "Print or save any invoice as a PDF.",
 ] as const;
 
+async function countUsers() {
+  try {
+    return await getPrisma().user.count();
+  } catch {
+    // The landing page should still render if the database is unreachable.
+    return null;
+  }
+}
+
 export default async function Home() {
-  const [metadata, session] = await Promise.all([
+  const [metadata, session, userCount] = await Promise.all([
     getAppMetadata(),
     getSession(),
+    countUsers(),
   ]);
+
+  const registrationOpen = userCount !== null && canRegister(userCount);
 
   return (
     <main className="flex min-h-svh flex-col bg-background text-foreground">
-      <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10 sm:px-8 lg:py-16">
+      <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-8 px-6 py-16 sm:px-8">
         <div className="space-y-4">
           <p className="text-sm font-medium text-muted-foreground">
             Personal invoice app
           </p>
-          <h1 className="max-w-2xl text-3xl font-semibold tracking-normal text-balance sm:text-4xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
             {metadata?.name ?? "Billow"}
           </h1>
-          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+          <p className="text-lg leading-8 text-muted-foreground">
             {metadata?.tagline ??
               "Personal invoices without the spreadsheet drift."}
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <dl className="divide-y">
-            {metadataRows.map(([label, key]) => (
-              <div
-                className="grid gap-1 px-4 py-3 sm:grid-cols-[160px_1fr] sm:gap-6 sm:px-5"
-                key={key}
-              >
-                <dt className="text-sm font-medium text-muted-foreground">
-                  {label}
-                </dt>
-                <dd className="break-words text-sm font-medium">
-                  {metadata?.[key] ?? "Not seeded"}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <ul className="space-y-2">
+          {features.map((feature) => (
+            <li
+              key={feature}
+              className="flex gap-2.5 text-sm text-muted-foreground"
+            >
+              <span aria-hidden="true" className="text-foreground">
+                —
+              </span>
+              {feature}
+            </li>
+          ))}
+        </ul>
 
         <div className="flex flex-wrap items-center gap-3">
-          <form action="/api/metadata" method="get">
-            <Button type="submit" variant="outline" size="lg">
-              View API JSON
-            </Button>
-          </form>
-
           {session ? (
-            <Link
-              href="/dashboard"
-              className={buttonVariants({ size: "lg" })}
-            >
+            <Link href="/dashboard" className={buttonVariants({ size: "lg" })}>
               Go to dashboard
             </Link>
           ) : (
-            <Link href="/login" className={buttonVariants({ size: "lg" })}>
-              Sign in
-            </Link>
+            <>
+              <Link href="/login" className={buttonVariants({ size: "lg" })}>
+                Sign in
+              </Link>
+              {/* Registration is first-user-only, so only offer sign-up while
+                  the instance still has no account. */}
+              {registrationOpen ? (
+                <Link
+                  href="/register"
+                  className={buttonVariants({ variant: "outline", size: "lg" })}
+                >
+                  Sign up
+                </Link>
+              ) : null}
+            </>
           )}
         </div>
 

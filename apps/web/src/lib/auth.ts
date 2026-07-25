@@ -3,6 +3,8 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { twoFactor, username } from "better-auth/plugins";
+import { apiKey } from "@better-auth/api-key";
 
 import { getAuthEnv } from "@/lib/auth-env";
 import { getPrisma } from "@billow/db";
@@ -59,6 +61,16 @@ export const auth = betterAuth({
 
     return [...origins];
   },
+  user: {
+    changeEmail: {
+      enabled: true,
+      // There is no mail transport in this app, so addresses are never
+      // verified. BetterAuth allows a direct update in exactly that case
+      // (it still refuses once an address has been verified).
+      updateEmailWithoutVerification: true,
+    },
+  },
+  plugins: [username(), twoFactor(), apiKey()],
   databaseHooks: {
     user: {
       create: {

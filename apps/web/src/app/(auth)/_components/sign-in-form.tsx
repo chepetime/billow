@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { isEmailIdentifier } from "@/lib/login-identifier";
 
 export function SignInForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -21,14 +22,20 @@ export function SignInForm() {
     setError(null);
     setIsPending(true);
 
-    const { error: signInError } = await authClient.signIn.email({
-      email,
-      password,
-    });
+    const { data, error: signInError } = isEmailIdentifier(identifier)
+      ? await authClient.signIn.email({ email: identifier, password })
+      : await authClient.signIn.username({ username: identifier, password });
 
     if (signInError) {
       setError(signInError.message ?? "Unable to sign in.");
       setIsPending(false);
+      return;
+    }
+
+    // With two-factor enabled, BetterAuth withholds the session and asks for a
+    // second factor instead of signing in.
+    if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+      router.push("/two-factor");
       return;
     }
 
@@ -39,15 +46,15 @@ export function SignInForm() {
   return (
     <form className="space-y-4" onSubmit={handleSubmit} noValidate>
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="identifier">Username or email</Label>
         <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
+          id="identifier"
+          name="identifier"
+          type="text"
+          autoComplete="username"
           required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
         />
       </div>
 
@@ -72,7 +79,10 @@ export function SignInForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         Need an account?{" "}
-        <Link href="/register" className="text-primary underline-offset-4 hover:underline">
+        <Link
+          href="/register"
+          className="text-primary underline-offset-4 hover:underline"
+        >
           Register
         </Link>
       </p>

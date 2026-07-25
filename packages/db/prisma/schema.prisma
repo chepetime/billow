@@ -26,17 +26,66 @@ model AppMetadata {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  id              String      @id @default(cuid())
+  name            String
+  email           String      @unique
+  emailVerified   Boolean     @default(false)
+  image           String?
+  username        String?     @unique
+  displayUsername String?
+  twoFactorEnabled Boolean    @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  sessions        Session[]
+  accounts        Account[]
+  twoFactors      TwoFactor[]
 
   @@map("user")
+}
+
+/// Personal access tokens, managed by the @better-auth/api-key plugin.
+/// Field set mirrors the plugin's own schema definition.
+model Apikey {
+  id                  String    @id @default(cuid())
+  configId            String    @default("default")
+  name                String?
+  start               String?
+  referenceId         String
+  prefix              String?
+  key                 String
+  refillInterval      Int?
+  refillAmount        Int?
+  lastRefillAt        DateTime?
+  enabled             Boolean?  @default(true)
+  rateLimitEnabled    Boolean?  @default(true)
+  rateLimitTimeWindow Int?      @default(86400000)
+  rateLimitMax        Int?      @default(10)
+  requestCount        Int?      @default(0)
+  remaining           Int?
+  lastRequest         DateTime?
+  expiresAt           DateTime?
+  permissions         String?
+  metadata            String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([referenceId])
+  @@map("apikey")
+}
+
+model TwoFactor {
+  id                      String    @id @default(cuid())
+  secret                  String
+  backupCodes             String
+  userId                  String
+  verified                Boolean   @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
 }
 
 model Session {
