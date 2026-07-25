@@ -6,7 +6,10 @@ export type { PrismaClient } from "../generated/prisma/client";
 export * from "../generated/prisma/enums";
 
 // Prisma error codes for connection-level failures that are safe to retry.
-const TRANSIENT_PRISMA_CODES = new Set(["P1000", "P1001", "P1002", "P1017"]);
+// Deliberately excludes P1000 (authentication failed): bad credentials are a
+// configuration problem, and retrying them only delays the report and hides
+// the cause. Let those surface immediately on /health.
+const TRANSIENT_PRISMA_CODES = new Set(["P1001", "P1002", "P1017"]);
 
 function isTransientConnectionError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) {
