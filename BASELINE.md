@@ -146,6 +146,33 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ---
 
+## Planned refactor: extract `@billow/auth`
+
+Auth is the largest security surface here, so it should be auditable in
+isolation rather than read out of `apps/web/src/lib`. Roughly 340 lines across
+eight cohesive modules, depending only on `@billow/db` and `error-log` — no
+circular dependency.
+
+- [ ] `packages/auth` with three entry points, mirroring how `@billow/db`
+      separates server from client:
+      `@billow/auth` (server: the auth instance, `requireSession`,
+      `requireAdmin`), `@billow/auth/client` (`"use client"`: `authClient`),
+      and `@billow/auth/env` (pure: `getAuthEnv`, `resolveTrustedOrigins`,
+      `canRegister`). The pure entry is the audit win — the security-critical
+      logic becomes testable without Next or a database.
+- [ ] Split the Prisma schema into a folder so the seven auth-owned models
+      live in their own file. Do this in the same change: the package boundary
+      is otherwise code-only, and an auditor still has to read `packages/db`
+      for the schema.
+- [ ] Update the Dockerfile's manifest `COPY` list in the same commit. The
+      image installs with `--filter @billow/web...`, so a new package the web
+      app depends on must be copied or the build fails. CI's `docker image`
+      job catches this.
+
+Around 37 files import these modules today, so the diff is wide but mechanical.
+No image release is needed for the refactor itself; it ships with whatever
+feature release follows.
+
 ## Suggested order
 
 1. Finish form migration + **Phase 2 API docs** (biggest external value: agents
