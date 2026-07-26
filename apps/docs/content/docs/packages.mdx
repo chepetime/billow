@@ -54,11 +54,18 @@ Because these are source-level workspace packages, `apps/web` lists them in
 
 ## Adding a workspace package
 
-Two things break if you only create the directory:
+1. **Run `pnpm install`** so the new importer is recorded, and commit
+   `pnpm-lock.yaml` alongside the package.
+2. **If `apps/web` depends on it, update the Dockerfile.** The image installs
+   with `pnpm install --filter @billow/web... --frozen-lockfile`, so it only
+   needs the manifests inside the web app's dependency graph — each one is
+   `COPY`d explicitly in the `deps` and `runner` stages. A package web does
+   *not* depend on (like `apps/docs`) needs no changes at all.
+3. **Add it to `transpilePackages`** in `apps/web/next.config.ts` if it ships
+   TypeScript source rather than build output.
 
-1. **The Docker build.** The production image installs with a frozen lockfile,
-   so every workspace member's `package.json` has to be present. The Dockerfile
-   uses `pnpm fetch` against the lockfile alone for exactly this reason — do not
-   replace it with per-package `COPY` lines.
-2. **`pnpm-lock.yaml`.** Run `pnpm install` so the new importer is recorded, and
-   commit the lockfile with the package.
+<Callout>
+Forgetting step 2 fails the Docker build loudly with a missing-manifest error
+rather than shipping something broken, so the coupling is safe — but it is the
+reason the `COPY` list exists instead of a blanket copy.
+</Callout>

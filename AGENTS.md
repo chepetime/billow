@@ -15,6 +15,21 @@ https://github.com/chepetime/billow
 The app was split out of the store repo in initial commit
 `3c9fc0d Initial Billow app`.
 
+## Documentation
+
+`apps/docs` is a Fumadocs site and the **primary source of truth** for
+architecture, conventions, package responsibilities, and operations. Read it
+before changing anything structural, and put new documentation there rather than
+growing this file.
+
+```bash
+pnpm --filter @billow/docs dev   # http://localhost:3001
+```
+
+Content lives in `apps/docs/content/docs/*.mdx`; navigation order is
+`content/docs/meta.json`. The docs app is intentionally excluded from the
+production image.
+
 ## App Shape
 
 - pnpm workspaces + Turborepo monorepo.
