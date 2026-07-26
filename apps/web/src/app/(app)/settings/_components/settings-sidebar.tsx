@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { KeyRound, ShieldCheck, UserRound, UserPlus, TriangleAlert } from "lucide-react";
+import {
+  KeyRound,
+  ShieldCheck,
+  UserRound,
+  UserPlus,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -32,6 +39,13 @@ const sections = [
     icon: UserPlus,
   },
   {
+    href: "/settings/admin",
+    label: "Administration",
+    description: "Users and diagnostics",
+    icon: Wrench,
+    adminOnly: true,
+  },
+  {
     href: "/settings/danger",
     label: "Danger zone",
     description: "Delete your account",
@@ -39,8 +53,11 @@ const sections = [
   },
 ] as const;
 
-export function SettingsSidebar() {
+export function SettingsSidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const visible = sections.filter(
+    (section) => !("adminOnly" in section && section.adminOnly) || isAdmin,
+  );
 
   return (
     <aside className="w-full shrink-0 border-b pb-6 lg:w-56 lg:border-r lg:border-b-0 lg:pr-6 lg:pb-0">
@@ -50,7 +67,7 @@ export function SettingsSidebar() {
       </p>
 
       <nav aria-label="Settings sections" className="mt-5 grid gap-1 sm:grid-cols-3 lg:grid-cols-1">
-        {sections.map(({ href, label, description, icon: Icon }) => {
+        {visible.map(({ href, label, description, icon: Icon }) => {
           const active = pathname === href;
 
           return (

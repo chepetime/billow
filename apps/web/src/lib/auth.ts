@@ -3,7 +3,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { openAPI, twoFactor, username } from "better-auth/plugins";
+import { admin, openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
 
 import { getAuthEnv } from "@/lib/auth-env";
@@ -76,6 +76,7 @@ export const auth = betterAuth({
     username(),
     twoFactor(),
     apiKey(),
+    admin({ defaultRole: "user", adminRoles: ["admin"] }),
     // Keep auth's generated specification available without its CDN-hosted UI.
     openAPI({ disableDefaultReference: true }),
   ],
@@ -95,6 +96,14 @@ export const auth = betterAuth({
           }
         },
         after: async (user) => {
+          // The first account owns the installation and administers it.
+          const prisma0 = getPrisma();
+          if ((await prisma0.user.count()) === 1) {
+            await prisma0.user.update({
+              where: { id: user.id },
+              data: { role: "admin" },
+            });
+          }
           // A pre-auth installation can contain seeded workspace data. Assign
           // that unclaimed data to the first account exactly once.
           const prisma = getPrisma();

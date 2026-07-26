@@ -39,11 +39,16 @@ model User {
   username        String?     @unique
   displayUsername String?
   twoFactorEnabled Boolean    @default(false)
+  role            String?
+  banned          Boolean?    @default(false)
+  banReason       String?
+  banExpires      DateTime?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   sessions        Session[]
   accounts        Account[]
   twoFactors      TwoFactor[]
+  apiKeys         Apikey[]
   userProfiles    UserProfile[]
   clientCompanies ClientCompany[]
   invoices        Invoice[]
@@ -76,6 +81,9 @@ model Apikey {
   metadata            String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  /// referenceId is always a User id in this app, so removing an account also
+  /// removes its keys rather than leaving credentials that still verify.
+  user                User      @relation(fields: [referenceId], references: [id], onDelete: Cascade)
 
   @@index([referenceId])
   @@map("apikey")
@@ -104,6 +112,7 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -217,7 +226,7 @@ model ClientCompany {
 
 model Invoice {
   id              Int               @id @default(autoincrement())
-  invoiceNumber   Int               @unique
+  invoiceNumber   Int
   invoiceDate     DateTime
   status          InvoiceStatus     @default(DRAFT)
   currency        String            @default("MXN")

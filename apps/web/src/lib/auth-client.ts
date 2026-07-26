@@ -1,7 +1,11 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
-import { twoFactorClient, usernameClient } from "better-auth/client/plugins";
+import {
+  adminClient,
+  twoFactorClient,
+  usernameClient,
+} from "better-auth/client/plugins";
 import { apiKeyClient } from "@better-auth/api-key/client";
 
 export const authClient = createAuthClient({
@@ -11,5 +15,6 @@ export const authClient = createAuthClient({
     // it. Give its client plugin the local challenge page explicitly.
     twoFactorClient({ twoFactorPage: "/two-factor" }),
     apiKeyClient(),
+    adminClient(),
   ],
 });
