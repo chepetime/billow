@@ -106,6 +106,8 @@ export default async function DebugPage() {
         <List title="Largest tables" items={d.database.tables.items} />
       </Section>
 
+      <Section title="Container limits" fields={d.container} />
+      <Section title="Network" fields={d.network} />
       <Section title="Request and proxy headers" fields={d.request} />
       <Section title="Process" fields={d.process} />
       <Section title="Host" fields={d.host} />

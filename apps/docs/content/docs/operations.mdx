@@ -51,6 +51,20 @@ Validating a session needs the database, so when the database is the broken
 thing no session can be produced. `BILLOW_DEBUG_TOKEN` exists for that case:
 set it, then send `x-debug-token` to reach the diagnostics without a session.
 
+### The two sections that matter on Umbrel
+
+**Container limits** reads cgroup values, not host values. `os.totalmem()`
+reports the *host's* memory even inside a constrained container — in a 256 MB
+container it happily reports 7936 MB — so the cgroup memory limit, current
+usage, peak, and CPU quota are the only trustworthy numbers here. The same
+section reports the container clock, because TOTP two-factor breaks if it
+drifts.
+
+**Network** shows what the database hostname actually resolves to, alongside
+the container's own interfaces and nameservers. Since every Umbrel app shares
+one network, a bare service alias can resolve to another app's container; that
+one line identifies the collision immediately.
+
 Errors are persisted to an `ErrorLog` table via `recordError()`, so they survive
 restarts and can be read back from `/admin/debug` without container access.
 

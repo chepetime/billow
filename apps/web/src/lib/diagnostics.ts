@@ -1,5 +1,8 @@
 import "server-only";
 
+import dns from "node:dns/promises";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import v8 from "node:v8";
 
@@ -225,6 +228,106 @@ export function collectAuth(): Field[] {
   ]);
 }
 
+
+function readFirstLine(path: string): string | null {
+  try {
+    return fs.readFileSync(path, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+/** cgroup limits are what Docker/Umbrel actually enforce. */
+function cgroupBytes(v2: string, v1: string): string {
+  const raw = readFirstLine(v2) ?? readFirstLine(v1);
+  if (raw === null) return "unavailable";
+  if (raw === "max") return "unlimited";
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  // cgroup v1 reports an enormous sentinel when unconstrained.
+  if (n > 1e15) return "unlimited";
+  return mb(n);
+}
+
+/**
+ * Container limits and identity. `os.totalmem()` reports the HOST's memory
+ * even inside a constrained container, so the cgroup values below are the
+ * only trustworthy view of what this app may actually use.
+ */
+export function collectContainer(): Field[] {
+  return guard("container", () => [
+    probe("In a container", () =>
+      fs.existsSync("/.dockerenv") ? "yes (/.dockerenv)" : "no",
+    ),
+    probe("Container hostname", () => os.hostname()),
+    probe("Memory limit (cgroup)", () =>
+      cgroupBytes("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"),
+    ),
+    probe("Memory in use (cgroup)", () =>
+      cgroupBytes("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory/memory.usage_in_bytes"),
+    ),
+    probe("Memory peak (cgroup)", () =>
+      cgroupBytes("/sys/fs/cgroup/memory.peak", "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"),
+    ),
+    probe("CPU limit (cgroup)", () => {
+      const raw = readFirstLine("/sys/fs/cgroup/cpu.max");
+      if (!raw) return "unavailable";
+      const [quota, period] = raw.split(/\s+/);
+      return quota === "max" ? "unlimited" : `${Number(quota) / Number(period)} cores`;
+    }),
+    probe("Timezone", () => Intl.DateTimeFormat().resolvedOptions().timeZone),
+    probe("Container clock", () => new Date().toISOString()),
+    probe("Clock note", () => "TOTP two-factor fails if this drifts from real time"),
+  ]);
+}
+
+/**
+ * Networking as the container sees it. Umbrel puts every app on one shared
+ * network, so confirming which container a hostname resolves to is the
+ * fastest way to catch a name collision.
+ */
+export async function collectNetwork(): Promise<Field[]> {
+  const dbHost = (() => {
+    try {
+      return new URL(process.env.DATABASE_URL ?? "").hostname;
+    } catch {
+      return "";
+    }
+  })();
+
+  const fields = [
+    probe("Database hostname", () => dbHost || "unavailable"),
+    probe("Nameservers", () =>
+      (readFirstLine("/etc/resolv.conf") ?? "")
+        .split("\n")
+        .filter((l) => l.startsWith("nameserver"))
+        .join(" ") || dns.getServers().join(", "),
+    ),
+    probe("Interfaces", () =>
+      Object.entries(os.networkInterfaces())
+        .flatMap(([name, addrs]) =>
+          (addrs ?? [])
+            .filter((a) => a.family === "IPv4")
+            .map((a) => `${name}=${a.address}`),
+        )
+        .join(", "),
+    ),
+  ];
+
+  const resolved = await probeAsync("Database resolves to", async () => {
+    if (!dbHost) return "unavailable";
+    const records = await dns.lookup(dbHost, { all: true });
+    return records.map((r) => r.address).join(", ");
+  });
+
+  const disk = await probeAsync("Disk free / total", async () => {
+    const stat = await fsp.statfs("/");
+    return `${mb(stat.bavail * stat.bsize)} / ${mb(stat.blocks * stat.bsize)}`;
+  });
+
+  return [...fields, resolved, disk];
+}
+
 export async function collectDatabase() {
   // Resolved lazily inside each probe: if the client itself cannot be
   // constructed (missing DATABASE_URL, bad credentials) that surfaces as a
@@ -326,9 +429,10 @@ const emptyDatabase = () => ({
 
 export async function collectDiagnostics(headers: Headers) {
   // Settled, not all: one rejected collector must not lose the whole report.
-  const [databaseResult, errorsResult] = await Promise.allSettled([
+  const [databaseResult, errorsResult, networkResult] = await Promise.allSettled([
     collectDatabase(),
     safeRecentErrors(),
+    collectNetwork(),
   ]);
 
   const database =
@@ -346,12 +450,24 @@ export async function collectDiagnostics(headers: Headers) {
         };
   const recentErrors =
     errorsResult.status === "fulfilled" ? errorsResult.value : [];
+  const network: Field[] =
+    networkResult.status === "fulfilled"
+      ? networkResult.value
+      : [
+          {
+            label: "network",
+            value: `⚠ ${describe(networkResult.reason)}`,
+            failed: true,
+          },
+        ];
 
   return {
     checkedAt: new Date().toISOString(),
     application: collectApplication(),
     process: collectProcess(),
     host: collectHost(),
+    container: collectContainer(),
+    network,
     request: collectRequest(headers),
     auth: collectAuth(),
     database,
