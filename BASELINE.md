@@ -12,6 +12,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ## Auth & accounts
 
+- [x] Admin role: first account administers the installation; users list with
+      role, ban, session revocation, and removal
+
 - [x] Email + password sign-up / sign-in (BetterAuth + Prisma adapter)
 - [x] First-user-only registration (`databaseHooks.user.create.before` guard)
 - [x] Session-gated route group + optimistic middleware redirect
@@ -24,24 +27,26 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       Needs either a real mail transport or a "copy this link" admin surface.
 - [ ] **Session management UI** — list active sessions and revoke individually
       (`auth.api.listSessions` / `revokeSession` already exist)
-- [ ] **Account deletion** (`auth.api.deleteUser`) with a confirmation step
-- [ ] **Passkeys** — `@better-auth/passkey@1.6.25` is ready, but WebAuthn needs a
-      secure context. Blocked until the app is reached over HTTPS (Tailscale
-      certs or a Cloudflare tunnel). Needs a `passkey` table + migration.
+- [x] **Account deletion** (`auth.api.deleteUser`) with a confirmation step
+- [ ] **Passkeys** — **now unblocked**: the app is reachable over HTTPS via a
+      Cloudflare tunnel (billow.example.com), which satisfies WebAuthn's
+      secure-context requirement. `@better-auth/passkey@1.6.25` is version
+      matched; needs a `passkey` table + migration.
 - [ ] Email verification (only if a mail transport is ever added)
-- [ ] Multi-user support: roles/admin, invitations, closing or reopening
+- [x] Admin role, admin panel, and server-side authorization for installation settings
+- [ ] Multi-user support: invitations, invitations, closing or reopening
       registration from the UI (today it is strictly first-user-only)
 
 ## API
 
 - [x] Personal API keys (`@better-auth/api-key`): create, list, revoke in settings
 - [x] `GET /api/v1/me` — accepts `x-api-key` or `Authorization: Bearer`, or a session
-- [ ] **Public API docs** — generate `/api/v1/openapi.json` from the zod schemas
+- [x] **Public API docs** — generate `/api/v1/openapi.json` from the zod schemas
       via `z.toJSONSchema()` and render it at `/docs/api` with a locally bundled
       `@scalar/api-reference-react` (no CDN, works offline)
-- [ ] Enable BetterAuth's built-in `openAPI()` plugin so auth endpoints are
+- [x] Enable BetterAuth's built-in `openAPI()` plugin so auth endpoints are
       documented too
-- [ ] Shared route helpers: `lib/api/identity.ts` (`requireApiIdentity`) and
+- [x] Shared route helpers: `lib/api/identity.ts` (`requireApiIdentity`) and
       `lib/api/respond.ts` (consistent `{ error }` shape, zod 400s) — the auth
       logic is currently inlined in the one route
 - [ ] Documented conventions: versioning, pagination, error codes
@@ -52,17 +57,27 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 - [x] Minimal landing page with sign-in / sign-up (sign-up hidden once closed)
 - [x] Dashboard shell + account settings
-- [~] **Form validation** — zod schemas + `Field` + react-hook-form wired into
+- [x] **Form validation** — zod schemas + `Field` + react-hook-form wired into
       sign-in, sign-up, and two-factor. Still to migrate: `account-form`,
       `two-factor-section`, `api-keys-section`
 - [x] Theming — `next-themes` applies the existing palette, with persisted
       light/dark/system controls on authenticated and public entry pages.
 - [ ] **i18n** — `next-intl@4`, cookie-based (`NEXT_LOCALE`, no URL prefix),
       messages in `messages/{en,es}.json`, language picker in settings
-- [ ] Toast / notification system (success + error feedback is inline-only today)
+- [x] Toast / notification system (success + error feedback is inline-only today)
 - [ ] Loading and empty states pass
 - [ ] Accessibility pass (keyboard nav, focus rings, screen-reader labels)
 - [ ] Mobile layout pass
+
+## Storage and files
+
+- [ ] **Persistent volume for the app** — only Postgres has one today, so
+      anything written to the container filesystem is lost on update. This is
+      the prerequisite for uploads: `${APP_DATA_DIR}/uploads:/data/uploads`,
+      writable by uid 1001.
+- [ ] Upload model, storage abstraction, size/MIME limits with magic-byte
+      sniffing, generated filenames, per-user quotas, auth-checked serving
+- [ ] Backup and restore must cover files as well as the database
 
 ## Operations
 
@@ -72,7 +87,11 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Migrations run automatically at container start, with retry
 - [x] Transient DB connection retries; auth failures fail fast
 - [x] Memory capped (`--max-old-space-size=128`; ~60 MiB idle)
-- [ ] Backup / restore: JSON export + import of all app data
+- [ ] **Backup / restore** — the largest gap for self-hosting: one-click export
+      and restore of the database plus uploads
+- [ ] SMTP configuration, without which password reset cannot work
+- [ ] Background jobs (log retention, upload cleanup, key expiry)
+- [ ] Audit log: who changed what, distinct from the error log
 - [ ] Structured logging (currently `console.*`)
 - [ ] Log retention — `ErrorLog` grows unbounded; add pruning or a cap
 - [ ] Graceful degradation review: every page should render when the DB is down
@@ -83,12 +102,15 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Secrets from env, never hardcoded (`BETTER_AUTH_SECRET` ← `${APP_SEED}`)
 - [x] Bank/account numbers masked outside explicit detail views
 - [x] API keys stored hashed, shown once
-- [ ] **Revisit CSRF posture** — `trustedOrigins` currently trusts the request
-      Origin so the app works behind any front door. Tighten once HTTPS and a
-      stable hostname exist.
+- [ ] **Revisit CSRF posture** — `trustedOrigins` trusts the request `Origin`,
+      which makes the check tautological. **Now fixable**: production
+      diagnostics confirmed `x-forwarded-host` and `x-forwarded-proto` are
+      present through *both* Umbrel's app_proxy and the Cloudflare tunnel, so
+      the origin can be derived from the served host instead. The original
+      premise (that Umbrel strips these) was wrong.
 - [ ] Security headers / CSP
 - [ ] Rate limiting on auth endpoints (brute-force protection)
-- [ ] Dependency audit in CI (`pnpm audit`)
+- [x] Dependency audit in CI (`pnpm audit`)
 
 ## Release & packaging
 
@@ -97,7 +119,7 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Parallel CI (lint/test/build matrix + migrations) with checksum-keyed caches
 - [x] Local CI runs via `act`
 - [x] Self-hosted app icon in the store repo
-- [ ] **Gallery images** — still the same placeholder imgur URL three times.
+- [x] **Gallery images** — still the same placeholder imgur URL three times.
       Best fix: real screenshots of the running app (landing, dashboard, settings)
 - [ ] `CHANGELOG.md` generated from tags
 - [ ] Multi-arch images (`linux/arm64`) if a non-amd64 Umbrel is ever targeted
