@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
 import { Field } from "@/components/ui/field";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@billow/auth/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 export type AdminUser = {

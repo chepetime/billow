@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getSession } from "@/lib/auth-session";
+import { getSession } from "@billow/auth";
 import { collectDiagnostics } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";

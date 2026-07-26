@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canRegister } from "@/lib/registration";
+import { canRegister } from "./registration";
 
 describe("canRegister", () => {
   it("allows registration when there are zero users", () => {

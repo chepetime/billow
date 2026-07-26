@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAdminSession } from "@/lib/admin";
+import { getAdminSession } from "@billow/auth";
 import { error } from "@/lib/api/respond";
 import { exportWorkspace } from "@/lib/backup";
 import { recordError } from "@/lib/error-log";

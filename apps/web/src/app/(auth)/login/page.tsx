@@ -1,5 +1,5 @@
 import { SignInForm } from "@/app/(auth)/_components/sign-in-form";
-import { requireGuest } from "@/lib/auth-session";
+import { requireGuest } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

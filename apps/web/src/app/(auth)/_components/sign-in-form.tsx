@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@billow/shadcn/components/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@billow/auth/client";
 import { isEmailIdentifier } from "@/lib/login-identifier";
 import { signInSchema, type SignInInput } from "@/lib/schemas/auth";
 

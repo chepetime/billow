@@ -1,0 +1,50 @@
+// Installation-wide records: app metadata, registration policy, the error
+// log and uploaded files.
+
+model AppMetadata {
+  id            Int      @id @default(autoincrement())
+  appId         String   @unique
+  name          String
+  tagline       String
+  version       String
+  dockerImage   String
+  repositoryUrl String?
+  supportUrl    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model RegistrationSettings {
+  id      Int     @id @default(1)
+  enabled Boolean @default(false)
+}
+
+/// A file attached to an account: avatar, image, PDF and so on. Bytes live on
+/// the mounted uploads volume; only metadata is stored here. `storageKey` is
+/// generated, never derived from the client's filename.
+model Upload {
+  id          String   @id @default(cuid())
+  userId      String
+  storageKey  String   @unique
+  filename    String
+  contentType String
+  size        Int
+  checksum    String
+  kind        String   @default("attachment")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
+}
+
+model ErrorLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  context   String
+  message   String
+  stack     String?
+  meta      Json?
+
+  @@index([createdAt])
+}

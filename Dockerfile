@@ -10,6 +10,7 @@ RUN corepack enable && corepack install --global pnpm@10.34.1
 # In particular, apps/docs is intentionally omitted from the image.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
+COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/shadcn/package.json ./packages/shadcn/package.json
 COPY config/eslint-config/package.json ./config/eslint-config/package.json
@@ -28,11 +29,13 @@ RUN corepack enable
 
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /repo/packages/auth/node_modules ./packages/auth/node_modules
 COPY --from=deps /repo/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /repo/packages/shadcn/node_modules ./packages/shadcn/node_modules
 COPY --from=deps /repo/config ./config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web ./apps/web
+COPY packages/auth ./packages/auth
 COPY packages/db ./packages/db
 COPY packages/shadcn ./packages/shadcn
 COPY config ./config
@@ -69,6 +72,7 @@ RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
+COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/shadcn/package.json ./packages/shadcn/package.json
 COPY config/eslint-config/package.json ./config/eslint-config/package.json
@@ -81,6 +85,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY packages/db/prisma ./packages/db/prisma
 COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
 COPY packages/db/src ./packages/db/src
+COPY packages/auth/src ./packages/auth/src
 COPY packages/shadcn/src ./packages/shadcn/src
 COPY apps/web/scripts ./apps/web/scripts
 COPY --from=builder /repo/apps/web/.next ./apps/web/.next

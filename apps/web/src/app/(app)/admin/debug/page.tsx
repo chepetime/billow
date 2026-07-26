@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 import { collectDiagnostics, type Field } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";

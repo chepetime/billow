@@ -1,5 +1,5 @@
 import { TwoFactorSection } from "@/app/(app)/_components/two-factor-section";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

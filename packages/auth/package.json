@@ -1,0 +1,28 @@
+{
+  "name": "@billow/auth",
+  "version": "0.1.27",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./env": "./src/env.ts"
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "1.6.25",
+    "@billow/db": "workspace:*",
+    "better-auth": "~1.6.25"
+  },
+  "peerDependencies": {
+    "next": "16.2.12"
+  },
+  "devDependencies": {
+    "@billow/vitest-config": "workspace:*",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { UserMenu } from "@/app/(app)/_components/user-menu";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@billow/auth";
 import { error } from "@/lib/api/respond";
 
 export type ApiIdentity = { userId: string };

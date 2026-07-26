@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { parseInvoiceStatus } from "@/lib/invoice-status";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 import { getPrisma } from "@billow/db";
 
 function readString(formData: FormData, key: string) {

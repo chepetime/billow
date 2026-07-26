@@ -4,8 +4,7 @@ import {
   ApiKeysSection,
   type ApiKeySummary,
 } from "@/app/(app)/_components/api-keys-section";
-import { auth } from "@/lib/auth";
-import { requireSession } from "@/lib/auth-session";
+import { auth, requireSession } from "@billow/auth";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";

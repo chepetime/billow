@@ -12,9 +12,8 @@ import { buttonVariants } from "@billow/shadcn/components/button";
 import { Card, CardContent } from "@billow/shadcn/components/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getAppMetadata } from "@/lib/app-metadata";
-import { getSession } from "@/lib/auth-session";
-import { canRegister } from "@/lib/registration";
-import { getRegistrationEnabled } from "@/lib/registration-settings";
+import { getRegistrationEnabled, getSession } from "@billow/auth";
+import { canRegister } from "@billow/auth/env";
 import { cn } from "@/lib/utils";
 import { getPrisma } from "@billow/db";
 

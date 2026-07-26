@@ -6,11 +6,12 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin, openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
 
-import { getAuthEnv } from "@/lib/auth-env";
-import { canRegister } from "@/lib/registration";
-import { getRegistrationEnabled } from "@/lib/registration-settings";
-import { resolveTrustedOrigins } from "@/lib/trusted-origins";
 import { getPrisma } from "@billow/db";
+
+import { getAuthEnv } from "./auth-env";
+import { canRegister } from "./registration";
+import { getRegistrationEnabled } from "./registration-settings";
+import { resolveTrustedOrigins } from "./trusted-origins";
 
 const authEnv = getAuthEnv(process.env, {
   allowBuildFallback: process.env.NEXT_PHASE === "phase-production-build",

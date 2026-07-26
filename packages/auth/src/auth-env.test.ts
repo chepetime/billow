@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAuthEnv } from "@/lib/auth-env";
+import { getAuthEnv } from "./auth-env";
 
 const validSecret = "0123456789abcdef0123456789abcdef";
 

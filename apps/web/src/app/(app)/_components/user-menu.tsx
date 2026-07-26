@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@billow/shadcn/components/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@billow/auth/client";
 
 function initials(name: string) {
   return name

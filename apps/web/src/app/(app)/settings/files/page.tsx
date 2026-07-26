@@ -1,5 +1,5 @@
 import { FilesSection } from "@/app/(app)/settings/_components/files-section";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 import { listUploads } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";

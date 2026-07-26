@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { InvoiceStatusBadge } from "@/components/ui/badge";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 import {
   formatInvoiceDate,
   formatMoney,

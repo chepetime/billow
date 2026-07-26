@@ -3,8 +3,7 @@ import { headers } from "next/headers";
 
 import { BackupSection } from "@/app/(app)/settings/_components/backup-section";
 import { UsersSection, type AdminUser } from "@/app/(app)/settings/_components/users-section";
-import { requireAdmin } from "@/lib/admin";
-import { auth } from "@/lib/auth";
+import { auth, requireAdmin } from "@billow/auth";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";

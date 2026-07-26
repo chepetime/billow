@@ -1,5 +1,5 @@
 import { AccountForm } from "@/app/(app)/_components/account-form";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

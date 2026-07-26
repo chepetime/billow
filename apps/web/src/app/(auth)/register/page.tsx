@@ -2,9 +2,8 @@ import Link from "next/link";
 
 import { SignUpForm } from "@/app/(auth)/_components/sign-up-form";
 import { buttonVariants } from "@billow/shadcn/components/button";
-import { requireGuest } from "@/lib/auth-session";
-import { canRegister } from "@/lib/registration";
-import { getRegistrationEnabled } from "@/lib/registration-settings";
+import { getRegistrationEnabled, requireGuest } from "@billow/auth";
+import { canRegister } from "@billow/auth/env";
 import { getPrisma } from "@billow/db";
 
 export const dynamic = "force-dynamic";

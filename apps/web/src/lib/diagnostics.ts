@@ -6,7 +6,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import v8 from "node:v8";
 
-import { getAuthEnv } from "@/lib/auth-env";
+import { getAuthEnv } from "@billow/auth/env";
 import { getRecentErrors } from "@/lib/error-log";
 import { getPrisma } from "@billow/db";
 

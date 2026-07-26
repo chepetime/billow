@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveTrustedOrigins } from "@/lib/trusted-origins";
+import { resolveTrustedOrigins } from "./trusted-origins";
 
 describe("resolveTrustedOrigins", () => {
   it("derives an origin from Umbrel-style forwarded headers", () => {

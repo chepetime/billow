@@ -1,6 +1,5 @@
 import { RegistrationSection } from "@/app/(app)/settings/_components/registration-section";
-import { requireSession } from "@/lib/auth-session";
-import { getRegistrationEnabled } from "@/lib/registration-settings";
+import { getRegistrationEnabled, requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

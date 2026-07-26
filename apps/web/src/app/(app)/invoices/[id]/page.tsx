@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { InvoicePreview } from "@/app/(app)/invoices/_components/invoice-preview";
 import { PrintButton } from "@/app/(app)/invoices/_components/print-button";
-import { requireSession } from "@/lib/auth-session";
+import { requireSession } from "@billow/auth";
 import { getInvoiceById } from "@/lib/invoice-workspace";
 
 export default async function InvoiceDetailPage({

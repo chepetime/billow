@@ -2,11 +2,11 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 
-import { getSession } from "@/lib/auth-session";
+import { getSession } from "./session";
 
 /**
  * The first account to register owns the installation and is given the `admin`
- * role (see the create hook in lib/auth.ts). Administrative operations check
+ * role (see the create hook in auth.ts). Administrative operations check
  * that role on the server; the UI only decides what to render.
  */
 export function isAdmin(user: { role?: string | null } | undefined): boolean {
