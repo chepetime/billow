@@ -49,6 +49,7 @@ model User {
   accounts        Account[]
   twoFactors      TwoFactor[]
   apiKeys         Apikey[]
+  uploads         Upload[]
   userProfiles    UserProfile[]
   clientCompanies ClientCompany[]
   invoices        Invoice[]
@@ -281,6 +282,25 @@ model InvoiceRevision {
 
   @@unique([invoiceId, revisionNumber])
   @@index([invoiceId])
+}
+
+/// A file attached to an account: avatar, image, PDF and so on. Bytes live on
+/// the mounted uploads volume; only metadata is stored here. `storageKey` is
+/// generated, never derived from the client's filename.
+model Upload {
+  id          String   @id @default(cuid())
+  userId      String
+  storageKey  String   @unique
+  filename    String
+  contentType String
+  size        Int
+  checksum    String
+  kind        String   @default("attachment")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
 }
 
 model ErrorLog {

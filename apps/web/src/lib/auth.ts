@@ -22,6 +22,41 @@ export const auth = betterAuth({
   database: prismaAdapter(getPrisma(), {
     provider: "postgresql",
   }),
+  // Explicit, not the framework default: BetterAuth only enables rate
+  // limiting in production unless told otherwise, which makes the
+  // protection invisible here and dependent on NODE_ENV. `enabled: true`
+  // pins it on regardless of environment.
+  //
+  // Storage: "memory" (the BetterAuth default). BetterAuth's "database"
+  // storage needs its own `rateLimit` model (key/count/lastRequest) behind
+  // the Prisma adapter, and packages/db/prisma/schema.prisma has no such
+  // model — adding one means a new model plus a migration, which is out of
+  // scope here. This app runs as a single container/process, so an
+  // in-memory bucket is a correct enforcement point; the tradeoff is that
+  // every counter resets on restart/redeploy, briefly re-opening the window
+  // for an attacker who times it around a deploy.
+  //
+  // `window`/`max` below are the general limit for every other endpoint.
+  // `customRules` tightens the specific brute-force targets: sign-in (email
+  // and username, both under /sign-in/*), two-factor verification (TOTP,
+  // OTP, backup code — all under /two-factor/*), and password-reset
+  // requests. Writing these out explicitly documents the policy here
+  // instead of leaning on BetterAuth's own built-in special-cases (which
+  // exist but are undocumented in this file and would silently change
+  // behind a framework upgrade).
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-in/username": { window: 60, max: 5 },
+      "/two-factor/verify-totp": { window: 60, max: 5 },
+      "/two-factor/verify-otp": { window: 60, max: 5 },
+      "/two-factor/verify-backup-code": { window: 60, max: 5 },
+      "/request-password-reset": { window: 60, max: 5 },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     // There is no mail transport in this app, so a reset link can never
