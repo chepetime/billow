@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const createApiKeySchema = z.object({
-  name: z.string().min(1, "Name your key.").max(60),
+  // A blank label uses the UI's "Personal key" default.
+  name: z.string().trim().max(60, "Use at most 60 characters."),
 });
 
 /** Shape returned by GET /api/v1/me. Also feeds the OpenAPI document. */

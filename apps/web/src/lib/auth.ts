@@ -3,7 +3,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { twoFactor, username } from "better-auth/plugins";
+import { openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
 
 import { getAuthEnv } from "@/lib/auth-env";
@@ -70,7 +70,13 @@ export const auth = betterAuth({
       updateEmailWithoutVerification: true,
     },
   },
-  plugins: [username(), twoFactor(), apiKey()],
+  plugins: [
+    username(),
+    twoFactor(),
+    apiKey(),
+    // Keep auth's generated specification available without its CDN-hosted UI.
+    openAPI({ disableDefaultReference: true }),
+  ],
   databaseHooks: {
     user: {
       create: {

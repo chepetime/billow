@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { requireApiIdentity } from "@/lib/api/identity";
+import { error } from "@/lib/api/respond";
 import { getPrisma } from "@billow/db";
 
 export const dynamic = "force-dynamic";
@@ -16,46 +17,15 @@ export const dynamic = "force-dynamic";
  * A signed-in browser session also works, which makes the route easy to try.
  */
 export async function GET() {
-  const requestHeaders = await headers();
-
-  const bearer = requestHeaders.get("authorization");
-  const apiKey =
-    requestHeaders.get("x-api-key") ??
-    (bearer?.toLowerCase().startsWith("bearer ") ? bearer.slice(7).trim() : null);
-
-  let userId: string | null = null;
-
-  if (apiKey) {
-    const result = await auth.api.verifyApiKey({ body: { key: apiKey } });
-
-    if (!result.valid || !result.key) {
-      return NextResponse.json(
-        { error: result.error?.message ?? "Invalid API key." },
-        { status: 401 },
-      );
-    }
-
-    userId = result.key.referenceId;
-  } else {
-    const session = await auth.api.getSession({ headers: requestHeaders });
-    userId = session?.user.id ?? null;
-  }
-
-  if (!userId) {
-    return NextResponse.json(
-      { error: "Authentication required. Send an API key via x-api-key." },
-      { status: 401 },
-    );
-  }
+  const identity = await requireApiIdentity(await headers());
+  if (identity instanceof NextResponse) return identity;
 
   const user = await getPrisma().user.findUnique({
-    where: { id: userId },
+    where: { id: identity.userId },
     select: { id: true, email: true, name: true, username: true },
   });
 
-  if (!user) {
-    return NextResponse.json({ error: "Account not found." }, { status: 404 });
-  }
+  if (!user) return error("Account not found.", 404);
 
   return NextResponse.json(user);
 }
