@@ -30,6 +30,18 @@ Content lives in `apps/docs/content/docs/*.mdx`; navigation order is
 `content/docs/meta.json`. The docs app is intentionally excluded from the
 production image.
 
+## Adding a workspace package
+
+The `Dockerfile` has explicit per-package `COPY` lines in three places
+(manifests for the deps stage, sources for the builder, `src` for the runner).
+A new package that is not added to all of them builds locally and fails only
+in the image, with `Module not found`.
+
+Package manifests must stay mode 644. Editing one through `mktemp` + `mv`
+silently leaves it at 600, and `COPY` carries that into the image, where the
+unprivileged `nextjs` user can no longer read it and the container dies at
+startup.
+
 ## Build Notes
 
 Webpack (`next build --webpack`) is intentional. Turbopack previously hit a

@@ -1,0 +1,29 @@
+{
+  "name": "@billow/email",
+  "version": "0.1.27",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./templates": "./src/templates/index.ts"
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@billow/db": "workspace:*",
+    "@react-email/components": "1.0.12",
+    "@react-email/render": "2.1.0",
+    "resend": "6.18.0"
+  },
+  "peerDependencies": {
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "@billow/vitest-config": "workspace:*",
+    "@types/react": "^19",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

@@ -5,7 +5,14 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  // Relative to this file, which lives in prisma/schema/ since the schema was
+  // split across several files — so reaching packages/db/generated/prisma
+  // takes two levels, not one. With a single level the client is written to
+  // prisma/generated/ instead, which nothing imports: the package's exports
+  // map and src/index.ts both point at ../generated. That silently keeps
+  // compiling against a stale client until a newly added model turns up
+  // missing.
+  output   = "../../generated/prisma"
 }
 
 datasource db {

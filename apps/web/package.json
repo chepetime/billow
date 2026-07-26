@@ -40,7 +40,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.83.0",
-    "zod": "^4.2.0"
+    "zod": "^4.2.0",
+    "@billow/email": "workspace:*"
   },
   "devDependencies": {
     "@billow/eslint-config": "workspace:*",

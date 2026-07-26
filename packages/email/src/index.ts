@@ -1,0 +1,35 @@
+export {
+  CredentialCryptoError,
+  decryptCredential,
+  encryptCredential,
+  previewCredential,
+} from "./crypto";
+
+export {
+  isSupportedProvider,
+  SUPPORTED_PROVIDERS,
+  type EmailProvider,
+  type OutgoingEmail,
+  type ProviderName,
+  type SendResult,
+} from "./provider";
+
+export {
+  normalizePublicUrl,
+  originFromHeaders,
+  resolveEmailOrigin,
+  rewriteOrigin,
+} from "./public-url";
+
+export {
+  formatFromAddress,
+  getConfiguredPublicUrl,
+  getPublicEmailSettings,
+  getSendingCredentials,
+  isValidEmail,
+  updateEmailSettings,
+  type EmailSettingsUpdate,
+  type PublicEmailSettings,
+} from "./settings";
+
+export { sendEmail, type RenderedMessage } from "./send";

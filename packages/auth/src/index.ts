@@ -9,4 +9,9 @@ export {
   type AuthErrorReporter,
 } from "./session";
 export { isAdmin, requireAdmin, getAdminSession } from "./admin";
+export {
+  setAuthMailer,
+  type AuthMailer,
+  type PasswordResetMessage,
+} from "./mailer";
 export { getRegistrationEnabled } from "./registration-settings";

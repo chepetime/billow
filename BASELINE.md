@@ -25,7 +25,12 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Origin handling that works behind any proxy/host (no pinned domain)
 - [x] Password reset no longer logs a usable URL; administrators can set a
       password directly (self-service still needs SMTP)
-- [ ] **Self-service password reset** — `sendResetPassword` currently only logs the URL.
+- [x] **Outbound email** — `@billow/email` (Resend + react-email), credentials
+      set by an admin in Settings → Administration and stored AES-256-GCM
+      encrypted, test-send button, provider seam for SMTP later
+- [ ] **Self-service password reset UI** — delivery is wired
+      (`sendResetPassword` → `@billow/email`); still needs the request form and
+      the `/reset-password/<token>` page
       Needs either a real mail transport or a "copy this link" admin surface.
 - [ ] **Session management UI** — list active sessions and revoke individually
       (`auth.api.listSessions` / `revokeSession` already exist)
@@ -92,7 +97,10 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       transaction, ownership forced to the importer, ids remapped
 - [ ] Backup should also cover uploaded files once uploads exist — the largest gap for self-hosting: one-click export
       and restore of the database plus uploads
-- [ ] SMTP configuration, without which password reset cannot work
+- [ ] SMTP provider alongside Resend — Resend is a hosted API needing outbound
+      internet and an account, which not every self-hosted install wants. The
+      seam is in place (`packages/email/src/provider.ts`); this is a new file
+      plus a branch, with no change to callers or the admin UI
 - [ ] Background jobs (log retention, upload cleanup, key expiry)
 - [ ] Audit log: who changed what, distinct from the error log
 - [ ] Structured logging (currently `console.*`)

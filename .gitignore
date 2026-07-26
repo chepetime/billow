@@ -13,6 +13,10 @@ out
 next-env.d.ts
 src/generated/prisma
 packages/db/generated/prisma
+# Catch the Prisma client wherever it lands: the generator's output path is
+# relative to the schema, so moving or splitting the schema silently moves the
+# output too — which is how 24 generated files once ended up committed.
+**/generated/prisma
 .turbo
 **/.turbo
 .pnpm-store

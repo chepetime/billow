@@ -16,17 +16,30 @@ export const ERROR_LOG_RETENTION = { maxRows: 500, maxAgeDays: 30 } as const;
 // diagnostics.ts's ownership.
 const CONNECTION_STRING_PATTERN = /(\w+:\/\/)([^\s:@/]+)(?::([^\s@/]*))?@/g;
 
+// Provider API keys in the `<prefix>_<random>` shape used by Resend (re_),
+// Stripe (sk_/pk_) and most others. Error text from a provider can echo the
+// credential it rejected, and this table is surfaced on the admin diagnostics
+// page — which operators routinely copy into bug reports and chat threads.
+// Requiring 16+ trailing characters keeps ordinary identifiers (cuid values,
+// `api_key` as a word) from being mangled.
+const PROVIDER_KEY_PATTERN = /\b([a-z]{2,6})_[A-Za-z0-9_-]{16,}\b/g;
+
 // A stack trace under a broken loop or a deeply recursive failure can run to
 // megabytes; cap what gets persisted so one bad error can't dominate the
 // table or the row size.
 const MAX_STACK_LENGTH = 10_000;
 
-/** Redact embedded connection-string credentials in free-form error text. */
+/**
+ * Redact credentials in free-form error text: connection strings with
+ * embedded passwords, and provider API keys.
+ */
 export function redactSecrets(text: string): string {
-  return text.replace(
-    CONNECTION_STRING_PATTERN,
-    (_match, scheme: string, user: string) => `${scheme}${user}:••••@`,
-  );
+  return text
+    .replace(
+      CONNECTION_STRING_PATTERN,
+      (_match, scheme: string, user: string) => `${scheme}${user}:••••@`,
+    )
+    .replace(PROVIDER_KEY_PATTERN, (_match, prefix: string) => `${prefix}_••••`);
 }
 
 /** Cap a stack trace's length, marking that it was cut off. */

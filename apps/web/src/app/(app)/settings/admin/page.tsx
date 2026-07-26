@@ -2,8 +2,10 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 import { BackupSection } from "@/app/(app)/settings/_components/backup-section";
+import { EmailSection } from "@/app/(app)/settings/_components/email-section";
 import { UsersSection, type AdminUser } from "@/app/(app)/settings/_components/users-section";
 import { auth, requireAdmin } from "@billow/auth";
+import { getPublicEmailSettings, type PublicEmailSettings } from "@billow/email";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +26,23 @@ async function listUsers(): Promise<AdminUser[]> {
   }
 }
 
+async function loadEmailSettings(): Promise<PublicEmailSettings | null> {
+  try {
+    return await getPublicEmailSettings();
+  } catch (error) {
+    // A broken email row must not take down the whole administration page,
+    // which is also where the diagnostics link lives.
+    await recordError("admin.emailSettings", error);
+    return null;
+  }
+}
+
 export default async function AdminPage() {
   const session = await requireAdmin();
-  const users = await listUsers();
+  const [users, emailSettings] = await Promise.all([
+    listUsers(),
+    loadEmailSettings(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -69,6 +85,8 @@ export default async function AdminPage() {
           </a>
         </div>
       </section>
+
+      {emailSettings ? <EmailSection settings={emailSettings} /> : null}
 
       <UsersSection users={users} currentUserId={session.user.id} />
 

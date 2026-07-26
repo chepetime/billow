@@ -28,6 +28,27 @@ describe("redactSecrets", () => {
     const input = "TypeError: cannot read properties of undefined";
     expect(redactSecrets(input)).toBe(input);
   });
+
+  it("masks a provider API key echoed back in an error", () => {
+    // Recorded rows surface on the admin diagnostics page, which operators
+    // paste into bug reports.
+    const input = "Resend rejected the key re_A1b2C3d4E5f6G7h8J9k0Lm";
+    expect(redactSecrets(input)).toBe("Resend rejected the key re_••••");
+  });
+
+  it("masks provider keys and connection strings in the same text", () => {
+    const input = "using re_A1b2C3d4E5f6G7h8J9k0Lm against postgres://u:pw@h/db";
+    expect(redactSecrets(input)).toBe(
+      "using re_•••• against postgres://u:••••@h/db",
+    );
+  });
+
+  it("leaves short identifiers and ordinary words alone", () => {
+    // `api_key` as prose and a short token must survive, or redaction would
+    // corrupt the very messages it is meant to keep readable.
+    const input = "missing api_key in request; code err_12345";
+    expect(redactSecrets(input)).toBe(input);
+  });
 });
 
 describe("truncateStack", () => {

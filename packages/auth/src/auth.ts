@@ -9,6 +9,7 @@ import { apiKey } from "@better-auth/api-key";
 import { getPrisma } from "@billow/db";
 
 import { getAuthEnv } from "./auth-env";
+import { deliverPasswordReset } from "./mailer";
 import { canRegister } from "./registration";
 import { getRegistrationEnabled } from "./registration-settings";
 import { resolveTrustedOrigins } from "./trusted-origins";
@@ -60,17 +61,15 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    // There is no mail transport in this app, so a reset link can never
-    // reach the requester anyway. Logging the working reset URL would let
-    // anyone who can read container logs take over any account, so this
-    // callback intentionally never logs (or otherwise exposes) the URL or
-    // the token — only that a request happened, keyed by user id.
-    // Administrators recover access instead via the admin plugin's
-    // setUserPassword (Settings -> Users -> Set password).
-    sendResetPassword: async ({ user }) => {
-      console.info(
-        `Password reset requested for user ${user.id}. Self-service reset is unavailable; an administrator must set a new password.`,
-      );
+    // Every account's session is dropped when its password is reset, so a
+    // reset triggered by someone who had stolen a session does not leave that
+    // session alive afterwards.
+    revokeSessionsOnPasswordReset: true,
+    // Delivered by the email package when an administrator has configured a
+    // provider; a no-op otherwise. The URL and token are never logged: anyone
+    // able to read container logs could otherwise take over any account.
+    sendResetPassword: async ({ user, url }, request) => {
+      await deliverPasswordReset({ user, url, request });
     },
   },
   // Trust only the origin this request was actually served on, derived from
