@@ -45,6 +45,10 @@ check "GET /api/health           " "$(code "$BASE/api/health")" 200
 check "GET /dashboard (anon)     " "$(code "$BASE/dashboard")" 307
 check "GET /api/v1/me (no auth)  " "$(code "$BASE/api/v1/me")" 401
 check "GET /api/v1/me (bad key)  " "$(code -H 'x-api-key: invalid' "$BASE/api/v1/me")" 401
+# Missing credentials must read as "authenticate", not "forbidden": an origin
+# check running before authentication would answer 403 and mislead clients.
+check "GET /api/v1/uploads (no auth)" "$(code "$BASE/api/v1/uploads")" 401
+check "POST /api/v1/uploads (no auth)" "$(code -X POST "$BASE/api/v1/uploads")" 401
 
 # The probe is deliberately boolean-only: {"status":"ok"} when the database is
 # reachable, {"status":"unavailable"} with 503 when it is not.

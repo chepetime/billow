@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   KeyRound,
+  Paperclip,
   ShieldCheck,
   UserRound,
   UserPlus,
@@ -31,6 +32,12 @@ const sections = [
     label: "API keys",
     description: "Personal integrations",
     icon: KeyRound,
+  },
+  {
+    href: "/settings/files",
+    label: "Files",
+    description: "Avatars, images and PDFs",
+    icon: Paperclip,
   },
   {
     href: "/settings/access",
