@@ -23,7 +23,7 @@ export async function isAppMetadataDatabaseAvailable() {
   }
 }
 
-export async function getAppMetadata(appId = "sparkles-billow") {
+export async function getAppMetadata(appId = "billow") {
   try {
     return await getPrisma().appMetadata.findUnique({
       where: { appId },

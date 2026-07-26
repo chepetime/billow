@@ -3,7 +3,7 @@
 This is the Billow app repository. The Umbrel store metadata lives separately in:
 
 ```text
-/Users/jlugo/Projects/personal/developer-umbrel-community-app-store
+/Users/jose/Projects/personal/developer-umbrel-community-app-store
 ```
 
 Remote:
@@ -156,10 +156,10 @@ Use Node 24-compatible action majors:
 After publishing a new image tag:
 
 1. Update the image tag in the store repo's
-   `sparkles-billow/docker-compose.yml`.
+   `billow/docker-compose.yml`.
 2. Bump `version` and `releaseNotes` in
-   `sparkles-billow/umbrel-app.yml`.
-3. Keep `id: sparkles-billow` unchanged.
+   `billow/umbrel-app.yml`.
+3. Keep `id: billow` unchanged.
 4. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
 5. Push the store repo and refresh the alt store in Umbrel.
 

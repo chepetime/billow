@@ -97,20 +97,20 @@ ghcr.io/chepetime/billow:latest
 ```
 
 The Umbrel app store repo then references the new versioned image from its
-`sparkles-billow/docker-compose.yml`.
+`billow/docker-compose.yml`.
 
 ## Umbrel Store Contract
 
 The app store package lives in:
 
 ```text
-/Users/jlugo/Projects/personal/developer-umbrel-community-app-store/sparkles-billow
+/Users/jose/Projects/personal/developer-umbrel-community-app-store/billow
 ```
 
 Keep this stable for existing installs:
 
 ```yaml
-id: sparkles-billow
+id: billow
 ```
 
 Keep the Postgres volume stable so image updates do not wipe user data:

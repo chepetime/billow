@@ -76,7 +76,7 @@ export async function getInvoiceWorkspace() {
       invoiceCount,
       nextInvoice,
     ] = await Promise.all([
-      prisma.appMetadata.findUnique({ where: { appId: "sparkles-billow" } }),
+      prisma.appMetadata.findUnique({ where: { appId: "billow" } }),
       prisma.userProfile.findMany({
         orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       }),

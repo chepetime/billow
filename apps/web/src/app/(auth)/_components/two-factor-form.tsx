@@ -2,31 +2,43 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import {
+  twoFactorCodeSchema,
+  type TwoFactorCodeInput,
+} from "@/lib/schemas/auth";
 
 export function TwoFactorForm() {
   const router = useRouter();
-  const [code, setCode] = useState("");
   const [useBackupCode, setUseBackupCode] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsPending(true);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<TwoFactorCodeInput>({
+    resolver: zodResolver(twoFactorCodeSchema),
+    defaultValues: { code: "" },
+  });
 
-    const { error: verifyError } = useBackupCode
-      ? await authClient.twoFactor.verifyBackupCode({ code })
-      : await authClient.twoFactor.verifyTotp({ code });
+  async function onSubmit({ code }: TwoFactorCodeInput) {
+    setFormError(null);
+    const trimmed = code.trim();
 
-    if (verifyError) {
-      setError(verifyError.message ?? "That code did not work.");
-      setIsPending(false);
+    const { error } = useBackupCode
+      ? await authClient.twoFactor.verifyBackupCode({ code: trimmed })
+      : await authClient.twoFactor.verifyTotp({ code: trimmed });
+
+    if (error) {
+      setFormError(error.message ?? "That code did not work.");
       return;
     }
 
@@ -35,33 +47,34 @@ export function TwoFactorForm() {
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-      <div className="space-y-1.5">
-        <Label htmlFor="code">
-          {useBackupCode ? "Backup code" : "Authentication code"}
-        </Label>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <Field
+        label={useBackupCode ? "Backup code" : "Authentication code"}
+        htmlFor="code"
+        error={errors.code?.message}
+        hint={
+          useBackupCode
+            ? "Each backup code can only be used once."
+            : "Enter the 6-digit code from your authenticator app."
+        }
+      >
         <Input
           id="code"
-          name="code"
           type="text"
           inputMode={useBackupCode ? "text" : "numeric"}
           autoComplete="one-time-code"
           autoFocus
-          required
-          value={code}
-          onChange={(event) => setCode(event.target.value.trim())}
+          aria-invalid={Boolean(errors.code)}
+          {...register("code")}
         />
-        <p className="text-xs text-muted-foreground">
-          {useBackupCode
-            ? "Each backup code can only be used once."
-            : "Enter the 6-digit code from your authenticator app."}
-        </p>
-      </div>
+      </Field>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {formError ? (
+        <p className="text-sm text-destructive">{formError}</p>
+      ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isPending}>
-        {isPending ? "Verifying..." : "Verify"}
+      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Verifying..." : "Verify"}
       </Button>
 
       <button
@@ -69,8 +82,8 @@ export function TwoFactorForm() {
         className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         onClick={() => {
           setUseBackupCode((previous) => !previous);
-          setCode("");
-          setError(null);
+          setFormError(null);
+          reset({ code: "" });
         }}
       >
         {useBackupCode

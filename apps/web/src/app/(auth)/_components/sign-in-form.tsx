@@ -3,32 +3,38 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { isEmailIdentifier } from "@/lib/login-identifier";
+import { signInSchema, type SignInInput } from "@/lib/schemas/auth";
 
 export function SignInForm() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsPending(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { identifier: "", password: "" },
+  });
 
-    const { data, error: signInError } = isEmailIdentifier(identifier)
+  async function onSubmit({ identifier, password }: SignInInput) {
+    setFormError(null);
+
+    const { data, error } = isEmailIdentifier(identifier)
       ? await authClient.signIn.email({ email: identifier, password })
       : await authClient.signIn.username({ username: identifier, password });
 
-    if (signInError) {
-      setError(signInError.message ?? "Unable to sign in.");
-      setIsPending(false);
+    if (error) {
+      setFormError(error.message ?? "Unable to sign in.");
       return;
     }
 
@@ -44,37 +50,37 @@ export function SignInForm() {
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-      <div className="space-y-1.5">
-        <Label htmlFor="identifier">Username or email</Label>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <Field
+        label="Username or email"
+        htmlFor="identifier"
+        error={errors.identifier?.message}
+      >
         <Input
           id="identifier"
-          name="identifier"
           type="text"
           autoComplete="username"
-          required
-          value={identifier}
-          onChange={(event) => setIdentifier(event.target.value)}
+          aria-invalid={Boolean(errors.identifier)}
+          {...register("identifier")}
         />
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
+      <Field label="Password" htmlFor="password" error={errors.password?.message}>
         <Input
           id="password"
-          name="password"
           type="password"
           autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={Boolean(errors.password)}
+          {...register("password")}
         />
-      </div>
+      </Field>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {formError ? (
+        <p className="text-sm text-destructive">{formError}</p>
+      ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isPending}>
-        {isPending ? "Signing in..." : "Sign in"}
+      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Signing in..." : "Sign in"}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">

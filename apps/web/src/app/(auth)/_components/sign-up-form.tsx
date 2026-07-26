@@ -2,34 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { signUpSchema, type SignUpInput } from "@/lib/schemas/auth";
 
 export function SignUpForm() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsPending(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignUpInput>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { name: "", email: "", password: "" },
+  });
 
-    const { error: signUpError } = await authClient.signUp.email({
-      name,
-      email,
-      password,
-    });
+  async function onSubmit(values: SignUpInput) {
+    setFormError(null);
 
-    if (signUpError) {
-      setError(signUpError.message ?? "Unable to create the account.");
-      setIsPending(false);
+    const { error } = await authClient.signUp.email(values);
+
+    if (error) {
+      setFormError(error.message ?? "Unable to create the account.");
       return;
     }
 
@@ -38,50 +39,48 @@ export function SignUpForm() {
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-      <div className="space-y-1.5">
-        <Label htmlFor="name">Name</Label>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <Field label="Name" htmlFor="name" error={errors.name?.message}>
         <Input
           id="name"
-          name="name"
           type="text"
           autoComplete="name"
-          required
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+          aria-invalid={Boolean(errors.name)}
+          {...register("name")}
         />
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+      <Field label="Email" htmlFor="email" error={errors.email?.message}>
         <Input
           id="email"
-          name="email"
           type="email"
           autoComplete="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          aria-invalid={Boolean(errors.email)}
+          {...register("email")}
         />
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
+      <Field
+        label="Password"
+        htmlFor="password"
+        error={errors.password?.message}
+        hint="At least 8 characters."
+      >
         <Input
           id="password"
-          name="password"
           type="password"
           autoComplete="new-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={Boolean(errors.password)}
+          {...register("password")}
         />
-      </div>
+      </Field>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {formError ? (
+        <p className="text-sm text-destructive">{formError}</p>
+      ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isPending}>
-        {isPending ? "Creating account..." : "Create account"}
+      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Creating account..." : "Create account"}
       </Button>
     </form>
   );

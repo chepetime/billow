@@ -11,7 +11,7 @@ if (!connectionString) {
 const pool = new Pool({ connectionString });
 
 const billowMetadata = {
-  appId: "sparkles-billow",
+  appId: "billow",
   name: "Billow",
   tagline: "Personal invoices without the spreadsheet drift.",
   version: "0.1.6",
