@@ -1,0 +1,73 @@
+---
+title: Architecture
+description: How Billow is put together — the monorepo layout, request flow, auth model, and data access.
+---
+
+## Monorepo layout
+
+```text
+apps/
+  web/          Next.js App Router application (the product)
+  docs/         This documentation site (Fumadocs)
+packages/
+  db/           @billow/db — Prisma schema, migrations, seed, client
+  ui/           @billow/ui — shared React primitives
+  shadcn/       @billow/shadcn — shadcn-derived components
+```
+
+pnpm workspaces define the members; Turborepo orchestrates `build`, `lint`,
+`test:run`, and the `db:*` tasks.
+
+## Request flow
+
+```text
+Browser
+  → Umbrel app_proxy            (only in production)
+  → Next.js (apps/web)
+      middleware.ts             optimistic redirect for /dashboard, /settings
+      Server Component          requireSession() / getSession()
+      → @billow/db getPrisma()  → Postgres
+```
+
+Route groups carry the access rules:
+
+- `app/(auth)/*` — public, redirects **away** when already signed in
+- `app/(app)/*` — the layout calls `requireSession()`; this is the real gate
+- `app/api/v1/*` — public REST surface, authenticated by API key or session
+
+`middleware.ts` is a fast-path only. It checks for a session **cookie**, not a
+valid session, so the server layout remains the source of truth.
+
+## Auth model
+
+BetterAuth with the Prisma adapter, plus three plugins:
+
+- `username` — a username can be used to sign in instead of an email
+- `twoFactor` — TOTP enrolment with single-use backup codes
+- `apiKey` (`@better-auth/api-key`) — personal access tokens
+
+Registration is **first-user-only** by default: a `databaseHooks.user.create.before`
+guard rejects sign-ups once an account exists, so the rule holds no matter which
+UI or endpoint is used.
+
+### Origins, not domains
+
+`BETTER_AUTH_URL` is deliberately **not** pinned. `auth-env.ts` falls back to an
+in-container URL and `trustedOrigins` trusts the request's `Origin` header, so
+sign-in works through `umbrel.local`, Tailscale, Cloudflare, or a raw IP.
+
+<Callout type="warn">
+This weakens BetterAuth's cross-site (CSRF) check on purpose. It is an accepted
+trade for a single-user app behind network auth, and should be tightened once
+the app is reached over a stable HTTPS hostname.
+</Callout>
+
+## Data access
+
+`@billow/db` owns Prisma end to end and exports `getPrisma()`, a cached client
+wrapped in a retry extension: connection-level failures (`P1001`, `P1002`,
+`P1017`) are retried, while authentication failures (`P1000`) fail fast so real
+misconfiguration surfaces immediately at `/health`.
+
+Workspace data is scoped by `userId`; loaders in `lib/invoice-workspace.ts` take
+the signed-in user and filter every query.

@@ -1,8 +1,10 @@
 packages:
   - "apps/*"
+  - "config/*"
   - "packages/*"
 allowBuilds:
   '@prisma/engines': true
+  esbuild: true
   prisma: true
   sharp: true
   unrs-resolver: true

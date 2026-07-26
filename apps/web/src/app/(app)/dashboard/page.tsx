@@ -17,7 +17,7 @@ function maskAccountNumber(accountNumber: string) {
 
 export default async function DashboardPage() {
   const session = await requireSession();
-  const workspace = await getInvoiceWorkspace();
+  const workspace = await getInvoiceWorkspace(session.user.id);
 
   return (
     <div className="flex flex-1 flex-col gap-8">

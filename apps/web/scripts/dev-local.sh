@@ -27,6 +27,13 @@ set -a
 . "$ENV_FILE"
 set +a
 
+# Portless provides the HTTPS front-door URL while still assigning a private
+# random port to Next. Preserve the plain localhost default outside Portless.
+if [ -n "${PORTLESS_URL:-}" ]; then
+  BETTER_AUTH_URL="$PORTLESS_URL"
+  export BETTER_AUTH_URL
+fi
+
 docker compose -f "$COMPOSE_FILE" up -d postgres
 
 printf "Waiting for Postgres"

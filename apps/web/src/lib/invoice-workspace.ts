@@ -35,11 +35,11 @@ export function formatCurrency(value: number, currency: string) {
   }).format(value);
 }
 
-export async function getInvoiceById(id: number) {
+export async function getInvoiceById(id: number, userId: string) {
   try {
     const prisma = getPrisma();
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, userId },
       include: {
         userProfile: true,
         bankAccount: true,
@@ -64,7 +64,7 @@ export async function getInvoiceById(id: number) {
   }
 }
 
-export async function getInvoiceWorkspace() {
+export async function getInvoiceWorkspace(userId: string) {
   try {
     const prisma = getPrisma();
     const [
@@ -78,16 +78,20 @@ export async function getInvoiceWorkspace() {
     ] = await Promise.all([
       prisma.appMetadata.findUnique({ where: { appId: "billow" } }),
       prisma.userProfile.findMany({
+        where: { userId },
         orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       }),
       prisma.bankAccount.findMany({
+        where: { userProfile: { userId } },
         include: { userProfile: true },
         orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
       }),
       prisma.clientCompany.findMany({
+        where: { userId },
         orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
       }),
       prisma.invoice.findMany({
+        where: { userId },
         include: {
           bankAccount: true,
           clientCompany: true,
@@ -97,8 +101,9 @@ export async function getInvoiceWorkspace() {
         },
         orderBy: [{ invoiceDate: "desc" }, { invoiceNumber: "desc" }],
       }),
-      prisma.invoice.count(),
+      prisma.invoice.count({ where: { userId } }),
       prisma.invoice.findFirst({
+        where: { userId },
         orderBy: { invoiceNumber: "desc" },
         select: { invoiceNumber: true },
       }),

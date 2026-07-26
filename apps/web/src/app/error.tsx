@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@billow/shadcn/components/button";
 
 export default function Error({
   error,

@@ -1,15 +1,11 @@
 import { fileURLToPath } from "node:url";
 
-import { defineConfig } from "vitest/config";
+import { createNodeVitestConfig } from "@billow/vitest-config/node";
 
-export default defineConfig({
+export default createNodeVitestConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
-  },
-  test: {
-    environment: "node",
-    globals: true,
   },
 });

@@ -7,6 +7,8 @@ import { openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
 
 import { getAuthEnv } from "@/lib/auth-env";
+import { canRegister } from "@/lib/registration";
+import { getRegistrationEnabled } from "@/lib/registration-settings";
 import { getPrisma } from "@billow/db";
 
 const authEnv = getAuthEnv(process.env, {
@@ -81,12 +83,38 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async () => {
-          const userCount = await getPrisma().user.count();
-          if (userCount >= 1) {
+          const prisma = getPrisma();
+          const [userCount, registrationEnabled] = await Promise.all([
+            prisma.user.count(),
+            getRegistrationEnabled(),
+          ]);
+          if (!canRegister(userCount, registrationEnabled)) {
             throw new APIError("FORBIDDEN", {
               message: "Registration is closed.",
             });
           }
+        },
+        after: async (user) => {
+          // A pre-auth installation can contain seeded workspace data. Assign
+          // that unclaimed data to the first account exactly once.
+          const prisma = getPrisma();
+          const userCount = await prisma.user.count();
+          if (userCount !== 1) return;
+
+          await prisma.$transaction([
+            prisma.userProfile.updateMany({
+              where: { userId: null },
+              data: { userId: user.id },
+            }),
+            prisma.clientCompany.updateMany({
+              where: { userId: null },
+              data: { userId: user.id },
+            }),
+            prisma.invoice.updateMany({
+              where: { userId: null },
+              data: { userId: user.id },
+            }),
+          ]);
         },
       },
     },

@@ -1,0 +1,12 @@
+{
+  "name": "@billow/tailwind-config",
+  "version": "0.1.18",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./postcss": "./postcss.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4"
+  }
+}

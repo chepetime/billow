@@ -12,6 +12,8 @@ export default function GlobalError({
       <body
         style={{
           fontFamily: "system-ui, sans-serif",
+          backgroundColor: "Canvas",
+          color: "CanvasText",
           maxWidth: "40rem",
           margin: "0 auto",
           padding: "2.5rem 1.5rem",
@@ -20,12 +22,13 @@ export default function GlobalError({
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>
           Something went wrong
         </h1>
-        <p style={{ color: "#666" }}>The app failed to render.</p>
+        <p style={{ color: "GrayText" }}>The app failed to render.</p>
         <pre
           style={{
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
-            background: "#f4f4f5",
+            background: "Canvas",
+            border: "1px solid GrayText",
             padding: "1rem",
             borderRadius: "0.5rem",
             fontSize: "0.85rem",
@@ -34,7 +37,7 @@ export default function GlobalError({
           {error.message || "Unknown error"}
           {error.digest ? `\n\ndigest: ${error.digest}` : ""}
         </pre>
-        <p style={{ color: "#666", fontSize: "0.9rem" }}>
+        <p style={{ color: "GrayText", fontSize: "0.9rem" }}>
           Full diagnostics: <a href="/api/health">/api/health</a>
         </p>
         <button
@@ -44,7 +47,9 @@ export default function GlobalError({
             marginTop: "0.5rem",
             padding: "0.5rem 1rem",
             borderRadius: "0.5rem",
-            border: "1px solid #ccc",
+            border: "1px solid GrayText",
+            background: "Canvas",
+            color: "CanvasText",
             cursor: "pointer",
           }}
         >

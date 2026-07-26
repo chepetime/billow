@@ -1,9 +1,33 @@
-import { Label } from "@/components/ui/label";
+import {
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+} from "@billow/shadcn/components/field";
+import { Label } from "@billow/shadcn/components/label";
+
 import { cn } from "@/lib/utils";
 
+export {
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+};
+
 /**
- * Label + control + validation message. Keeps forms from re-implementing the
- * same markup and wires `aria-invalid` / `aria-describedby` consistently.
+ * Billow's form-field adapter. It preserves the app's compact form API while
+ * the shadcn field primitives remain unmodified in @billow/shadcn.
  */
 export function Field({
   label,

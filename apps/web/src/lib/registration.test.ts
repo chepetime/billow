@@ -4,11 +4,12 @@ import { canRegister } from "@/lib/registration";
 
 describe("canRegister", () => {
   it("allows registration when there are zero users", () => {
-    expect(canRegister(0)).toBe(true);
+    expect(canRegister(0, false)).toBe(true);
   });
 
-  it("closes registration once at least one user exists", () => {
-    expect(canRegister(1)).toBe(false);
-    expect(canRegister(5)).toBe(false);
+  it("requires the registration setting once an account exists", () => {
+    expect(canRegister(1, false)).toBe(false);
+    expect(canRegister(5, false)).toBe(false);
+    expect(canRegister(1, true)).toBe(true);
   });
 });

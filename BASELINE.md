@@ -55,10 +55,8 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [~] **Form validation** — zod schemas + `Field` + react-hook-form wired into
       sign-in, sign-up, and two-factor. Still to migrate: `account-form`,
       `two-factor-section`, `api-keys-section`
-- [ ] **Theming** — `globals.css` already defines the full `.dark` palette and
-      `@custom-variant dark`, but **nothing ever applies the class**. Add
-      `next-themes` + a light/dark/system toggle. Sweep the hardcoded light-only
-      styles in `global-error.tsx`.
+- [x] Theming — `next-themes` applies the existing palette, with persisted
+      light/dark/system controls on authenticated and public entry pages.
 - [ ] **i18n** — `next-intl@4`, cookie-based (`NEXT_LOCALE`, no URL prefix),
       messages in `messages/{en,es}.json`, language picker in settings
 - [ ] Toast / notification system (success + error feedback is inline-only today)

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { SignOutButton } from "@/app/(app)/_components/sign-out-button";
+import { UserMenu } from "@/app/(app)/_components/user-menu";
 import { requireSession } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
@@ -16,24 +16,15 @@ export default async function AppLayout({
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <header className="border-b print:hidden">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-4 sm:px-8">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-sm font-semibold">
-              Billow
-            </Link>
-            <Link
-              href="/settings"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Settings
-            </Link>
-          </div>
+          <Link href="/dashboard" className="text-sm font-medium hover:text-muted-foreground">
+            Home
+          </Link>
 
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {session.user.email}
-            </span>
-            <SignOutButton />
-          </div>
+          <UserMenu
+            name={session.user.name}
+            email={session.user.email}
+            image={session.user.image ?? null}
+          />
         </div>
       </header>
 

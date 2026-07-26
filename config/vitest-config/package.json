@@ -1,0 +1,12 @@
+{
+  "name": "@billow/vitest-config",
+  "version": "0.1.18",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./node": "./node.ts"
+  },
+  "dependencies": {
+    "vitest": "^4.1.10"
+  }
+}

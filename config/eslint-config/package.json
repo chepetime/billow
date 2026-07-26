@@ -1,0 +1,16 @@
+{
+  "name": "@billow/eslint-config",
+  "version": "0.1.18",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./next": "./next.mjs"
+  },
+  "dependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12"
+  },
+  "peerDependencies": {
+    "next": "16.2.12"
+  }
+}

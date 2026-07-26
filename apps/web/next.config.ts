@@ -7,7 +7,7 @@ const { version } = JSON.parse(
 ) as { version: string };
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@billow/db"],
+  transpilePackages: ["@billow/db", "@billow/shadcn"],
   env: {
     // Release version, inlined at build time from package.json (bumped
     // before tagging a release). Reliable regardless of DB seeding.

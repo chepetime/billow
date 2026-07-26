@@ -1,0 +1,40 @@
+---
+title: Overview
+description: Internal documentation for Billow — the primary source of truth for architecture, conventions, package responsibilities, and operations.
+---
+
+Billow is a personal invoicing app for [Umbrel](https://umbrel.com), and in
+practice a **base setup for self-hosted apps**: first-user registration,
+sessions, two-factor auth, usernames, personal API keys, health diagnostics, and
+tag-driven releases.
+
+This site is the **primary source of truth**. `AGENTS.md` and `README.md` in the
+repository root stay short and point here.
+
+## Start here
+
+| If you want to… | Read |
+| --- | --- |
+| Understand how the app fits together | [Architecture](/docs/architecture) |
+| Know what each workspace package owns | [Packages](/docs/packages) |
+| Write code that matches the codebase | [Conventions](/docs/conventions) |
+| Run, debug, or deploy it | [Operations](/docs/operations) |
+| Cut a release | [Releasing](/docs/releasing) |
+
+## The short version
+
+- **Monorepo**: pnpm workspaces + Turborepo. `apps/web` is the product,
+  `packages/*` are shared libraries.
+- **Stack**: Next.js App Router (React 19), Prisma 7 on Postgres, BetterAuth,
+  Tailwind v4.
+- **Shipping**: a tagged release builds a `linux/amd64` image, pushes it to
+  GHCR, and boots it in CI before it is considered good. A separate store
+  repository points Umbrel at the published tag.
+
+## Two rules worth knowing up front
+
+1. **Never address another container by a bare service name.** Umbrel runs every
+   app on one shared Docker network, so `db` resolves to *other* apps' databases.
+   Always use `<app-id>_<service>_1` — see [Operations](/docs/operations).
+2. **Schema changes ship with a migration.** `prisma migrate dev` cannot run in
+   CI or an agent shell; use the diff recipe in [Conventions](/docs/conventions).

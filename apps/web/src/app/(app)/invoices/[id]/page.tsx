@@ -11,7 +11,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
 
   const { id } = await params;
   const invoiceId = Number.parseInt(id, 10);
@@ -20,7 +20,7 @@ export default async function InvoiceDetailPage({
     notFound();
   }
 
-  const invoice = await getInvoiceById(invoiceId);
+  const invoice = await getInvoiceById(invoiceId, session.user.id);
 
   if (!invoice) {
     notFound();

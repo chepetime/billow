@@ -4,9 +4,10 @@
   "private": true,
   "packageManager": "pnpm@10.34.1",
   "scripts": {
-    "dev": "turbo dev",
-    "dev:web": "pnpm --filter @billow/web dev",
-    "dev:local": "pnpm --filter @billow/web dev:local",
+    "dev": "sh scripts/dev-environment.sh turbo dev",
+    "dev:web": "sh scripts/dev-environment.sh pnpm --filter @billow/web dev",
+    "dev:local": "sh scripts/dev-environment.sh pnpm --filter @billow/web dev:local",
+    "dev:doctor": "sh scripts/dev-environment.sh --check",
     "dev:setup": "pnpm --filter @billow/web dev:setup",
     "build": "turbo build",
     "lint": "turbo lint",
@@ -21,6 +22,7 @@
     "db:seed": "pnpm --filter @billow/db db:seed"
   },
   "devDependencies": {
+    "portless": "^0.15.4",
     "turbo": "^2.10.7"
   }
 }

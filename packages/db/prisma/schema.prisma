@@ -25,6 +25,11 @@ model AppMetadata {
   updatedAt     DateTime @updatedAt
 }
 
+model RegistrationSettings {
+  id      Int     @id @default(1)
+  enabled Boolean @default(false)
+}
+
 model User {
   id              String      @id @default(cuid())
   name            String
@@ -39,6 +44,9 @@ model User {
   sessions        Session[]
   accounts        Account[]
   twoFactors      TwoFactor[]
+  userProfiles    UserProfile[]
+  clientCompanies ClientCompany[]
+  invoices        Invoice[]
 
   @@map("user")
 }
@@ -151,10 +159,14 @@ model UserProfile {
   address      String
   department   String?
   manager      String?
+  userId       String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   bankAccounts BankAccount[]
   invoices     Invoice[]
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model BankAccount {
@@ -194,9 +206,13 @@ model ClientCompany {
   email           String
   attentionTo     String?
   notes           String?
+  userId          String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   invoices        Invoice[]
+  user            User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Invoice {
@@ -206,6 +222,7 @@ model Invoice {
   status          InvoiceStatus     @default(DRAFT)
   currency        String            @default("MXN")
   notes           String?
+  userId          String?
   userProfileId   Int
   bankAccountId   Int
   clientCompanyId Int
@@ -216,8 +233,11 @@ model Invoice {
   clientCompany   ClientCompany     @relation(fields: [clientCompanyId], references: [id], onDelete: Restrict)
   lineItems       InvoiceLineItem[]
   revisions       InvoiceRevision[]
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, invoiceNumber])
   @@index([invoiceDate])
+  @@index([userId])
   @@index([status])
   @@index([userProfileId])
   @@index([bankAccountId])

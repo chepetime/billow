@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { parseInvoiceStatus } from "@/lib/invoice-status";
+import { requireSession } from "@/lib/auth-session";
 import { getPrisma } from "@billow/db";
 
 function readString(formData: FormData, key: string) {
@@ -56,6 +57,8 @@ function readInvoiceItems(formData: FormData) {
 
 export async function createWorkspaceFromOnboarding(formData: FormData) {
   const prisma = getPrisma();
+  const session = await requireSession();
+  const userId = session.user.id;
   const invoiceNumber = readInt(formData, "invoiceNumber");
   const invoiceDate = new Date(readString(formData, "invoiceDate"));
   const starterAmount = readDecimal(formData, "starterAmount");
@@ -67,6 +70,7 @@ export async function createWorkspaceFromOnboarding(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const userProfile = await tx.userProfile.create({
       data: {
+        userId,
         displayName: readString(formData, "displayName"),
         legalName: readString(formData, "legalName"),
         email: readString(formData, "email"),
@@ -103,6 +107,7 @@ export async function createWorkspaceFromOnboarding(formData: FormData) {
 
     const clientCompany = await tx.clientCompany.create({
       data: {
+        userId,
         name: readString(formData, "clientName"),
         legalName: readOptionalString(formData, "clientLegalName"),
         address1: readString(formData, "clientAddress1"),
@@ -116,6 +121,7 @@ export async function createWorkspaceFromOnboarding(formData: FormData) {
 
     const invoice = await tx.invoice.create({
       data: {
+        userId,
         invoiceNumber,
         invoiceDate,
         status: "DRAFT",
@@ -160,10 +166,18 @@ export async function createWorkspaceFromOnboarding(formData: FormData) {
 
 export async function createBankAccount(formData: FormData) {
   const prisma = getPrisma();
+  const session = await requireSession();
+  const userId = session.user.id;
   const userProfileId = readInt(formData, "userProfileId");
   const makeDefault = readString(formData, "isDefault") === "on";
 
   await prisma.$transaction(async (tx) => {
+    const userProfile = await tx.userProfile.findFirst({
+      where: { id: userProfileId, userId },
+      select: { id: true },
+    });
+    if (!userProfile) throw new Error("Profile not found.");
+
     if (makeDefault) {
       await tx.bankAccount.updateMany({
         where: { userProfileId },
@@ -198,8 +212,10 @@ export async function createBankAccount(formData: FormData) {
 }
 
 export async function createClientCompany(formData: FormData) {
+  const session = await requireSession();
   await getPrisma().clientCompany.create({
     data: {
+      userId: session.user.id,
       name: readString(formData, "name"),
       legalName: readOptionalString(formData, "legalName"),
       address1: readString(formData, "address1"),
@@ -217,6 +233,8 @@ export async function createClientCompany(formData: FormData) {
 
 export async function createInvoice(formData: FormData) {
   const prisma = getPrisma();
+  const session = await requireSession();
+  const userId = session.user.id;
   const invoiceNumber = readInt(formData, "invoiceNumber");
   const invoiceDate = new Date(readString(formData, "invoiceDate"));
   const lineItems = readInvoiceItems(formData);
@@ -230,16 +248,38 @@ export async function createInvoice(formData: FormData) {
     throw new Error("At least one line item is required.");
   }
 
+  const [userProfile, bankAccount, clientCompany] = await Promise.all([
+    prisma.userProfile.findFirst({
+      where: { id: readInt(formData, "userProfileId"), userId },
+      select: { id: true },
+    }),
+    prisma.bankAccount.findFirst({
+      where: {
+        id: readInt(formData, "bankAccountId"),
+        userProfile: { userId },
+      },
+      select: { id: true },
+    }),
+    prisma.clientCompany.findFirst({
+      where: { id: readInt(formData, "clientCompanyId"), userId },
+      select: { id: true },
+    }),
+  ]);
+  if (!userProfile || !bankAccount || !clientCompany) {
+    throw new Error("Invoice data must belong to your workspace.");
+  }
+
   const invoice = await prisma.invoice.create({
     data: {
+      userId,
       invoiceNumber,
       invoiceDate,
       status,
       currency: readString(formData, "currency") || "MXN",
       notes: readOptionalString(formData, "notes"),
-      userProfileId: readInt(formData, "userProfileId"),
-      bankAccountId: readInt(formData, "bankAccountId"),
-      clientCompanyId: readInt(formData, "clientCompanyId"),
+      userProfileId: userProfile.id,
+      bankAccountId: bankAccount.id,
+      clientCompanyId: clientCompany.id,
       lineItems: { create: lineItems },
     },
   });

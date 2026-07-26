@@ -6,9 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import QRCode from "qrcode";
 import { useForm } from "react-hook-form";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@billow/shadcn/components/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@/lib/auth-client";
 import { twoFactorPasswordSchema, type TwoFactorPasswordInput } from "@/lib/schemas/account";
 import { twoFactorCodeSchema, type TwoFactorCodeInput } from "@/lib/schemas/auth";
