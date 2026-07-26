@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { Field } from "@/components/ui/field";
 import { authClient } from "@/lib/auth-client";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
@@ -29,6 +31,10 @@ export function UsersSection({
 }) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [passwordTargetId, setPasswordTargetId] = useState<string | null>(
+    null,
+  );
+  const [passwordValue, setPasswordValue] = useState("");
 
   async function run(
     id: string,
@@ -41,11 +47,30 @@ export function UsersSection({
 
     if (error) {
       notifyError(`${label} failed`, error.message ?? undefined);
-      return;
+      return false;
     }
 
     notifySuccess(label);
     router.refresh();
+    return true;
+  }
+
+  function togglePasswordTarget(id: string) {
+    setPasswordTargetId((current) => (current === id ? null : id));
+    setPasswordValue("");
+  }
+
+  async function handleSetPassword(id: string) {
+    const ok = await run(id, "Password updated", () =>
+      authClient.admin.setUserPassword({
+        userId: id,
+        newPassword: passwordValue,
+      }),
+    );
+    if (ok) {
+      setPasswordTargetId(null);
+      setPasswordValue("");
+    }
   }
 
   return (
@@ -146,6 +171,16 @@ export function UsersSection({
 
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || self}
+                    onClick={() => togglePasswordTarget(user.id)}
+                  >
+                    {passwordTargetId === user.id ? "Cancel" : "Set password"}
+                  </Button>
+
+                  <Button
+                    type="button"
                     variant="destructive"
                     size="sm"
                     disabled={busy || self}
@@ -158,6 +193,41 @@ export function UsersSection({
                     Remove
                   </Button>
                 </div>
+
+                {passwordTargetId === user.id ? (
+                  <form
+                    className="flex w-full flex-wrap items-end gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleSetPassword(user.id);
+                    }}
+                  >
+                    <Field
+                      label="New password"
+                      htmlFor={`user-password-${user.id}`}
+                      className="min-w-48 flex-1"
+                    >
+                      <Input
+                        id={`user-password-${user.id}`}
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={8}
+                        required
+                        value={passwordValue}
+                        onChange={(event) =>
+                          setPasswordValue(event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={busy || passwordValue.length < 8}
+                    >
+                      Save password
+                    </Button>
+                  </form>
+                ) : null}
               </li>
             );
           })}

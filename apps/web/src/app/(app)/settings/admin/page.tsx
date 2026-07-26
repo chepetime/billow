@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import { BackupSection } from "@/app/(app)/settings/_components/backup-section";
 import { UsersSection, type AdminUser } from "@/app/(app)/settings/_components/users-section";
 import { requireAdmin } from "@/lib/admin";
 import { auth } from "@/lib/auth";
@@ -71,6 +72,8 @@ export default async function AdminPage() {
       </section>
 
       <UsersSection users={users} currentUserId={session.user.id} />
+
+      <BackupSection />
     </div>
   );
 }

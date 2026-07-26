@@ -53,8 +53,19 @@ ENV NODE_OPTIONS=--max-old-space-size=128
 
 RUN corepack enable && corepack install --global pnpm@10.34.1
 
+# su-exec lets the entrypoint fix volume ownership as root and then drop to the
+# unprivileged user before the app starts.
+RUN apk add --no-cache su-exec
+
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
+
+# Uploads live on a mounted volume so they survive container replacement. The
+# mount point is created here for the no-volume case; when a host directory is
+# bind-mounted it arrives root-owned and masks this, so start.sh re-applies
+# ownership at boot.
+ENV BILLOW_STORAGE_DIR=/data/uploads
+RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -75,8 +86,6 @@ COPY apps/web/scripts ./apps/web/scripts
 COPY --from=builder /repo/apps/web/.next ./apps/web/.next
 COPY --from=builder /repo/apps/web/public ./apps/web/public
 COPY --from=builder /repo/packages/db/generated/prisma ./packages/db/generated/prisma
-
-USER nextjs
 
 WORKDIR /repo/apps/web
 EXPOSE 3000

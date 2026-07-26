@@ -9,6 +9,7 @@ import { apiKey } from "@better-auth/api-key";
 import { getAuthEnv } from "@/lib/auth-env";
 import { canRegister } from "@/lib/registration";
 import { getRegistrationEnabled } from "@/lib/registration-settings";
+import { resolveTrustedOrigins } from "@/lib/trusted-origins";
 import { getPrisma } from "@billow/db";
 
 const authEnv = getAuthEnv(process.env, {
@@ -23,45 +24,41 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    sendResetPassword: async ({ user, url }) => {
+    // There is no mail transport in this app, so a reset link can never
+    // reach the requester anyway. Logging the working reset URL would let
+    // anyone who can read container logs take over any account, so this
+    // callback intentionally never logs (or otherwise exposes) the URL or
+    // the token — only that a request happened, keyed by user id.
+    // Administrators recover access instead via the admin plugin's
+    // setUserPassword (Settings -> Users -> Set password).
+    sendResetPassword: async ({ user }) => {
       console.info(
-        `Password reset requested for ${user.email}. Reset URL: ${url}`,
+        `Password reset requested for user ${user.id}. Self-service reset is unavailable; an administrator must set a new password.`,
       );
     },
   },
-  // Trust the origin this request is actually served on so auth works behind
-  // any front door (umbrel.local, Tailscale, Cloudflare, raw IP) without
-  // pinning BETTER_AUTH_URL to a domain.
+  // Trust only the origin this request was actually served on, derived from
+  // the reverse-proxy host headers (x-forwarded-host/x-forwarded-proto, with
+  // a plain host/http fallback). This works behind any front door
+  // (umbrel.local, Tailscale, Cloudflare, raw IP) without pinning
+  // BETTER_AUTH_URL to a domain.
   //
-  // Umbrel's app_proxy is known to drop X-Forwarded-* headers, so the
-  // reverse-proxy host is unreliable. The browser's Origin header, however,
-  // is a normal request header the proxy passes through verbatim, so we trust
-  // it. Trade-off: this weakens BetterAuth's cross-site (CSRF) check, which is
-  // acceptable for a single-user app that already sits behind Umbrel/Tailscale/
-  // Cloudflare network auth. Sensitive mutations (password change) still
-  // require the current password.
+  // This never reads the request's Origin header: doing so previously made
+  // trustedOrigins tautological (an attacker's own Origin validated itself),
+  // which defeated BetterAuth's cross-site (CSRF) check entirely. Production
+  // diagnostics confirmed x-forwarded-host/x-forwarded-proto do arrive intact
+  // through both Umbrel's app_proxy and a Cloudflare tunnel, so a genuine
+  // cross-site POST is now rejected. BILLOW_TRUSTED_ORIGINS (comma-separated)
+  // remains as an escape hatch for unusual deployments.
   trustedOrigins: async (request) => {
     if (!request) {
       return [];
     }
 
-    const origins = new Set<string>();
-
-    const origin = request.headers.get("origin");
-    if (origin) {
-      origins.add(origin);
-    }
-
-    const forwardedHost =
-      request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-    if (forwardedHost) {
-      const proto =
-        request.headers.get("x-forwarded-proto") ??
-        (request.url.startsWith("https") ? "https" : "http");
-      origins.add(`${proto}://${forwardedHost}`);
-    }
-
-    return [...origins];
+    return resolveTrustedOrigins(
+      request.headers,
+      process.env.BILLOW_TRUSTED_ORIGINS,
+    );
   },
   user: {
     changeEmail: {
