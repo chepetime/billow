@@ -121,9 +121,17 @@ jobs:
             -e PORT=3000 \
             "${IMAGE_NAME}:${{ needs.publish.outputs.version }}"
 
+      # Guards against building from the pre-bump commit: assert the version
+      # baked into the image, rather than scraping it out of a page.
+      - name: Confirm the image contains the released version
+        run: |
+          EXPECTED="${{ needs.publish.outputs.version }}"
+          EXPECTED="${EXPECTED#v}"
+          ACTUAL=$(docker exec billow-verify node -p "require('/repo/apps/web/package.json').version")
+          echo "image contains ${ACTUAL}, released ${EXPECTED}"
+          [ "$ACTUAL" = "$EXPECTED" ] || exit 1
+
       - name: Smoke test
-        env:
-          EXPECT_VERSION: ${{ needs.publish.outputs.version }}
         run: sh scripts/smoke.sh http://localhost:3000
 
       - name: Container logs

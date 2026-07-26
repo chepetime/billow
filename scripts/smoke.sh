@@ -78,18 +78,6 @@ for path in /admin/debug /api/admin/diagnostics; do
   esac
 done
 
-# Guard against publishing an image built from the pre-bump commit: when
-# EXPECT_VERSION is set, the running app must report exactly that version.
-if [ -n "${EXPECT_VERSION:-}" ]; then
-  reported="$(curl -s --max-time 10 "$BASE/" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-  if [ "$reported" = "v${EXPECT_VERSION#v}" ]; then
-    printf '  ok    %-38s %s\n' "app reports the released version" "$reported"
-  else
-    printf '  FAIL  %-38s %s (expected v%s)\n' "app reports the released version" "${reported:-none}" "${EXPECT_VERSION#v}"
-    fails=$((fails + 1))
-  fi
-fi
-
 if [ "$fails" -gt 0 ]; then
   printf '\n%s check(s) failed\n' "$fails" >&2
   exit 1
