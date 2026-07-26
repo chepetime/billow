@@ -86,8 +86,11 @@ export function UserMenu({
           <ThemeToggle />
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/settings" />}>
-          <Settings aria-hidden="true" />
+        <DropdownMenuItem render={<Link href="/settings" />} className="group">
+          <Settings
+            aria-hidden="true"
+            className="transition-transform duration-300 ease-out group-hover:rotate-180 motion-reduce:transition-none motion-reduce:group-hover:rotate-0"
+          />
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />

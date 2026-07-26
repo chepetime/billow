@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
@@ -9,6 +8,7 @@ import { Button } from "@billow/shadcn/components/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@/lib/auth-client";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   changeEmailSchema,
   changePasswordSchema,
@@ -28,12 +28,6 @@ export function AccountForm({
   username: string | null;
 }) {
   const router = useRouter();
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
 
   const profileForm = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
@@ -50,34 +44,28 @@ export function AccountForm({
   const emailValue = useWatch({ control: emailForm.control, name: "newEmail" });
 
   async function saveProfile({ name, username }: ProfileInput) {
-    setProfileError(null);
-    setProfileSuccess(null);
-
     const { error } = await authClient.updateUser({
       name,
       ...(username ? { username } : {}),
     });
 
     if (error) {
-      setProfileError(error.message ?? "Unable to save your profile.");
+      notifyError("Profile not saved", error.message ?? undefined);
       return;
     }
 
-    setProfileSuccess("Profile saved.");
+    notifySuccess("Profile saved");
     router.refresh();
   }
 
   async function saveEmail({ newEmail }: ChangeEmailInput) {
-    setEmailError(null);
-    setEmailSuccess(null);
-
     const { error } = await authClient.changeEmail({ newEmail });
     if (error) {
-      setEmailError(error.message ?? "Unable to change your email.");
+      notifyError("Email not changed", error.message ?? undefined);
       return;
     }
 
-    setEmailSuccess("Email updated.");
+    notifySuccess("Email updated");
     router.refresh();
   }
 
@@ -85,20 +73,17 @@ export function AccountForm({
     currentPassword,
     newPassword,
   }: ChangePasswordInput) {
-    setPasswordError(null);
-    setPasswordSuccess(null);
-
     const { error } = await authClient.changePassword({
       currentPassword,
       newPassword,
       revokeOtherSessions: true,
     });
     if (error) {
-      setPasswordError(error.message ?? "Unable to change your password.");
+      notifyError("Password not changed", error.message ?? undefined);
       return;
     }
 
-    setPasswordSuccess("Password changed.");
+    notifySuccess("Password changed", "Other sessions were signed out.");
     passwordForm.reset();
   }
 
@@ -119,8 +104,6 @@ export function AccountForm({
           <Field label="Username" htmlFor="username" error={profileForm.formState.errors.username?.message}>
             <Input id="username" type="text" autoComplete="username" placeholder="Not set" aria-invalid={Boolean(profileForm.formState.errors.username)} {...profileForm.register("username")} />
           </Field>
-          {profileError ? <p className="text-sm text-destructive">{profileError}</p> : null}
-          {profileSuccess ? <p className="text-sm text-muted-foreground">{profileSuccess}</p> : null}
           <Button type="submit" disabled={profileForm.formState.isSubmitting}>
             {profileForm.formState.isSubmitting ? "Saving..." : "Save profile"}
           </Button>
@@ -137,8 +120,6 @@ export function AccountForm({
           <Field label="Email address" htmlFor="email" error={emailForm.formState.errors.newEmail?.message}>
             <Input id="email" type="email" autoComplete="email" aria-invalid={Boolean(emailForm.formState.errors.newEmail)} {...emailForm.register("newEmail")} />
           </Field>
-          {emailError ? <p className="text-sm text-destructive">{emailError}</p> : null}
-          {emailSuccess ? <p className="text-sm text-muted-foreground">{emailSuccess}</p> : null}
           <Button type="submit" disabled={emailForm.formState.isSubmitting || emailValue.trim() === email}>
             {emailForm.formState.isSubmitting ? "Saving..." : "Update email"}
           </Button>
@@ -158,8 +139,6 @@ export function AccountForm({
           <Field label="New password" htmlFor="newPassword" error={passwordForm.formState.errors.newPassword?.message}>
             <Input id="newPassword" type="password" autoComplete="new-password" aria-invalid={Boolean(passwordForm.formState.errors.newPassword)} {...passwordForm.register("newPassword")} />
           </Field>
-          {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
-          {passwordSuccess ? <p className="text-sm text-muted-foreground">{passwordSuccess}</p> : null}
           <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
             {passwordForm.formState.isSubmitting ? "Saving..." : "Change password"}
           </Button>

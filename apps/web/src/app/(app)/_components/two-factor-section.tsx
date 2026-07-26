@@ -10,6 +10,7 @@ import { Button } from "@billow/shadcn/components/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@/lib/auth-client";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { twoFactorPasswordSchema, type TwoFactorPasswordInput } from "@/lib/schemas/account";
 import { twoFactorCodeSchema, type TwoFactorCodeInput } from "@/lib/schemas/auth";
 
@@ -20,8 +21,6 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   const [stage, setStage] = useState<Stage>("idle");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const passwordForm = useForm<TwoFactorPasswordInput>({
     resolver: zodResolver(twoFactorPasswordSchema),
     defaultValues: { password: "" },
@@ -40,11 +39,9 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function enable({ password }: TwoFactorPasswordInput) {
-    setError(null);
-    setSuccess(null);
     const { data, error: enableError } = await authClient.twoFactor.enable({ password });
     if (enableError || !data) {
-      setError(enableError?.message ?? "Unable to start two-factor setup.");
+      notifyError("Two-factor setup failed", enableError?.message ?? undefined);
       return;
     }
     setQrDataUrl(await QRCode.toDataURL(data.totpURI, { margin: 1, width: 220 }));
@@ -54,27 +51,24 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function verify({ code }: TwoFactorCodeInput) {
-    setError(null);
     const { error: verifyError } = await authClient.twoFactor.verifyTotp({ code });
     if (verifyError) {
-      setError(verifyError.message ?? "That code did not work.");
+      notifyError("That code did not work", verifyError.message ?? undefined);
       return;
     }
     reset();
-    setSuccess("Two-factor authentication is on.");
+    notifySuccess("Two-factor authentication is on", "Keep your backup codes somewhere safe.");
     router.refresh();
   }
 
   async function disable({ password }: TwoFactorPasswordInput) {
-    setError(null);
-    setSuccess(null);
     const { error: disableError } = await authClient.twoFactor.disable({ password });
     if (disableError) {
-      setError(disableError.message ?? "Unable to turn off two-factor.");
+      notifyError("Could not turn off two-factor", disableError.message ?? undefined);
       return;
     }
     reset();
-    setSuccess("Two-factor authentication is off.");
+    notifySuccess("Two-factor authentication is off");
     router.refresh();
   }
 
@@ -93,15 +87,12 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           {backupCodes.length > 0 ? <div className="space-y-2 rounded-md border bg-muted/40 p-4"><p className="text-sm font-medium">Save your backup codes — they won&apos;t be shown again.</p><ul className="grid grid-cols-2 gap-1 font-mono text-xs">{backupCodes.map((backupCode) => <li key={backupCode}>{backupCode}</li>)}</ul></div> : null}
           <form className="space-y-4" onSubmit={codeForm.handleSubmit(verify)} noValidate>
             <Field label="Authentication code" htmlFor="totpCode" error={codeForm.formState.errors.code?.message}><Input id="totpCode" type="text" inputMode="numeric" autoComplete="one-time-code" aria-invalid={Boolean(codeForm.formState.errors.code)} {...codeForm.register("code")} /></Field>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
             <div className="flex gap-2"><Button type="submit" disabled={codeForm.formState.isSubmitting}>{codeForm.formState.isSubmitting ? "Verifying..." : "Confirm and turn on"}</Button><Button type="button" variant="outline" onClick={reset}>Cancel</Button></div>
           </form>
         </div>
       ) : (
         <form className="space-y-4" onSubmit={passwordForm.handleSubmit(enabled ? disable : enable)} noValidate>
           <Field label="Confirm your password" htmlFor="twoFactorPassword" error={passwordForm.formState.errors.password?.message}><Input id="twoFactorPassword" type="password" autoComplete="current-password" aria-invalid={Boolean(passwordForm.formState.errors.password)} {...passwordForm.register("password")} /></Field>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {success ? <p className="text-sm text-muted-foreground">{success}</p> : null}
           <Button type="submit" variant={enabled ? "destructive" : "default"} disabled={passwordForm.formState.isSubmitting}>{passwordForm.formState.isSubmitting ? "Working..." : enabled ? "Turn off two-factor" : "Set up two-factor"}</Button>
         </form>
       )}

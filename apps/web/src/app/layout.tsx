@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toaster } from "@billow/shadcn/components/toast";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Toaster>{children}</Toaster>
+        </ThemeProvider>
       </body>
     </html>
   );
