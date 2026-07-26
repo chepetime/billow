@@ -23,15 +23,14 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Change password (revokes other sessions)
 - [x] Two-factor auth (TOTP, QR enrolment, single-use backup codes)
 - [x] Origin handling that works behind any proxy/host (no pinned domain)
-- [ ] **Password reset flow** — `sendResetPassword` currently only logs the URL.
+- [x] Password reset no longer logs a usable URL; administrators can set a
+      password directly (self-service still needs SMTP)
+- [ ] **Self-service password reset** — `sendResetPassword` currently only logs the URL.
       Needs either a real mail transport or a "copy this link" admin surface.
 - [ ] **Session management UI** — list active sessions and revoke individually
       (`auth.api.listSessions` / `revokeSession` already exist)
 - [x] **Account deletion** (`auth.api.deleteUser`) with a confirmation step
-- [ ] **Passkeys** — **now unblocked**: the app is reachable over HTTPS via a
-      Cloudflare tunnel (billow.example.com), which satisfies WebAuthn's
-      secure-context requirement. `@better-auth/passkey@1.6.25` is version
-      matched; needs a `passkey` table + migration.
+
 - [ ] Email verification (only if a mail transport is ever added)
 - [x] Admin role, admin panel, and server-side authorization for installation settings
 - [ ] Multi-user support: invitations, invitations, closing or reopening
@@ -71,7 +70,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ## Storage and files
 
-- [ ] **Persistent volume for the app** — only Postgres has one today, so
+- [x] **Persistent volume for the app** — `${APP_DATA_DIR}/uploads`, with
+      ownership fixed at boot before privileges are dropped, and reported in
+      diagnostics (including whether it is a real mount) — only Postgres has one today, so
       anything written to the container filesystem is lost on update. This is
       the prerequisite for uploads: `${APP_DATA_DIR}/uploads:/data/uploads`,
       writable by uid 1001.
@@ -87,7 +88,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Migrations run automatically at container start, with retry
 - [x] Transient DB connection retries; auth failures fail fast
 - [x] Memory capped (`--max-old-space-size=128`; ~60 MiB idle)
-- [ ] **Backup / restore** — the largest gap for self-hosting: one-click export
+- [x] **Backup / restore** — admin export/import of workspace data, one
+      transaction, ownership forced to the importer, ids remapped
+- [ ] Backup should also cover uploaded files once uploads exist — the largest gap for self-hosting: one-click export
       and restore of the database plus uploads
 - [ ] SMTP configuration, without which password reset cannot work
 - [ ] Background jobs (log retention, upload cleanup, key expiry)
@@ -99,10 +102,16 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ## Security
 
+- [x] Database password is per-installation (`${APP_SEED}`) rather than a value
+      published in the store repository
+
 - [x] Secrets from env, never hardcoded (`BETTER_AUTH_SECRET` ← `${APP_SEED}`)
 - [x] Bank/account numbers masked outside explicit detail views
 - [x] API keys stored hashed, shown once
-- [ ] **Revisit CSRF posture** — `trustedOrigins` trusts the request `Origin`,
+- [x] **CSRF posture** — `trustedOrigins` derives from the served host
+      (`x-forwarded-host`/`proto`), never the request `Origin`, with
+      `BILLOW_TRUSTED_ORIGINS` as an escape hatch
+- [ ] ~~Revisit CSRF posture~~ — `trustedOrigins` trusts the request `Origin`,
       which makes the check tautological. **Now fixable**: production
       diagnostics confirmed `x-forwarded-host` and `x-forwarded-proto` are
       present through *both* Umbrel's app_proxy and the Cloudflare tunnel, so
