@@ -89,6 +89,24 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @billow/db db:migrate
 
+  # Fails on high/critical advisories that have not been reviewed. `pnpm audit`
+  # cannot be used here: the registry replies with gzip that the runtime does
+  # not transparently decode.
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Audit dependencies
+        run: node scripts/audit-deps.mjs
+
   # Build and boot the production image the same way Umbrel will. Catches
   # Dockerfile and runtime breakage (missing prod deps, migrations that fail
   # at container start) before a tag is ever cut.
