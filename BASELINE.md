@@ -138,8 +138,15 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 - [x] `pnpm run dev:local` (Postgres in Docker + Next on the host, seeded)
 - [x] Unit tests with Vitest
-- [ ] **End-to-end tests** (Playwright): sign-up → dashboard, 2FA enrolment,
-      API key → `/api/v1/me`
+- [x] **End-to-end tests** (`packages/e2e`, Playwright): first-run registration,
+      sign-in by email and username, session protection, API key →
+      `/api/v1/me`, upload round-trip, admin visibility, cross-account
+      isolation. Nightly against the production image via `e2e.yml`
+- [ ] 2FA enrolment coverage in the e2e suite (the one flow still untested)
+- [ ] **Domain docs**: `CONTEXT.md` (glossary) + `docs/adr/` at the repo root,
+      per `docs/agents/domain.md`. Neither exists yet — they are meant to be
+      created lazily by `/domain-modeling` as terms and decisions actually get
+      resolved, so this is a marker, not a prompt to write them upfront
 - [ ] `db:reset` command for a clean local database
 - [ ] Extract the platform layer into a reusable template once the invoicing
       domain lands on top (the long-term goal implied by all of the above)
