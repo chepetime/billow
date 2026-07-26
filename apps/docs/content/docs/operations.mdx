@@ -1,0 +1,78 @@
+---
+title: Operations
+description: Running Billow locally, diagnosing a deployment, and the Umbrel networking rules that have actually bitten us.
+---
+
+## Local development
+
+```bash
+pnpm install
+pnpm run dev:local    # Postgres in Docker + Next.js on the host, migrated and seeded
+```
+
+`dev:local` creates `apps/web/.env` if missing, starts Postgres, then generates,
+migrates, and seeds. It **sources the env file** before running Prisma, because
+Prisma runs with `packages/db` as its working directory where no `.env` exists.
+
+Useful commands:
+
+```bash
+pnpm run db:up        # Postgres only
+pnpm run dev:setup    # database ready, no dev server
+pnpm run db:logs
+pnpm run db:down
+pnpm run build && pnpm run lint && pnpm run test:run
+```
+
+The docs site runs separately on port 3001:
+
+```bash
+pnpm --filter @billow/docs dev
+```
+
+## Diagnosing a deployment
+
+Next redacts server errors in production, so the app reports its own state.
+
+| Surface | Use it for |
+| --- | --- |
+| `/health` | Human-readable: version, uptime, memory, database, auth, session, recent errors |
+| `/api/health` | The same as JSON, for scripts |
+| `scripts/smoke.sh <url>` | Route/auth/API assertions; the same script CI runs |
+
+Errors are persisted to an `ErrorLog` table via `recordError()`, so they survive
+restarts and can be read back from `/api/health` without container access.
+
+## Umbrel networking
+
+<Callout type="warn">
+Umbrel runs **every installed app on one shared Docker network**. A bare service
+alias like `db` therefore resolves to other apps' databases — Docmost ships a
+`db` service too. Always address containers as `<app-id>_<service>_1`.
+</Callout>
+
+```yaml
+DATABASE_URL: postgresql://billow:billow-password@billow_db_1:5432/billow?schema=public
+```
+
+The symptom of getting this wrong is intermittent: sign-in works on one click and
+fails the next with *"the provided database credentials for `billow` are not
+valid"*, because DNS resolved to a different Postgres.
+
+## Environment variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | Use the fully-qualified container host in production |
+| `BETTER_AUTH_SECRET` | yes | ≥32 chars. In Umbrel this is `${APP_SEED}`. Without it every page 500s |
+| `BETTER_AUTH_URL` | no | Deliberately unset; origins are trusted per request |
+| `PORT` | no | Defaults to 3000 |
+
+## Container runtime
+
+The image starts with `apps/web/scripts/start.sh`, which retries
+`prisma migrate deploy` while Postgres comes up, then execs Next directly.
+
+Two deliberate choices keep the footprint small: the server runs as PID 1 rather
+than under a `pnpm` wrapper, and `NODE_OPTIONS=--max-old-space-size=128` caps the
+V8 heap. Together these took idle memory from roughly 145 MiB to about 60 MiB.

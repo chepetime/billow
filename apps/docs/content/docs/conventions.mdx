@@ -1,0 +1,96 @@
+---
+title: Conventions
+description: How to write code that matches the rest of the codebase — validation, components, database changes, and testing.
+---
+
+## zod is the single source of truth
+
+Schemas live in `apps/web/src/lib/schemas/` and drive three things at once:
+
+1. runtime validation in `/api/v1/*` route handlers,
+2. the OpenAPI document (via zod v4's `z.toJSONSchema()`),
+3. client form validation through `@hookform/resolvers`.
+
+Define a schema once and infer the type from it — never hand-write a matching
+interface.
+
+```ts
+export const createApiKeySchema = z.object({
+  name: z.string().min(1, "Name your key.").max(60),
+});
+
+export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
+```
+
+## Forms
+
+`react-hook-form` + `zodResolver`, with the shared `Field` component supplying
+the label, error message, and `aria-describedby` wiring.
+
+Keep two error channels apart: **field errors** come from the resolver and render
+inside `Field`; **request errors** (the server said no) live in a `useState` and
+render near the submit button.
+
+## Server and client components
+
+Server by default. Add `"use client"` only for interactivity. Anything touching
+the database, `auth`, or secrets must also import `server-only`.
+
+Per-request pages need `export const dynamic = "force-dynamic"`. This is not
+optional cosmetics: `getSession()` swallows errors, which would otherwise let
+Next statically prerender a page and hit the database at build time.
+
+## Database changes
+
+`prisma migrate dev` is interactive and fails in CI and agent shells. Use the
+diff recipe instead:
+
+```bash
+set -a; . apps/web/.env; set +a
+cd packages/db
+DIR="prisma/migrations/$(date +%Y%m%d%H%M%S)_your_change"
+mkdir -p "$DIR"
+pnpm exec prisma migrate diff \
+  --from-config-datasource --to-schema prisma/schema.prisma --script \
+  > "$DIR/migration.sql"
+pnpm exec prisma migrate deploy
+```
+
+<Callout type="warn">
+When a BetterAuth plugin owns a table, its Prisma model must match the plugin's
+field list **exactly**. Print the full list before writing the model — a
+truncated read once missed `failedVerificationCount` and `lockedUntil` on
+`twoFactor`, which failed only at runtime.
+</Callout>
+
+Never run `db:generate` through Turborepo's fan-out. Two concurrent
+`prisma generate` runs write the same directory and race; the root scripts
+target `@billow/db` directly.
+
+## API routes
+
+Every `/api/v1/*` handler follows the same shape:
+
+```ts
+export async function GET() {
+  const identity = await requireApiIdentity(await headers());
+  if (identity instanceof NextResponse) return identity;
+  // …
+}
+```
+
+`requireApiIdentity` accepts an `x-api-key` header, an `Authorization: Bearer`
+token, or a browser session. Errors use `{ error: string }` from
+`lib/api/respond.ts`.
+
+## Testing
+
+Vitest, colocated as `*.test.ts`. Favour pure functions that can be tested
+without a database — `canRegister`, `isEmailIdentifier`, and the zod schemas are
+the model to follow.
+
+## Style
+
+- TypeScript strict. No `any`, and no `eslint-disable` to paper over a type error.
+- Import shared UI from the workspace packages rather than redefining it.
+- Comments explain **why**, not what.

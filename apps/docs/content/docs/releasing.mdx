@@ -1,0 +1,71 @@
+---
+title: Releasing
+description: How CI works and how to cut a release, including the manual Umbrel store step.
+---
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+| Job | What it proves |
+| --- | --- |
+| `lint` / `test:run` / `build` | Parallel matrix over the workspace |
+| `migrations` | Migrations apply cleanly to a real Postgres |
+| `docker image` | The production image builds, boots, migrates, and serves traffic |
+
+The `docker` job runs `scripts/smoke.sh`, so Dockerfile and runtime breakage is
+caught **before** a tag exists. Superseded runs are cancelled by a concurrency
+group.
+
+`.github/workflows/claude-review.yml` reviews pull requests and responds to
+`@claude` mentions. It needs an `ANTHROPIC_API_KEY` secret and skips cleanly
+without one.
+
+## Cutting a release
+
+One click, from the Actions tab or the CLI:
+
+```bash
+gh workflow run release.yml -f version=0.1.18
+```
+
+`release.yml` validates the version, bumps the three `package.json` files,
+re-runs the full check suite, commits, tags, and then calls `publish.yml`.
+
+<Callout>
+A tag pushed by a workflow using `GITHUB_TOKEN` does **not** trigger other
+workflows. That is why `release.yml` invokes `publish.yml` through
+`workflow_call` rather than relying on the tag push.
+</Callout>
+
+`publish.yml` builds and pushes `ghcr.io/chepetime/billow:<tag>` plus `:latest`,
+then a `verify` job confirms the manifest is pullable and boots the published
+image against Postgres. Pushing a tag by hand works too and takes the same path.
+
+## The manual step: the Umbrel store
+
+Publishing an image does not update anyone's Umbrel. The store repository at
+`chepetime/developer-umbrel-community-app-store` must be bumped:
+
+1. `billow/docker-compose.yml` → new image tag
+2. `billow/umbrel-app.yml` → `version` and `releaseNotes`
+3. Push, then refresh the community store in Umbrel and update the app
+
+`scripts/bump-billow.sh` in that repository automates the edits.
+
+<Callout type="warn">
+Never point the store at a tag before the image exists. Confirm it first:
+
+```bash
+docker manifest inspect ghcr.io/chepetime/billow:v0.1.18
+```
+
+The `verify` job now does this automatically, but the store bump is still manual.
+</Callout>
+
+## Things that stay stable
+
+- `id: billow` in `umbrel-app.yml` — Umbrel keys the data directory and container
+  names on it. Changing it makes Umbrel treat the app as a **new install**, and
+  existing data will not carry over.
+- The Postgres volume mount `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data`.
