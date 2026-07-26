@@ -1,0 +1,136 @@
+name: E2E
+
+# Nightly end-to-end run against the production image, plus on demand.
+#
+# Deliberately not part of CI on every push: these tests build the image, boot
+# it against Postgres and drive a real browser, which is far slower than the
+# unit suite. CI stays fast; this catches what unit tests structurally cannot —
+# authorization, session handling and cross-account isolation.
+
+on:
+  schedule:
+    # 03:17 UTC. Off the hour so it does not contend with the rest of the
+    # world's nightly jobs.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to test (defaults to the default branch)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  # So a failed nightly run can raise an issue: a scheduled job that fails
+  # silently is worse than no job, because it reads as passing.
+  issues: write
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: billow
+          POSTGRES_USER: billow
+          POSTGRES_PASSWORD: e2e-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U billow -d billow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Install Chromium
+        run: pnpm --filter @billow/e2e exec playwright install --with-deps chromium
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # The same image Umbrel runs, so the suite exercises the real startup
+      # path: migrations on boot, the unprivileged user, and the uploads volume.
+      - name: Build the production image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: billow:e2e
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot the app
+        run: |
+          docker run -d --name billow-e2e --network host \
+            -v "${{ runner.temp }}/uploads:/data/uploads" \
+            -e DATABASE_URL='postgresql://billow:e2e-only-password@localhost:5432/billow' \
+            -e BETTER_AUTH_SECRET='e2e-only-secret-with-at-least-32-characters' \
+            -e PORT=3000 \
+            billow:e2e
+
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then
+              echo "app is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "app never became healthy"; docker logs billow-e2e --tail 100; exit 1
+
+      - name: Run end-to-end tests
+        env:
+          BASE_URL: http://localhost:3000
+        run: pnpm test:e2e
+
+      - name: Container logs
+        if: always()
+        run: docker logs billow-e2e --tail 200 || true
+
+      - name: Report a failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Comment on the open report if there is one, so a run of bad nights
+          # does not bury the tracker in duplicates.
+          EXISTING=$(gh issue list --label e2e-failure --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Nightly end-to-end run failed again: ${RUN_URL}"
+          else
+            gh issue create \
+              --title "Nightly end-to-end run is failing" \
+              --label e2e-failure \
+              --body "The scheduled end-to-end run failed against the production image.
+
+          Run: ${RUN_URL}
+
+          The Playwright report and container logs are attached to that run. Close this issue once the run is green again."
+          fi
+
+      - name: Upload the Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            packages/e2e/playwright-report/
+            packages/e2e/test-results/
+          retention-days: 14
+          if-no-files-found: ignore

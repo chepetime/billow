@@ -1,0 +1,9 @@
+{
+  "extends": "@billow/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "playwright-report", "test-results", ".auth"]
+}

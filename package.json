@@ -13,6 +13,7 @@
     "lint": "turbo lint",
     "test": "turbo test:run",
     "test:run": "turbo test:run",
+    "test:e2e": "pnpm --filter @billow/e2e test:e2e",
     "db:up": "pnpm --filter @billow/web db:up",
     "db:down": "pnpm --filter @billow/web db:down",
     "db:logs": "pnpm --filter @billow/web db:logs",
