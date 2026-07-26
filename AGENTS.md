@@ -177,3 +177,33 @@ Issues live in this repo's GitHub Issues (`chepetime/billow`), managed with the
 
 Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
+
+## CI/CD
+
+Workflows live in `.github/workflows`:
+
+- **`ci.yml`** — runs on every push/PR. Parallel `lint` / `test:run` / `build`
+  matrix, a `migrations` job against a real Postgres, and a `docker` job that
+  builds the production image, boots it, and runs `scripts/smoke.sh`. Superseded
+  runs are cancelled via a concurrency group.
+- **`release.yml`** — one-click release (`workflow_dispatch`, or
+  `gh workflow run release.yml -f version=0.1.18`). Validates the version, bumps
+  the three `package.json`s, re-runs the full check suite, commits, tags, then
+  calls `publish.yml`. Replaces the old manual bump/tag/verify sequence.
+- **`publish.yml`** — builds and pushes the GHCR image. Also callable via
+  `workflow_call` (a tag pushed with `GITHUB_TOKEN` does not trigger workflows,
+  so `release.yml` invokes it directly). Its `verify` job confirms the manifest
+  is pullable and boots the published image against Postgres before the release
+  is considered good.
+- **`claude-review.yml`** — AI review on every PR, plus `@claude` mentions in
+  issues and comments. Needs an `ANTHROPIC_API_KEY` secret; skips cleanly without one.
+
+`scripts/smoke.sh <base-url>` is the shared smoke test (routes, auth redirects,
+API 401s, and `/api/health` reporting ok). Run it locally too.
+
+Dependabot (`.github/dependabot.yml`) updates npm, Actions, and Docker weekly.
+`better-auth` minor/major bumps are deliberately ignored — 1.7 is a breaking
+release that needs a data migration.
+
+**Still manual after a release:** bump the Umbrel store repo (compose image tag
+and `umbrel-app.yml` version/releaseNotes), then refresh the store in Umbrel.

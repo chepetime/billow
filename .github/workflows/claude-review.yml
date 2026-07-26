@@ -1,0 +1,78 @@
+name: Claude review
+
+# AI review harness.
+#
+#  - Every pull request gets an automatic review.
+#  - Mentioning @claude in an issue or PR comment starts an interactive run.
+#
+# Requires an ANTHROPIC_API_KEY repository secret:
+#   gh secret set ANTHROPIC_API_KEY
+# Without it the workflow is skipped rather than failing every PR.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Skip cleanly when the key is absent, and only react to @claude on comments.
+    if: >-
+      github.event_name == 'pull_request' ||
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for API key
+        id: key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "ANTHROPIC_API_KEY is not set; skipping Claude review." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check out repository
+        if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code
+        if: steps.key.outputs.present == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for the Billow repo.
+
+            Billow is a self-hosted Umbrel app (Next.js App Router, Prisma,
+            BetterAuth). Read AGENTS.md and BASELINE.md for context before
+            reviewing.
+
+            Focus on, in order:
+            1. Correctness and security around auth, sessions, API keys, and
+               anything touching /api/v1 or lib/auth*.
+            2. Whether database schema changes ship a matching migration, and
+               whether plugin-owned tables match the plugin's field list exactly.
+            3. Server/client component boundaries and accidental secret exposure.
+            4. Repo conventions: zod schemas as the single source of truth,
+               shared UI primitives, no `any`, no eslint-disable to paper over
+               type errors.
+
+            Be concise. Only raise issues you are confident about, and say so
+            plainly when the change looks good.

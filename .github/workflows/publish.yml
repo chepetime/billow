@@ -9,6 +9,14 @@ on:
       version:
         description: "Image tag to publish (e.g. v0.1.7)"
         required: true
+  # Callable by release.yml. A tag pushed by a workflow using GITHUB_TOKEN does
+  # not trigger other workflows, so the release job invokes this one directly.
+  workflow_call:
+    inputs:
+      version:
+        description: "Image tag to publish (e.g. v0.1.7)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +28,8 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Check out repository
@@ -28,7 +38,7 @@ jobs:
       - name: Resolve version tag
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
           else
             VERSION="${GITHUB_REF_NAME}"
@@ -55,3 +65,57 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME }}:latest
+
+  # Proves the tag is really pullable and the image actually boots, applies
+  # migrations, and serves traffic — the checks that used to be done by hand
+  # (and were once skipped, leaving the store pointing at a missing tag).
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: billow
+          POSTGRES_USER: billow
+          POSTGRES_PASSWORD: billow-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U billow -d billow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Confirm the published manifest resolves
+        run: |
+          VERSION="${{ needs.publish.outputs.version }}"
+          docker manifest inspect "${IMAGE_NAME}:${VERSION}" > /dev/null
+          echo "${IMAGE_NAME}:${VERSION} is pullable"
+
+      - name: Boot the published image
+        run: |
+          docker run -d --name billow-verify --network host \
+            -e DATABASE_URL='postgresql://billow:billow-password@localhost:5432/billow' \
+            -e BETTER_AUTH_SECRET='ci-only-secret-with-at-least-32-characters' \
+            -e PORT=3000 \
+            "${IMAGE_NAME}:${{ needs.publish.outputs.version }}"
+
+      - name: Smoke test
+        run: sh scripts/smoke.sh http://localhost:3000
+
+      - name: Container logs
+        if: always()
+        run: docker logs billow-verify --tail 80 || true

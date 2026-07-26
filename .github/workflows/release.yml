@@ -1,0 +1,103 @@
+name: Release
+
+# One-click release. Bumps the three package.json versions, commits, tags, and
+# then calls the publish workflow (which also verifies the image boots).
+#
+# Run it from the Actions tab with a version like 0.1.18, or:
+#   gh workflow run release.yml -f version=0.1.18
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version, without the leading v (e.g. 0.1.18)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Validate and bump versions
+        id: bump
+        run: |
+          VERSION="${{ inputs.version }}"
+          case "$VERSION" in
+            v*) echo "Pass the version without the leading 'v' (got $VERSION)." >&2; exit 1 ;;
+          esac
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version must look like 1.2.3 (got $VERSION)." >&2
+            exit 1
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists." >&2
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            for (const f of ["package.json", "apps/web/package.json", "packages/db/package.json"]) {
+              const pkg = JSON.parse(fs.readFileSync(f, "utf8"));
+              pkg.version = version;
+              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + "\n");
+            }
+          ' "$VERSION"
+
+          # Keep the lockfile honest; workspace version bumps should not change it.
+          pnpm install --lockfile-only
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the release candidate
+        run: |
+          pnpm run db:generate
+          pnpm run lint
+          pnpm run test:run
+          pnpm run build
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json apps/web/package.json packages/db/package.json pnpm-lock.yaml
+          git commit -m "Bump version to ${{ inputs.version }}"
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+  publish:
+    needs: tag
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.tag.outputs.tag }}
+    permissions:
+      contents: read
+      packages: write
+
+  summary:
+    needs: [tag, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Next steps
+        run: |
+          {
+            echo "### Released ${{ needs.tag.outputs.tag }}"
+            echo
+            echo "Image \`ghcr.io/chepetime/billow:${{ needs.tag.outputs.tag }}\` was published and smoke-tested."
+            echo
+            echo "**Remaining manual step:** bump the Umbrel store repo"
+            echo "(\`billow/docker-compose.yml\` image tag and \`billow/umbrel-app.yml\` version + releaseNotes),"
+            echo "then refresh the community store in Umbrel."
+          } >> "$GITHUB_STEP_SUMMARY"

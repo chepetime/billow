@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine stuff; majors still come through individually.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # 1.7 renames Account.accountId and needs a data migration; upgrade
+      # deliberately, not automatically. See BASELINE.md.
+      - dependency-name: "better-auth"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "@better-auth/*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
