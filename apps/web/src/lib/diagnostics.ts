@@ -328,6 +328,56 @@ export async function collectNetwork(): Promise<Field[]> {
   return [...fields, resolved, disk];
 }
 
+
+/**
+ * The uploads volume. Only Postgres used to persist, so this section answers
+ * the question that matters after an update: did the mount actually arrive,
+ * and can the unprivileged runtime user write to it?
+ */
+export async function collectStorage(): Promise<Field[]> {
+  const dir = process.env.BILLOW_STORAGE_DIR ?? "/data/uploads";
+
+  const fields = [
+    probe("Directory", () => dir),
+    probe("Exists", () => (fs.existsSync(dir) ? "yes" : "no")),
+    probe("Owner / mode", () => {
+      const stat = fs.statSync(dir);
+      return `uid ${stat.uid}:gid ${stat.gid} ${(stat.mode & 0o777).toString(8)}`;
+    }),
+    probe("Mounted volume", () =>
+      // A bind mount shows a different device id than the parent directory.
+      fs.statSync(dir).dev !== fs.statSync("/").dev
+        ? "yes (separate device)"
+        : "no (container filesystem — data is lost on update)",
+    ),
+  ];
+
+  const writable = await probeAsync("Writable by app user", async () => {
+    const probeFile = `${dir}/.write-probe`;
+    await fsp.writeFile(probeFile, "ok");
+    await fsp.unlink(probeFile);
+    return "yes";
+  });
+
+  const usage = await probeAsync("Files / bytes used", async () => {
+    let files = 0;
+    let bytes = 0;
+    for (const entry of await fsp.readdir(dir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      files += 1;
+      bytes += (await fsp.stat(`${dir}/${entry.name}`)).size;
+    }
+    return `${files} / ${mb(bytes)}`;
+  });
+
+  const free = await probeAsync("Free on that device", async () => {
+    const stat = await fsp.statfs(dir);
+    return mb(stat.bavail * stat.bsize);
+  });
+
+  return [...fields, writable, usage, free];
+}
+
 export async function collectDatabase() {
   // Resolved lazily inside each probe: if the client itself cannot be
   // constructed (missing DATABASE_URL, bad credentials) that surfaces as a
@@ -429,11 +479,13 @@ const emptyDatabase = () => ({
 
 export async function collectDiagnostics(headers: Headers) {
   // Settled, not all: one rejected collector must not lose the whole report.
-  const [databaseResult, errorsResult, networkResult] = await Promise.allSettled([
-    collectDatabase(),
-    safeRecentErrors(),
-    collectNetwork(),
-  ]);
+  const [databaseResult, errorsResult, networkResult, storageResult] =
+    await Promise.allSettled([
+      collectDatabase(),
+      safeRecentErrors(),
+      collectNetwork(),
+      collectStorage(),
+    ]);
 
   const database =
     databaseResult.status === "fulfilled"
@@ -467,6 +519,16 @@ export async function collectDiagnostics(headers: Headers) {
     process: collectProcess(),
     host: collectHost(),
     container: collectContainer(),
+    storage:
+      storageResult.status === "fulfilled"
+        ? storageResult.value
+        : [
+            {
+              label: "storage",
+              value: `⚠ ${describe(storageResult.reason)}`,
+              failed: true,
+            },
+          ],
     network,
     request: collectRequest(headers),
     auth: collectAuth(),

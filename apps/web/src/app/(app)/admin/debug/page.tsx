@@ -107,6 +107,7 @@ export default async function DebugPage() {
       </Section>
 
       <Section title="Container limits" fields={d.container} />
+      <Section title="Storage" fields={d.storage} />
       <Section title="Network" fields={d.network} />
       <Section title="Request and proxy headers" fields={d.request} />
       <Section title="Process" fields={d.process} />
