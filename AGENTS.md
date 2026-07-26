@@ -165,3 +165,15 @@ After publishing a new image tag:
 
 The current Umbrel host port is `46247`. Earlier installs failed because the
 template port `4000` was already allocated, leaving `app_proxy` in `Created`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`chepetime/billow`), managed with the
+`gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See
+`docs/agents/domain.md`.
