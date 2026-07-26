@@ -1,0 +1,60 @@
+import { timingSafeEqual } from "node:crypto";
+
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+
+import { getSession } from "@/lib/auth-session";
+import { collectDiagnostics } from "@/lib/diagnostics";
+
+export const dynamic = "force-dynamic";
+
+const MIN_TOKEN_LENGTH = 16;
+
+/**
+ * Break-glass access. Validating a session requires the database, so when the
+ * database is the broken thing a session can never be produced and the
+ * diagnostics would be unreachable exactly when they are needed.
+ *
+ * Setting BILLOW_DEBUG_TOKEN (>= 16 chars) lets `x-debug-token` stand in for a
+ * session. Unset by default, so this stays closed unless deliberately enabled.
+ */
+function hasValidDebugToken(provided: string | null): boolean {
+  const expected = process.env.BILLOW_DEBUG_TOKEN;
+  if (!expected || expected.length < MIN_TOKEN_LENGTH || !provided) return false;
+
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * GET /api/admin/diagnostics
+ *
+ * Machine-readable twin of /admin/debug. The payload includes environment
+ * keys, request headers, database internals, and stack traces, so it is never
+ * public. The unauthenticated probe is /api/health.
+ */
+export async function GET() {
+  const requestHeaders = await headers();
+
+  if (!hasValidDebugToken(requestHeaders.get("x-debug-token"))) {
+    let session = null;
+    try {
+      session = await getSession();
+    } catch {
+      session = null;
+    }
+
+    if (!session) {
+      return NextResponse.json(
+        {
+          error:
+            "Authentication required. Sign in, or send x-debug-token if BILLOW_DEBUG_TOKEN is configured.",
+        },
+        { status: 401 },
+      );
+    }
+  }
+
+  return NextResponse.json(await collectDiagnostics(requestHeaders));
+}

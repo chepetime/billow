@@ -34,14 +34,25 @@ pnpm --filter @billow/docs dev
 
 Next redacts server errors in production, so the app reports its own state.
 
-| Surface | Use it for |
-| --- | --- |
-| `/health` | Human-readable: version, uptime, memory, database, auth, session, recent errors |
-| `/api/health` | The same as JSON, for scripts |
-| `scripts/smoke.sh <url>` | Route/auth/API assertions; the same script CI runs |
+| Surface | Auth | Use it for |
+| --- | --- | --- |
+| `/api/health` | public | Liveness/readiness probe. Boolean only: `{"status":"ok"}` with 200, or `unavailable` with 503 |
+| `/health` | public | The same status as a page. Deliberately exposes nothing else |
+| `/admin/debug` | session | Full diagnostics: application, process, host, request/proxy headers, database internals, environment (secrets masked), recent errors |
+| `/api/admin/diagnostics` | session or token | The same report as JSON |
+| `scripts/smoke.sh <url>` | — | Route/auth/API assertions; the same script CI runs |
+
+Every field in the diagnostics report is collected independently, so a value is
+always either real or a visible error. With the database completely unreachable
+the application, process, and host sections still report real values while the
+database fields each show their own error.
+
+Validating a session needs the database, so when the database is the broken
+thing no session can be produced. `BILLOW_DEBUG_TOKEN` exists for that case:
+set it, then send `x-debug-token` to reach the diagnostics without a session.
 
 Errors are persisted to an `ErrorLog` table via `recordError()`, so they survive
-restarts and can be read back from `/api/health` without container access.
+restarts and can be read back from `/admin/debug` without container access.
 
 ## Umbrel networking
 
@@ -67,6 +78,7 @@ valid"*, because DNS resolved to a different Postgres.
 | `BETTER_AUTH_SECRET` | yes | ≥32 chars. In Umbrel this is `${APP_SEED}`. Without it every page 500s |
 | `BETTER_AUTH_URL` | no | Deliberately unset; origins are trusted per request |
 | `PORT` | no | Defaults to 3000 |
+| `BILLOW_DEBUG_TOKEN` | no | >=16 chars. Break-glass access to `/api/admin/diagnostics` via an `x-debug-token` header. Unset by default |
 
 ## Container runtime
 
