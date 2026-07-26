@@ -46,15 +46,37 @@ check "GET /dashboard (anon)     " "$(code "$BASE/dashboard")" 307
 check "GET /api/v1/me (no auth)  " "$(code "$BASE/api/v1/me")" 401
 check "GET /api/v1/me (bad key)  " "$(code -H 'x-api-key: invalid' "$BASE/api/v1/me")" 401
 
-# /api/health reports database + auth wiring; treat a non-ok body as a failure
-# even though the endpoint itself answered.
+# The probe is deliberately boolean-only: {"status":"ok"} when the database is
+# reachable, {"status":"unavailable"} with 503 when it is not.
 health="$(curl -s --max-time 10 "$BASE/api/health" || echo '{}')"
-if printf '%s' "$health" | grep -q '"ok":true'; then
-  printf '  ok    %-38s ok\n' "/api/health reports ok"
+if printf '%s' "$health" | grep -q '"status":"ok"'; then
+  printf '  ok    %-38s %s\n' "/api/health reports ready" "$health"
 else
-  printf '  FAIL  %-38s %s\n' "/api/health reports ok" "$(printf '%s' "$health" | head -c 200)"
+  printf '  FAIL  %-38s %s\n' "/api/health reports ready" "$(printf '%s' "$health" | head -c 200)"
   fails=$((fails + 1))
 fi
+
+# The public surfaces must not leak internals: no versions, memory, stack
+# traces, or environment. This guards the split that moved detail behind auth.
+leaks="$(curl -s --max-time 10 "$BASE/health" | grep -ciE "heap|memory|stack|node v|process\.env" || true)"
+if [ "$leaks" = "0" ]; then
+  printf '  ok    %-38s none\n' "/health leaks no internals"
+else
+  printf '  FAIL  %-38s %s match(es)\n' "/health leaks no internals" "$leaks"
+  fails=$((fails + 1))
+fi
+
+# Diagnostics must stay behind authentication.
+for path in /admin/debug /api/admin/diagnostics; do
+  status="$(code "$BASE$path")"
+  case "$status" in
+    401|307|302)
+      printf '  ok    %-38s %s\n' "$path is protected" "$status" ;;
+    *)
+      printf '  FAIL  %-38s %s (expected 401/307)\n' "$path is protected" "$status"
+      fails=$((fails + 1)) ;;
+  esac
+done
 
 if [ "$fails" -gt 0 ]; then
   printf '\n%s check(s) failed\n' "$fails" >&2
