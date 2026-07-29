@@ -14,5 +14,10 @@ export async function register() {
     // React email renderer so it can be audited on its own.
     const { deliverPasswordResetEmail } = await import("@/lib/auth-mailer");
     setAuthMailer(deliverPasswordResetEmail);
+
+    // Logged because the failure mode is silence: when these hooks do not
+    // arrive, password resets are accepted and simply never delivered, with
+    // nothing to show for it. One line at boot makes that diagnosable.
+    console.info("[billow] auth error reporter and mailer registered");
   }
 }

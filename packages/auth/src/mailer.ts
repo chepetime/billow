@@ -13,6 +13,8 @@
  * behaves exactly as it did before delivery existed.
  */
 
+import { authRegistry } from "./registry";
+
 export interface PasswordResetMessage {
   user: { id: string; email: string; name?: string };
   /**
@@ -30,19 +32,30 @@ export type AuthMailer = (
   message: PasswordResetMessage,
 ) => void | Promise<void>;
 
-let authMailer: AuthMailer | undefined;
-
+// Held on globalThis, not in module scope — see ./registry. A module-level
+// variable here silently lost the registration, so password-reset emails were
+// never sent and nothing anywhere said so.
 export function setAuthMailer(mailer: AuthMailer): void {
-  authMailer = mailer;
+  authRegistry().mailer = mailer;
 }
 
 export async function deliverPasswordReset(
   message: PasswordResetMessage,
 ): Promise<void> {
-  if (!authMailer) return;
+  const mailer = authRegistry().mailer;
+  if (!mailer) {
+    // Reaching here means a reset was requested on an installation with no
+    // mailer registered. That is expected only when email is unconfigured —
+    // and in that case the request page is not reachable in the first place,
+    // so it is worth a line rather than a silent return.
+    console.info(
+      `[auth] password reset requested for user ${message.user.id} but no mailer is registered; nothing was sent.`,
+    );
+    return;
+  }
 
   try {
-    await authMailer(message);
+    await mailer(message);
   } catch (error) {
     // better-auth invokes this through `runInBackgroundOrAwait`, so a
     // rejection here would surface as an unhandled rejection with no route to
