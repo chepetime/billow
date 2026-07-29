@@ -28,9 +28,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] **Outbound email** — `@billow/email` (Resend + react-email), credentials
       set by an admin in Settings → Administration and stored AES-256-GCM
       encrypted, test-send button, provider seam for SMTP later
-- [ ] **Self-service password reset UI** — delivery is wired
-      (`sendResetPassword` → `@billow/email`); still needs the request form and
-      the `/reset-password/<token>` page
+- [x] **Self-service password reset** — `/forgot-password` and
+      `/reset-password`, delivery through `@billow/email`. Needs a configured
+      email provider to actually reach anyone
       Needs either a real mail transport or a "copy this link" admin surface.
 - [ ] **Session management UI** — list active sessions and revoke individually
       (`auth.api.listSessions` / `revokeSession` already exist)

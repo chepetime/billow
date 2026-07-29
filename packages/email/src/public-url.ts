@@ -79,6 +79,45 @@ export function resolveEmailOrigin(
 }
 
 /**
+ * Re-points a reset link, and the callback it carries, at a reachable origin.
+ *
+ * Rewriting the link itself is not enough. better-auth's emailed link points
+ * at its own `/reset-password/:token` endpoint, which validates the token and
+ * then redirects the visitor to the `callbackURL` query parameter — resolved
+ * with `new URL(callbackURL, baseURL)`. A relative callback therefore resolves
+ * against the in-container `http://localhost:3000`, so a recipient who
+ * followed a perfectly good link would still be bounced to a dead address.
+ * Making the callback absolute up front means that resolution is a no-op.
+ *
+ * The absolute callback stays same-origin with the link, so better-auth's own
+ * origin check over `callbackURL` still passes.
+ */
+export function rewriteResetLink(url: string, origin: string): string | null {
+  const repointed = rewriteOrigin(url, origin);
+  if (!repointed) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(repointed);
+  } catch {
+    return null;
+  }
+
+  const callback = parsed.searchParams.get("callbackURL");
+  if (callback) {
+    try {
+      // Resolves a relative callback against the reachable origin, and leaves
+      // an already-absolute one alone.
+      parsed.searchParams.set("callbackURL", new URL(callback, origin).toString());
+    } catch {
+      return null;
+    }
+  }
+
+  return parsed.toString();
+}
+
+/**
  * Re-points a URL better-auth built from its own baseURL at the origin the
  * recipient can actually reach, preserving path and query (which carry the
  * reset token).

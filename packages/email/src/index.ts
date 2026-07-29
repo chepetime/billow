@@ -19,6 +19,7 @@ export {
   originFromHeaders,
   resolveEmailOrigin,
   rewriteOrigin,
+  rewriteResetLink,
 } from "./public-url";
 
 export {

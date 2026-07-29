@@ -4,7 +4,7 @@ import type { PasswordResetMessage } from "@billow/auth";
 import {
   getConfiguredPublicUrl,
   resolveEmailOrigin,
-  rewriteOrigin,
+  rewriteResetLink,
   sendEmail,
 } from "@billow/email";
 import { PasswordResetEmail, passwordResetText } from "@billow/email/templates";
@@ -50,7 +50,7 @@ export async function deliverPasswordResetEmail(
     return;
   }
 
-  const resetUrl = rewriteOrigin(message.url, origin);
+  const resetUrl = rewriteResetLink(message.url, origin);
   if (!resetUrl) {
     await recordError(
       "auth.passwordReset.url",

@@ -75,6 +75,15 @@ export function SignInForm() {
         />
       </Field>
 
+      <p className="text-right text-sm">
+        <Link
+          href="/forgot-password"
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Forgot your password?
+        </Link>
+      </p>
+
       {formError ? (
         <p className="text-sm text-destructive">{formError}</p>
       ) : null}
