@@ -29,8 +29,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       set by an admin in Settings → Administration and stored AES-256-GCM
       encrypted, test-send button, provider seam for SMTP later
 - [x] **Self-service password reset** — `/forgot-password` and
-      `/reset-password`, delivery through `@billow/email`. Needs a configured
-      email provider to actually reach anyone
+      `/reset-password`, delivery through `@billow/email`. Gated on a verified
+      email provider: hidden (and the request page 404s) until a test message
+      has actually been delivered, and hidden again if a live send later fails
       Needs either a real mail transport or a "copy this link" admin surface.
 - [ ] **Session management UI** — list active sessions and revoke individually
       (`auth.api.listSessions` / `revokeSession` already exist)

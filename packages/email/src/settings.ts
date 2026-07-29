@@ -3,6 +3,11 @@ import "server-only";
 import { getPrisma } from "@billow/db";
 
 import {
+  EMAIL_CAPABILITY_UNKNOWN,
+  resolveEmailCapability,
+  type EmailCapability,
+} from "./capability";
+import {
   CredentialCryptoError,
   decryptCredential,
   encryptCredential,
@@ -22,9 +27,11 @@ export interface PublicEmailSettings {
   fromEmail: string | null;
   fromName: string | null;
   publicUrl: string | null;
+  verifiedAt: string | null;
   updatedAt: string | null;
   /** Set when a key is stored but unreadable, e.g. BETTER_AUTH_SECRET rotated. */
   credentialError: string | null;
+  capability: EmailCapability;
 }
 
 export interface EmailSettingsUpdate {
@@ -78,8 +85,14 @@ export async function getPublicEmailSettings(): Promise<PublicEmailSettings> {
       fromEmail: row?.fromEmail ?? null,
       fromName: row?.fromName ?? null,
       publicUrl: row?.publicUrl ?? null,
+      verifiedAt: null,
       updatedAt: row?.updatedAt?.toISOString() ?? null,
       credentialError: null,
+      capability: resolveEmailCapability({
+        configured: false,
+        fromEmail: row?.fromEmail ?? null,
+        verifiedAt: null,
+      }),
     };
   }
 
@@ -102,9 +115,79 @@ export async function getPublicEmailSettings(): Promise<PublicEmailSettings> {
     fromEmail: row.fromEmail,
     fromName: row.fromName,
     publicUrl: row.publicUrl,
+    verifiedAt: row.verifiedAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
     credentialError,
+    capability: resolveEmailCapability({
+      configured: credentialError === null,
+      fromEmail: row.fromEmail,
+      verifiedAt: row.verifiedAt,
+    }),
   };
+}
+
+/**
+ * The one call user-facing features should make. Reads a single row and fails
+ * closed, so a database problem hides the feature rather than advertising one
+ * that cannot work.
+ */
+export async function getEmailCapability(): Promise<EmailCapability> {
+  try {
+    const row = await getPrisma().emailSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { apiKey: true, fromEmail: true, verifiedAt: true },
+    });
+
+    if (!row?.apiKey) {
+      return resolveEmailCapability({
+        configured: false,
+        fromEmail: row?.fromEmail ?? null,
+        verifiedAt: null,
+      });
+    }
+
+    // Decryptability is part of being configured: a key that cannot be read
+    // (BETTER_AUTH_SECRET rotated) would fail on every send.
+    let readable = true;
+    try {
+      decryptCredential(row.apiKey);
+    } catch {
+      readable = false;
+    }
+
+    return resolveEmailCapability({
+      configured: readable,
+      fromEmail: row.fromEmail,
+      verifiedAt: row.verifiedAt,
+    });
+  } catch {
+    return EMAIL_CAPABILITY_UNKNOWN;
+  }
+}
+
+/** Records that a send genuinely worked. Called only after a provider success. */
+export async function markEmailVerified(): Promise<void> {
+  await getPrisma().emailSettings.update({
+    where: { id: SETTINGS_ID },
+    data: { verifiedAt: new Date() },
+  });
+}
+
+/**
+ * Withdraws verification after a live send fails, so the feature hides itself
+ * when email breaks rather than continuing to promise delivery. Deliberately
+ * swallows its own errors: it runs on a failure path where there is nothing
+ * useful to do with a second one.
+ */
+export async function clearEmailVerification(): Promise<void> {
+  try {
+    await getPrisma().emailSettings.update({
+      where: { id: SETTINGS_ID },
+      data: { verifiedAt: null },
+    });
+  } catch {
+    // Ignored on purpose.
+  }
 }
 
 /** The operator-pinned canonical origin for links in emails, if any. */
@@ -152,6 +235,7 @@ export async function updateEmailSettings(
     fromEmail?: string;
     fromName?: string | null;
     publicUrl?: string | null;
+    verifiedAt?: Date | null;
     updatedById?: string | null;
   } = {};
 
@@ -170,6 +254,14 @@ export async function updateEmailSettings(
   if (update.publicUrl !== undefined) data.publicUrl = update.publicUrl || null;
   if (update.updatedById !== undefined) {
     data.updatedById = update.updatedById ?? null;
+  }
+
+  // Changing the credential or the sender invalidates the previous proof of
+  // delivery: it says a *different* configuration once worked. The sender name
+  // and public URL are cosmetic by comparison and do not affect deliverability,
+  // so they leave the verification intact.
+  if (data.apiKey !== undefined || data.fromEmail !== undefined) {
+    data.verifiedAt = null;
   }
 
   await getPrisma().emailSettings.upsert({

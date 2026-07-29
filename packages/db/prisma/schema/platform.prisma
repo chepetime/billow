@@ -40,6 +40,12 @@ model EmailSettings {
   /// the request came from. Never fall back to BETTER_AUTH_URL: it is
   /// deliberately the in-container localhost, which is a dead link in an inbox.
   publicUrl   String?
+  /// When a test message last went out successfully. Stored credentials prove
+  /// nothing on their own — the domain may be unverified, the key revoked, or
+  /// the box may have no outbound route — so user-facing features that depend
+  /// on email stay hidden until a real send has worked at least once. Cleared
+  /// whenever the credentials or sender change, and when a live send fails.
+  verifiedAt  DateTime?
   updatedAt   DateTime @updatedAt
   updatedById String?
 }

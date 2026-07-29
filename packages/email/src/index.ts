@@ -1,4 +1,11 @@
 export {
+  EMAIL_CAPABILITY_UNKNOWN,
+  resolveEmailCapability,
+  type EmailCapability,
+  type EmailCapabilityInput,
+} from "./capability";
+
+export {
   CredentialCryptoError,
   decryptCredential,
   encryptCredential,
@@ -23,11 +30,14 @@ export {
 } from "./public-url";
 
 export {
+  clearEmailVerification,
   formatFromAddress,
   getConfiguredPublicUrl,
+  getEmailCapability,
   getPublicEmailSettings,
   getSendingCredentials,
   isValidEmail,
+  markEmailVerified,
   updateEmailSettings,
   type EmailSettingsUpdate,
   type PublicEmailSettings,

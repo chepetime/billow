@@ -120,6 +120,36 @@ export function EmailSection({ settings }: EmailSectionProps) {
         </p>
       ) : null}
 
+      <div
+        className={
+          current.capability.canSendUserEmail
+            ? "rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3"
+            : "rounded-md border bg-muted/40 p-3"
+        }
+      >
+        <p className="text-sm font-medium">
+          {current.capability.canSendUserEmail
+            ? "Email is verified"
+            : "Email is not verified yet"}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {current.capability.canSendUserEmail ? (
+            <>
+              Password reset is available to everyone on the sign-in page.
+              {current.verifiedAt
+                ? ` Last confirmed ${new Date(current.verifiedAt).toLocaleString()}.`
+                : null}
+            </>
+          ) : (
+            <>
+              {current.capability.blockedReason} Until a test message goes
+              through, the &ldquo;Forgot your password?&rdquo; link stays hidden
+              and people locked out need an administrator to set their password.
+            </>
+          )}
+        </p>
+      </div>
+
       <form onSubmit={handleSave} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email-api-key">Resend API key</Label>

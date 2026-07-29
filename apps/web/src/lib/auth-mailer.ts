@@ -2,6 +2,7 @@ import "server-only";
 
 import type { PasswordResetMessage } from "@billow/auth";
 import {
+  clearEmailVerification,
   getConfiguredPublicUrl,
   resolveEmailOrigin,
   rewriteResetLink,
@@ -82,5 +83,11 @@ export async function deliverPasswordResetEmail(
       new Error(result.error),
       { userId: message.user.id },
     );
+
+    // Email was verified at some point but has now failed for a real user.
+    // Withdrawing verification hides the reset link again, so the next person
+    // is told to contact an administrator instead of waiting for a message
+    // that will not arrive.
+    await clearEmailVerification();
   }
 }

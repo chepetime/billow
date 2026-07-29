@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getAdminSession } from "@billow/auth";
-import { sendEmail } from "@billow/email";
+import {
+  clearEmailVerification,
+  markEmailVerified,
+  sendEmail,
+} from "@billow/email";
 import { TestEmail, testEmailText } from "@billow/email/templates";
 import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
@@ -54,8 +58,16 @@ export async function POST(request: Request) {
     await recordError("settings.email.test", new Error(result.error), {
       recipient,
     });
+    // A failed test withdraws any earlier verification, so features that
+    // depend on email hide themselves again rather than promising delivery
+    // the administrator has just watched fail.
+    await clearEmailVerification();
     return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
   }
+
+  // This is the only place verification is granted: proof that the key, the
+  // sender domain and this server's outbound route all actually work.
+  await markEmailVerified();
 
   return NextResponse.json({ ok: true, id: result.id, sentTo: recipient });
 }

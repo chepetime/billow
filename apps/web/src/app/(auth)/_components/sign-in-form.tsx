@@ -13,7 +13,16 @@ import { authClient } from "@billow/auth/client";
 import { isEmailIdentifier } from "@/lib/login-identifier";
 import { signInSchema, type SignInInput } from "@/lib/schemas/auth";
 
-export function SignInForm() {
+interface SignInFormProps {
+  /**
+   * False when this installation has no working email, in which case the
+   * recovery link is hidden — it would lead to a form that can only ever say
+   * "check your inbox" for a message that will never be sent.
+   */
+  canResetPassword: boolean;
+}
+
+export function SignInForm({ canResetPassword }: SignInFormProps) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -75,14 +84,16 @@ export function SignInForm() {
         />
       </Field>
 
-      <p className="text-right text-sm">
-        <Link
-          href="/forgot-password"
-          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          Forgot your password?
-        </Link>
-      </p>
+      {canResetPassword ? (
+        <p className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Forgot your password?
+          </Link>
+        </p>
+      ) : null}
 
       {formError ? (
         <p className="text-sm text-destructive">{formError}</p>

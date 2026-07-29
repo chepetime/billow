@@ -1,10 +1,15 @@
 import { SignInForm } from "@/app/(auth)/_components/sign-in-form";
 import { requireGuest } from "@billow/auth";
+import { getEmailCapability } from "@billow/email";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   await requireGuest();
+
+  // Fails closed on any read problem, so a database hiccup hides the link
+  // rather than offering recovery this installation cannot deliver.
+  const { canSendUserEmail } = await getEmailCapability();
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-10 text-foreground">
@@ -19,7 +24,7 @@ export default async function LoginPage() {
         </div>
 
         <div className="rounded-lg border bg-card p-6">
-          <SignInForm />
+          <SignInForm canResetPassword={canSendUserEmail} />
         </div>
       </div>
     </main>

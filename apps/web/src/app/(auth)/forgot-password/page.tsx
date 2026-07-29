@@ -1,5 +1,8 @@
+import { notFound } from "next/navigation";
+
 import { ForgotPasswordForm } from "@/app/(auth)/_components/forgot-password-form";
 import { requireGuest } from "@billow/auth";
+import { getEmailCapability } from "@billow/email";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +10,14 @@ export const metadata = { title: "Reset your password" };
 
 export default async function ForgotPasswordPage() {
   await requireGuest();
+
+  // Hiding the link on the sign-in page is not enough on its own: a bookmark,
+  // a shared URL or a search result would otherwise still reach a form whose
+  // only possible outcome is "check your inbox" for a message that cannot be
+  // sent. 404 rather than a redirect, because on an installation without
+  // email this page genuinely does not exist.
+  const { canSendUserEmail } = await getEmailCapability();
+  if (!canSendUserEmail) notFound();
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-10 text-foreground">
