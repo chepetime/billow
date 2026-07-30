@@ -34,6 +34,22 @@ describe("resolveEmailCapability", () => {
     expect(result.blockedReason).toMatch(/no test message/i);
   });
 
+  it("distinguishes an unreadable credential from a missing one", () => {
+    // Reporting "no API key is stored" for a key that is stored but will not
+    // decrypt sends the operator looking for the wrong problem — and on the
+    // diagnostics page it sat directly above the key's own decryption error.
+    const result = resolveEmailCapability({
+      configured: false,
+      fromEmail: "billow@example.com",
+      verifiedAt: null,
+      credentialUnreadable: true,
+    });
+
+    expect(result.canSendUserEmail).toBe(false);
+    expect(result.blockedReason).toMatch(/cannot be decrypted/i);
+    expect(result.blockedReason).not.toMatch(/no api key is stored/i);
+  });
+
   it("refuses without a credential", () => {
     const result = resolveEmailCapability({
       configured: false,

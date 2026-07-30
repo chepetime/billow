@@ -99,6 +99,7 @@ export default async function DebugPage() {
 
       <Section title="Application" fields={d.application} />
       <Section title="Auth" fields={d.auth} />
+      <Section title="Email" fields={d.email} />
 
       <Section title="Database" fields={[...d.database.server, ...d.database.counts]}>
         <List title="Migrations (most recent first)" items={d.database.migrations.items} />

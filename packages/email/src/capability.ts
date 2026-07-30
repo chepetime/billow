@@ -21,6 +21,13 @@ export interface EmailCapabilityInput {
   fromEmail: string | null;
   /** When a send last actually succeeded, if ever. */
   verifiedAt: Date | string | null;
+  /**
+   * A credential is stored but will not decrypt, usually because
+   * BETTER_AUTH_SECRET was rotated. Distinguished from "no key" so the
+   * diagnostics page does not report "no API key is stored" directly above the
+   * stored key's decryption error.
+   */
+  credentialUnreadable?: boolean | undefined;
 }
 
 export interface EmailCapability {
@@ -39,7 +46,10 @@ export function resolveEmailCapability(
   const verified = configured && input.verifiedAt !== null;
 
   let blockedReason: string | null = null;
-  if (!input.configured) {
+  if (input.credentialUnreadable) {
+    blockedReason =
+      "The stored API key cannot be decrypted. If BETTER_AUTH_SECRET was rotated, re-enter the key.";
+  } else if (!input.configured) {
     blockedReason = "No API key is stored.";
   } else if (!input.fromEmail) {
     blockedReason = "No sender address is set.";

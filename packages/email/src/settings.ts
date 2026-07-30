@@ -122,6 +122,7 @@ export async function getPublicEmailSettings(): Promise<PublicEmailSettings> {
       configured: credentialError === null,
       fromEmail: row.fromEmail,
       verifiedAt: row.verifiedAt,
+      credentialUnreadable: credentialError !== null,
     }),
   };
 }
@@ -159,6 +160,7 @@ export async function getEmailCapability(): Promise<EmailCapability> {
       configured: readable,
       fromEmail: row.fromEmail,
       verifiedAt: row.verifiedAt,
+      credentialUnreadable: !readable,
     });
   } catch {
     return EMAIL_CAPABILITY_UNKNOWN;

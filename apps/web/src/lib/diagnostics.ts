@@ -7,6 +7,11 @@ import os from "node:os";
 import v8 from "node:v8";
 
 import { getAuthEnv } from "@billow/auth/env";
+import {
+  getEmailCapability,
+  getPublicEmailSettings,
+  resolveEmailOrigin,
+} from "@billow/email";
 import { getRecentErrors } from "@/lib/error-log";
 import { getPrisma } from "@billow/db";
 
@@ -160,9 +165,23 @@ export function collectProcess(): Field[] {
     probe("RSS", () => mb(process.memoryUsage().rss)),
     probe("Heap used", () => mb(process.memoryUsage().heapUsed)),
     probe("Heap total", () => mb(process.memoryUsage().heapTotal)),
-    probe("Heap limit", () =>
-      `${Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024)} MB`,
-    ),
+    // heap_size_limit is V8's TOTAL ceiling — old space plus new space, code
+    // space and so on — not the --max-old-space-size value. With that flag at
+    // 128 it reports 320 MB, so reading "heap used 90 of 320" suggests plenty
+    // of room when the binding constraint is the 128 MB old generation and the
+    // real figure is nearer 70%. Both are shown so the headroom is not
+    // overestimated.
+    probe("Heap limit", () => {
+      const total = Math.round(
+        v8.getHeapStatistics().heap_size_limit / 1024 / 1024,
+      );
+      const cap = /--max-old-space-size[= ](\d+)/.exec(
+        `${process.env["NODE_OPTIONS"] ?? ""} ${process.execArgv.join(" ")}`,
+      )?.[1];
+      return cap
+        ? `${total} MB total (old-space cap ${cap} MB — the effective limit)`
+        : `${total} MB total (no old-space cap set)`;
+    }),
     probe("External", () => mb(process.memoryUsage().external)),
     probe("ArrayBuffers", () => mb(process.memoryUsage().arrayBuffers)),
     probe("Peak RSS", () => mb(process.resourceUsage().maxRSS * 1024)),
@@ -228,6 +247,65 @@ export function collectAuth(): Field[] {
   ]);
 }
 
+
+/**
+ * Outbound email, and specifically why password reset is or is not on offer.
+ *
+ * The gate is invisible from the outside: an administrator who saved a key but
+ * never sent a test message sees no reset link and nothing explaining it. The
+ * resolved link origin is included because that is the other half of the same
+ * question — better-auth builds its links from the in-container
+ * `http://localhost:3000`, so what actually goes into an email is derived from
+ * the request or an operator override, and getting it wrong means links that
+ * are dead on arrival.
+ */
+export async function collectEmail(headers: Headers): Promise<Field[]> {
+  return [
+    // States its own result only. The cause is on "Password reset offered"
+    // below, which knows the difference between a missing key and one that
+    // will not decrypt; guessing here contradicted the line under it.
+    await probeAsync("Configured", async () => {
+      const { configured } = await getEmailCapability();
+      return configured ? "yes" : "no";
+    }),
+    await probeAsync("Verified by a delivered test", async () => {
+      const { verified } = await getEmailCapability();
+      return verified ? "yes" : "no";
+    }),
+    await probeAsync("Password reset offered", async () => {
+      const { canSendUserEmail, blockedReason } = await getEmailCapability();
+      return canSendUserEmail ? "yes" : `no — ${blockedReason}`;
+    }),
+    await probeAsync("Provider", async () => {
+      const { provider } = await getPublicEmailSettings();
+      return provider;
+    }),
+    await probeAsync("Sender address", async () => {
+      const { fromEmail } = await getPublicEmailSettings();
+      return fromEmail ?? "(not set)";
+    }),
+    await probeAsync("Stored key", async () => {
+      const { apiKeyHint, credentialError } = await getPublicEmailSettings();
+      if (credentialError) return `⚠ ${credentialError}`;
+      return apiKeyHint ?? "(none)";
+    }),
+    await probeAsync("Last verified", async () => {
+      const { verifiedAt } = await getPublicEmailSettings();
+      return verifiedAt ?? "never";
+    }),
+    await probeAsync("Public URL override", async () => {
+      const { publicUrl } = await getPublicEmailSettings();
+      return publicUrl ?? "(none — links use the request's own origin)";
+    }),
+    await probeAsync("Link origin for this request", async () => {
+      const { publicUrl } = await getPublicEmailSettings();
+      return (
+        resolveEmailOrigin(publicUrl, headers) ??
+        "⚠ none resolvable — emails with links would be refused rather than sent dead"
+      );
+    }),
+  ];
+}
 
 function readFirstLine(path: string): string | null {
   try {
@@ -479,13 +557,19 @@ const emptyDatabase = () => ({
 
 export async function collectDiagnostics(headers: Headers) {
   // Settled, not all: one rejected collector must not lose the whole report.
-  const [databaseResult, errorsResult, networkResult, storageResult] =
-    await Promise.allSettled([
-      collectDatabase(),
-      safeRecentErrors(),
-      collectNetwork(),
-      collectStorage(),
-    ]);
+  const [
+    databaseResult,
+    errorsResult,
+    networkResult,
+    storageResult,
+    emailResult,
+  ] = await Promise.allSettled([
+    collectDatabase(),
+    safeRecentErrors(),
+    collectNetwork(),
+    collectStorage(),
+    collectEmail(headers),
+  ]);
 
   const database =
     databaseResult.status === "fulfilled"
@@ -532,6 +616,16 @@ export async function collectDiagnostics(headers: Headers) {
     network,
     request: collectRequest(headers),
     auth: collectAuth(),
+    email:
+      emailResult.status === "fulfilled"
+        ? emailResult.value
+        : [
+            {
+              label: "email",
+              value: `⚠ ${describe(emailResult.reason)}`,
+              failed: true,
+            },
+          ],
     database,
     env: collectEnv(),
     recentErrors,
