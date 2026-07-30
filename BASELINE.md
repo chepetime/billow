@@ -119,10 +119,19 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] **CSRF posture** — `trustedOrigins` derives from the served host
       (`x-forwarded-host`/`proto`), never the request `Origin`, with
       `BILLOW_TRUSTED_ORIGINS` as an escape hatch
-- [ ] Security headers / CSP
-- [ ] Rate limiting on auth endpoints (brute-force protection). BetterAuth ships
-      a `rateLimit` option; the store is in-memory by default, which is fine for
-      a single container but resets on every update.
+- [x] **Security headers / CSP** — `apps/web/src/lib/security-headers.ts`,
+      applied to every route from `next.config.ts`. CSP keeps `'unsafe-inline'`
+      for scripts and styles (next-themes' pre-paint script, Next's bootstrap,
+      Scalar's runtime styles) with a note on tightening to a nonce later.
+      `Strict-Transport-Security` is deliberately omitted — this app is served
+      over plain HTTP, and a cached HSTS pin would lock users out if a tunnel
+      went away.
+- [x] **Rate limiting on auth endpoints** — `rateLimit` in `packages/auth`,
+      pinned `enabled: true` so it does not depend on `NODE_ENV`. 100/60s
+      generally, with `customRules` at 5/60s on sign-in (email and username),
+      all three two-factor verify paths, and password-reset requests. Storage
+      is in-memory: correct for a single container, but counters reset on
+      restart, which briefly re-opens the window around a deploy.
 - [x] Dependency audit in CI (`pnpm audit`)
 
 ## Release & packaging
@@ -195,12 +204,14 @@ feature release follows.
 
 ## Suggested order
 
-1. **Security pass** — headers/CSP + rate limiting on auth. The only remaining
-   gap where "missing" means "actually exposed", and this install is reachable
-   through a Cloudflare tunnel.
-2. **Multi-arch arm64** + **`output: "standalone"`** — both are packaging
-   changes to the same Dockerfile, so they ship as one release.
-3. **i18n** — the last unfinished phase of the platform plan.
-4. Session management UI, log retention, audit log.
-5. Backup covering uploads; SMTP provider alongside Resend.
+1. **`output: "standalone"`** + **multi-arch arm64** — both are packaging
+   changes to the same Dockerfile, so they ship as one release. Standalone is
+   the one with a payoff you feel locally (faster pulls and updates on the
+   Umbrel); arm64 only matters if this ever goes to the official store.
+2. **i18n** — the last unfinished phase of the platform plan.
+3. Session management UI, log retention, audit log, structured logging.
+4. Backup covering uploads; SMTP provider alongside Resend.
+5. `CHANGELOG.md`, `db:reset`, 2FA e2e coverage, documented env vars.
 6. Passkeys once HTTPS is in place.
+
+Before trusting a checkbox here, grep for it. This file has drifted twice.
