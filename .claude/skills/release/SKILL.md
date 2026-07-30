@@ -80,11 +80,32 @@ Still manual after every release. The store metadata lives in a separate repo:
 /Users/jose/Projects/personal/developer-umbrel-community-app-store
 ```
 
-1. Update the image tag in the store repo's `billow/docker-compose.yml`.
-2. Bump `version` and `releaseNotes` in `billow/umbrel-app.yml`.
-3. Keep `id: billow` unchanged.
-4. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
-5. Push the store repo and refresh the alt store in Umbrel.
+1. Get the new image's multi-arch index digest:
+
+   ```bash
+   docker buildx imagetools inspect ghcr.io/chepetime/billow:v0.1.28 \
+     --format '{{.Manifest.Digest}}'
+   ```
+
+2. Update **both the tag and the digest** in the store repo's
+   `billow/docker-compose.yml`:
+
+   ```yaml
+   image: ghcr.io/chepetime/billow:v0.1.28@sha256:<digest from step 1>
+   ```
+
+   Do not skip the digest. Every app in the official store pins one (391 of
+   391 at the time of writing), and it is what makes an install reproducible —
+   a tag on its own is mutable, so re-pushing it changes what users already
+   have. Use the **index** digest shown above, not a per-platform one, so the
+   pin stays valid once arm64 is published. A stale digest paired with a new
+   tag fails the pull outright, which is the intended safety property: it
+   cannot silently install the wrong thing.
+
+3. Bump `version` and `releaseNotes` in `billow/umbrel-app.yml`.
+4. Keep `id: billow` unchanged.
+5. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
+6. Push the store repo and refresh the alt store in Umbrel.
 
 The current Umbrel host port is `46247`. Earlier installs failed because the
 template port `4000` was already allocated, leaving `app_proxy` in `Created`.

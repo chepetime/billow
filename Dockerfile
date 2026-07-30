@@ -63,8 +63,13 @@ RUN corepack enable && corepack install --global pnpm@10.34.1
 # unprivileged user before the app starts.
 RUN apk add --no-cache su-exec
 
+# -G nodejs matters: without it adduser leaves the account in the default
+# group, so the process ran as gid 65533 (nogroup) while /data was chowned to
+# the nodejs group. Writes only worked because the owner uid happened to match,
+# and anything relying on group permissions would have failed for no visible
+# reason.
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 -G nodejs nextjs
 
 # Uploads live on a mounted volume so they survive container replacement. The
 # mount point is created here for the no-volume case; when a host directory is
