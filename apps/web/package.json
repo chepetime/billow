@@ -21,7 +21,8 @@
     "db:logs": "docker compose -f ../../docker-compose.dev.yml logs -f postgres",
     "db:generate": "pnpm --filter @billow/db db:generate",
     "db:migrate": "pnpm --filter @billow/db db:migrate",
-    "db:seed": "pnpm --filter @billow/db db:seed"
+    "db:seed": "pnpm --filter @billow/db db:seed",
+    "db:reset": "pnpm --filter @billow/db db:reset"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

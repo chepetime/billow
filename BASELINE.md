@@ -106,7 +106,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [ ] Background jobs (log retention, upload cleanup, key expiry)
 - [ ] Audit log: who changed what, distinct from the error log
 - [ ] Structured logging (currently `console.*`)
-- [ ] Log retention — `ErrorLog` grows unbounded; add pruning or a cap
+- [x] Log retention — `ErrorLog` is capped at 500 rows / 30 days, pruned
+      opportunistically on ~5% of writes rather than by a scheduler (this app
+      has none). Pruning failures never fail the write they ride on.
 - [ ] Graceful degradation review: every page should render when the DB is down
       (landing and `/health` already do)
 

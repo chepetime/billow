@@ -98,7 +98,9 @@ export default async function DebugPage() {
       </div>
 
       <Section title="Application" fields={d.application} />
+      <Section title="Runtime and build" fields={d.runtime} />
       <Section title="Auth" fields={d.auth} />
+      <Section title="Security" fields={d.security} />
       <Section title="Email" fields={d.email} />
 
       <Section title="Database" fields={[...d.database.server, ...d.database.counts]}>

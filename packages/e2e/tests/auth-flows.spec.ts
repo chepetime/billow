@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  secondsRemainingInPeriod,
+  secretFromUri,
+  totp,
+} from "./fixtures/totp";
+import {
   readOwnerCredentials,
   updateOwnerUsername,
   uniqueUsername,
@@ -62,6 +67,93 @@ test("set a username, then sign out and sign back in by username", async ({
 
   await signIn(page, username, owner.password, owner.name);
 });
+
+/**
+ * Flow #8: two-factor enrolment, and the sign-in that it changes.
+ *
+ * Deliberately in this file rather than its own. Enabling 2FA on the owner
+ * account changes how every password sign-in behaves, and files run in
+ * parallel workers — but tests *within* a file run serially
+ * (`fullyParallel: false`), so keeping this beside the other owner sign-in
+ * tests is what guarantees nothing observes 2FA half-enabled. The only other
+ * spec that touches /login is password-reset.spec.ts, which never signs in.
+ *
+ * The test turns 2FA off again at the end. That is not tidiness: leaving it on
+ * would break these same tests on the next run against a warm database.
+ */
+test("enrol in two-factor, sign in with a code, then turn it off", async ({
+  page,
+}) => {
+  const owner = await readOwnerCredentials();
+
+  await signIn(page, owner.email, owner.password, owner.name);
+  await page.goto("/settings/security");
+
+  // The shared secret is never rendered — the page only shows a QR image — so
+  // it is read from the enable response, which is what a real authenticator
+  // would consume from the QR code.
+  const enableResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/two-factor/enable") && response.ok(),
+  );
+  await page.getByLabel("Confirm your password").fill(owner.password);
+  await page.getByRole("button", { name: "Set up two-factor" }).click();
+
+  const { totpURI } = (await (await enableResponse).json()) as {
+    totpURI: string;
+  };
+  const secret = secretFromUri(totpURI);
+
+  await expect(
+    page.getByText("Save your backup codes — they won't be shown again."),
+  ).toBeVisible();
+
+  await submitTotp(page, secret, "Confirm and turn on");
+  await expect(
+    page.getByRole("button", { name: "Turn off two-factor" }),
+  ).toBeVisible();
+
+  // The point of the whole feature: a correct password is no longer enough.
+  await signOut(page);
+  await page.goto("/login");
+  await page.getByLabel("Username or email").fill(owner.email);
+  await page.getByLabel("Password").fill(owner.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page).toHaveURL(/\/two-factor$/);
+  await submitTotp(page, secret, "Verify");
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/settings/security");
+  await page.getByLabel("Confirm your password").fill(owner.password);
+  await page.getByRole("button", { name: "Turn off two-factor" }).click();
+  await expect(
+    page.getByRole("button", { name: "Set up two-factor" }),
+  ).toBeVisible();
+});
+
+/**
+ * Fill the visible one-time-code field and submit.
+ *
+ * Waits out the end of a period that is about to expire before generating the
+ * code. Without that, a code produced with a second left is already invalid by
+ * the time the request is handled — the one way this test can flake while the
+ * application is behaving correctly.
+ */
+async function submitTotp(page: Page, secret: string, buttonName: string) {
+  // A wall-clock wait for the TOTP window to roll over, not a wait on the page
+  // — there is no UI event to key off, the constraint is the clock itself.
+  if (secondsRemainingInPeriod() < 3) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, secondsRemainingInPeriod() * 1000 + 500),
+    );
+  }
+
+  await page
+    .getByLabel("Authentication code")
+    .fill(totp(secret));
+  await page.getByRole("button", { name: buttonName }).click();
+}
 
 async function signIn(
   page: Page,

@@ -6,6 +6,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import v8 from "node:v8";
 
+import { auth } from "@billow/auth";
 import { getAuthEnv } from "@billow/auth/env";
 import {
   getEmailCapability,
@@ -13,6 +14,7 @@ import {
   resolveEmailOrigin,
 } from "@billow/email";
 import { getRecentErrors } from "@/lib/error-log";
+import { securityHeaders } from "@/lib/security-headers";
 import { getPrisma } from "@billow/db";
 
 /**
@@ -155,6 +157,27 @@ export function collectApplication(): Field[] {
 export function collectProcess(): Field[] {
   return guard("process", () => [
     probe("PID / PPID", () => `${process.pid} / ${process.ppid}`),
+    // The app is meant to run as uid 1000 and never as root. Uploads live on a
+    // bind mount owned by 1000, and the image no longer has a privileged phase
+    // that could repair a mismatch, so the effective user is the first thing to
+    // check when writes fail. Reported here rather than only in the boot log,
+    // which scrolls away.
+    probe("User", () => {
+      const uid = process.getuid?.();
+      const gid = process.getgid?.();
+      if (uid === undefined || gid === undefined) {
+        return "(not a POSIX platform)";
+      }
+      let name = "?";
+      try {
+        name = os.userInfo().username;
+      } catch {
+        // No passwd entry for this uid — possible with `--user 1000:1000` on an
+        // image whose account was removed. Not an error in itself.
+      }
+      const warning = uid === 0 ? " — WARNING: running as root" : "";
+      return `uid ${uid} gid ${gid} (${name})${warning}`;
+    }),
     probe("Node", () => process.version),
     probe("V8", () => process.versions.v8),
     probe("libuv", () => process.versions.uv),
@@ -187,6 +210,57 @@ export function collectProcess(): Field[] {
     probe("Peak RSS", () => mb(process.resourceUsage().maxRSS * 1024)),
     probe("CPU user", () => `${Math.round(process.cpuUsage().user / 1000)} ms`),
     probe("CPU system", () => `${Math.round(process.cpuUsage().system / 1000)} ms`),
+  ]);
+}
+
+/**
+ * What shape of deployment this is, as opposed to what it should be.
+ *
+ * The production image ships Next's traced standalone output and contains no
+ * pnpm and no `next` CLI, while `pnpm dev:local` runs the same code out of a
+ * full node_modules tree. Those two behave differently in ways that are easy to
+ * misattribute — a module resolving in development and not in the image is
+ * almost always a tracing gap — so the mode is stated rather than inferred.
+ */
+export function collectRuntime(): Field[] {
+  return guard("runtime", () => [
+    // The standalone server is `apps/web/server.js`; `next start` runs
+    // node_modules/next/dist/bin/next. Read from argv because there is no
+    // environment variable that distinguishes them.
+    probe("Server entry", () => {
+      const argv = process.argv[1] ?? "";
+      if (argv.endsWith("server.js")) {
+        return `standalone (${argv})`;
+      }
+      if (argv.includes("next")) {
+        return `next CLI (${argv})`;
+      }
+      return argv || UNAVAILABLE;
+    }),
+    // Resolved and inlined at build time by next.config.ts — see the comment
+    // there for why this is not read from node_modules at runtime.
+    probe("Package versions", () => process.env.NEXT_PUBLIC_RUNTIME_VERSIONS),
+    // The Prisma CLI is present only so migrations can run at boot, and it is
+    // installed separately from the app's dependencies. If those two ever drift
+    // apart, migrations run under a different Prisma than the client queries
+    // with, which is worth seeing side by side with the versions above.
+    probe("Migration CLI", () => {
+      const candidates = [
+        `${process.cwd()}/../../packages/db/node_modules/prisma/package.json`,
+        `${process.cwd()}/packages/db/node_modules/prisma/package.json`,
+      ];
+      for (const path of candidates) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(path, "utf8")) as {
+            version?: string;
+          };
+          return `prisma ${pkg.version ?? "?"}`;
+        } catch {
+          continue;
+        }
+      }
+      return "(not present — migrations run outside this image)";
+    }),
   ]);
 }
 
@@ -230,6 +304,74 @@ export function collectRequest(headers: Headers): Field[] {
   return guard("request", () =>
     names.map((name) => probe(name, () => headers.get(name) ?? "(absent)")),
   );
+}
+
+/**
+ * Security posture, reported rather than assumed.
+ *
+ * None of this is visible from the running app: headers are configured in
+ * next.config.ts and rate limits inside the auth instance, so the only way to
+ * confirm either was to read the source. Both are stated here so an operator
+ * can see what is enforced, and so the deliberate weakenings are on the record
+ * next to the protections rather than buried in a comment.
+ */
+export function collectSecurity(headers: Headers): Field[] {
+  return guard("security", () => [
+    probe("Response headers", () =>
+      securityHeaders.map((h) => h.key).join(", "),
+    ),
+    probe("CSP", () => {
+      const csp = securityHeaders.find(
+        (h) => h.key === "Content-Security-Policy",
+      )?.value;
+      return csp ?? "(not set)";
+    }),
+    // Absent by design, not by omission. This app is served over plain HTTP at
+    // umbrel.local; a cached HSTS pin would force HTTPS for the host and can
+    // lock a user out entirely if they later lose the tunnel and fall back to
+    // the local address.
+    probe("HSTS", () =>
+      securityHeaders.some((h) => h.key === "Strict-Transport-Security")
+        ? "set"
+        : "not set (deliberate — the app is served over plain HTTP)",
+    ),
+    probe("Auth rate limiting", () => {
+      const limit = auth.options.rateLimit;
+      if (!limit?.enabled) {
+        return "DISABLED";
+      }
+      const rules = Object.entries(limit.customRules ?? {}).length;
+      return `on — ${limit.max}/${limit.window}s general, ${rules} tightened rules`;
+    }),
+    // In-memory counters reset when the container restarts, which briefly
+    // reopens the brute-force window around every update. Worth stating because
+    // it is invisible and only matters at exactly the wrong moment.
+    probe("Rate limit storage", () => {
+      // Not set in the auth config, so this is BetterAuth's default. Reading it
+      // off `auth.options` would narrow to the literal config object, which has
+      // no `storage` key at all — the absence is the answer.
+      const storage =
+        (auth.options.rateLimit as { storage?: string } | undefined)?.storage ??
+        "memory";
+      return storage === "memory"
+        ? "memory (counters reset on restart — database storage needs a rateLimit model)"
+        : storage;
+    }),
+    // The CSRF check is only meaningful if this resolves to the host actually
+    // being served; deriving it from the request Origin would make it
+    // tautological. Shown so the resolved value can be compared with the
+    // request section above.
+    probe("Trusted origin for this request", () => {
+      const proto = headers.get("x-forwarded-proto") ?? "http";
+      const host = headers.get("x-forwarded-host") ?? headers.get("host");
+      return host ? `${proto}://${host}` : "(no host header)";
+    }),
+    probe("Trusted origin override", () =>
+      process.env.BILLOW_TRUSTED_ORIGINS
+        ? `set: ${process.env.BILLOW_TRUSTED_ORIGINS}`
+        : "(none — derived from the served host)",
+    ),
+  ]);
 }
 
 export function collectAuth(): Field[] {
@@ -600,6 +742,7 @@ export async function collectDiagnostics(headers: Headers) {
   return {
     checkedAt: new Date().toISOString(),
     application: collectApplication(),
+    runtime: collectRuntime(),
     process: collectProcess(),
     host: collectHost(),
     container: collectContainer(),
@@ -616,6 +759,7 @@ export async function collectDiagnostics(headers: Headers) {
     network,
     request: collectRequest(headers),
     auth: collectAuth(),
+    security: collectSecurity(headers),
     email:
       emailResult.status === "fulfilled"
         ? emailResult.value
