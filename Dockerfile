@@ -97,26 +97,32 @@ ENV NODE_OPTIONS=--max-old-space-size=128
 # traced standalone output instead, and the only other thing it runs is the
 # Prisma CLI, invoked through `node` directly.
 
-# su-exec lets the entrypoint fix volume ownership as root and then drop to the
-# unprivileged user before the app starts.
-RUN apk add --no-cache su-exec
-
 # Runs as the base image's own `node` account, uid/gid 1000:1000. That is not
 # arbitrary: Umbrel creates ${APP_DATA_DIR} as 1000:1000, so a bind-mounted
 # uploads directory is owned by 1000 and only uid 1000 can write it — a
-# directory at mode 755 gives everyone else r-x. The previous dedicated user at
-# 1001 could never write it, which is the entire reason start.sh has to become
-# root and chown on every boot. Matching Umbrel's uid removes that need, and is
-# what most apps in the official store do (`user: "1000:1000"`).
+# directory at mode 755 gives everyone else r-x. A dedicated user at 1001 could
+# not, which is why the entrypoint used to become root and chown on every boot.
 #
 # No user is created here: `node` already exists in the base image at 1000:1000.
+#
+# The image no longer installs su-exec and the entrypoint has no privileged
+# phase: `USER` below means the container never starts as root in the first
+# place, whether or not the caller passes `--user`. Umbrel's compose sets
+# `user: "1000:1000"` as well, which is redundant but explicit.
+#
+# NOTE: this drops the automatic chown that used to repair an uploads directory
+# owned by the old 1001 uid. Installs that ran 0.1.29 or 0.1.30 were migrated
+# already. One that jumps straight from 0.1.28 or earlier keeps a 1001-owned
+# directory, and uploads fail until it is chowned to 1000 by hand — start.sh
+# logs exactly that.
 
 # Uploads live on a mounted volume so they survive container replacement. The
-# mount point is created here for the no-volume case; when a host directory is
-# bind-mounted it arrives with the host's ownership and masks this, so start.sh
-# re-applies ownership at boot. (Named volumes behave differently — they are
-# seeded from the image, ownership included — which is why this only bites on
-# bind mounts.)
+# mount point is created and owned here for the no-volume case and for named
+# volumes, which are seeded from the image, ownership included. A bind mount
+# arrives with the host's ownership and masks this entirely — that case is
+# handled by the host directory being 1000-owned (Umbrel creates it that way,
+# and the store repo commits an empty `uploads/` so it exists before first
+# boot), not by anything the image can do once it is no longer root.
 ENV BILLOW_STORAGE_DIR=/data/uploads
 RUN mkdir -p /data/uploads && chown -R node:node /data
 
@@ -142,6 +148,11 @@ COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
 COPY --from=migrator /migrate/node_modules ./packages/db/node_modules
 
 COPY apps/web/scripts ./apps/web/scripts
+
+# Everything above is copied as root and left world-readable; the app only ever
+# reads it. Declared after the COPYs so they are not slowed by ownership
+# rewrites, and before CMD so it applies to the running process.
+USER node
 
 EXPOSE 3000
 

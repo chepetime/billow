@@ -80,7 +80,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       reported in diagnostics (including whether it is a real mount). The
       container runs as uid 1000 to match the owner Umbrel creates app data
       with, and the store repo commits an empty `uploads/` so the host path
-      exists with that owner before the container starts.
+      exists with that owner before the container starts. The image declares
+      `USER node`, so it never starts as root and needs no su-exec: an
+      unwritable mount is reported at boot instead of being chowned away.
 - [x] Upload model, storage abstraction, size/MIME limits with magic-byte
       sniffing, generated filenames, per-user quotas, auth-checked serving
 - [ ] Backup and restore must cover files as well as the database
