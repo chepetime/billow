@@ -98,7 +98,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json apps/web/package.json packages/db/package.json pnpm-lock.yaml
+          # Globbed to match the bump step above, which derives its file list
+          # from the workspace. A hardcoded list here silently discarded the
+          # bumps to every package it did not name: 0.1.28 bumped eight
+          # manifests and committed three, leaving @billow/auth and
+          # @billow/email behind at the previous version. Unchanged manifests
+          # stage as no-ops, so listing them all is safe.
+          git add package.json apps/*/package.json packages/*/package.json pnpm-lock.yaml
           git commit -m "Bump version to ${{ inputs.version }}"
           git tag "${{ steps.bump.outputs.tag }}"
           git push origin HEAD:"${GITHUB_REF_NAME}"
