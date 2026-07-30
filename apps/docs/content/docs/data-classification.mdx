@@ -1,0 +1,111 @@
+---
+title: Data classification
+description: The sensitivity of each database model, and the rules for changing it.
+---
+
+Data classification is a design constraint, not a comment to add after a
+feature ships. Every Prisma model and field must have a classification before
+it is added or changed. The repository's `data-classification` skill contains
+the review workflow.
+
+## Levels
+
+- **Public**: deliberately safe to show without authentication. It must not
+  contain installation-specific credentials or personal data.
+- **Internal**: operational data that is not public, but whose disclosure does
+  not directly expose an identity, credential, financial record, or user
+  content. Protect it with normal authorization and backups.
+- **Sensitive**: credentials, authentication material, identifiers, financial
+  data, personal/contact data, user content, or data that reveals a user's
+  business relationships. Restrict access, omit it from logs, and evaluate it
+  for field-level encryption.
+
+Classification describes disclosure impact; it does not automatically choose a
+storage mechanism. A field that must support a database constraint or work
+before a user key exists may remain plaintext, but that exception must be
+documented next to the field and reviewed.
+
+## Model inventory
+
+| Schema | Model | Class | Why |
+| --- | --- | --- | --- |
+| platform | `AppMetadata` | Public | Product name, version, and public links are intended for diagnostics and the landing experience. |
+| platform | `RegistrationSettings` | Internal | Installation registration policy; not personal data, but not an unauthenticated setting. |
+| platform | `EmailSettings` | Sensitive | Contains an encrypted outbound-mail API credential and the sender identity/configuration. Never return `apiKey`. |
+| platform | `Upload` | Sensitive | Filename, MIME type, checksum, and the referenced file may reveal user content. `storageKey` is internal implementation data, but the record is sensitive as a whole. |
+| platform | `ErrorLog` | Internal | Operational diagnostics. Treat `message`, `stack`, and `meta` as potentially sensitive in practice: redact credentials and personal data before logging. |
+| auth | `User` | Sensitive | Account identity and contact fields (`name`, `email`, `username`, image), role and ban state. |
+| auth | `Apikey` | Sensitive | Authentication credential material, permissions, and usage information. The key is hashed but remains security-sensitive. |
+| auth | `TwoFactor` | Sensitive | TOTP secret and backup codes are authentication credentials. |
+| auth | `Session` | Sensitive | Bearer session token, IP address, user agent, and impersonation relationship. |
+| auth | `Account` | Sensitive | Password hash and third-party OAuth tokens, scopes, and identifiers. |
+| auth | `Verification` | Sensitive | Password-reset and verification tokens and their identifiers. |
+| auth | `VaultEntry` | Sensitive | Experimental user-encrypted note. Its ciphertext must never be substituted for another owner, and its plaintext/key are never stored. |
+| invoicing | `UserProfile` | Sensitive | Legal identity, address, tax ID, work identity, and contact information. |
+| invoicing | `BankAccount` | Sensitive | Bank account, routing, SWIFT/IBAN/CLABE, holder, and bank-contact data. |
+| invoicing | `ClientCompany` | Sensitive | Client identity, billing address, email, contact, and notes reveal a user's commercial relationships. |
+| invoicing | `Invoice` | Sensitive | Client, bank account, date, currency, status, and notes together reveal billing activity. |
+| invoicing | `InvoiceLineItem` | Sensitive | Description, quantities, rates, and amounts reveal the work performed and its price. |
+| invoicing | `InvoiceRevision` | Sensitive | Historical invoice payload and editor/summary preserve prior sensitive billing data. |
+
+## Encryption boundary
+
+The planned field-level-encryption design protects a stolen database dump,
+backup, or volume snapshot with a user-held key. It cannot protect against a
+motivated self-hosted administrator who changes the running application to
+capture a key at sign-in.
+
+The following fields are established candidates for encryption:
+
+- `BankAccount.accountNumber`, `iban`, `clabe`, `swift`, `routingNumber`,
+  `institutionNumber`, `transitNumber`, `accountHolderName`, and
+  `accountHolderAddress`.
+- `UserProfile.taxId` and `address`.
+
+`User.email`, `username`, foreign keys, timestamps, `Invoice.invoiceNumber`,
+and installation configuration remain plaintext because they are needed for
+identity, constraints, or operation before a user key is available.
+
+Whether client names and invoice amounts are encrypted is still a product
+decision. They are classified **sensitive** because plaintext disclosure is
+harmful; encrypting them changes list-view, search, and sort behaviour because
+the server cannot read them without the signed-in user's key. Do not implement
+field-level encryption for these fields until that decision is made.
+
+## Experimental vault lab
+
+`VaultEntry` is a deliberately small, per-user proving ground under Settings →
+Vault lab. It encrypts one note with AES-256-GCM, deriving a key from a
+user-supplied vault key and a fresh salt for each write. The ciphertext is
+authenticated to the owning user ID, so copying a database value between users
+does not decrypt.
+
+The key is sent only with the request that reads or writes the note and is not
+stored in the database, a session, a cookie, local storage, logs, or workspace
+backups. The experimental record is intentionally excluded from workspace
+backup/restore: that format imports data under a different user ID, which must
+not make an old ciphertext readable as the importing user.
+
+Use the lab to verify a database dump contains no plaintext, that a wrong key
+cannot unlock it, and that a second account cannot read it. It is not yet the
+production key hierarchy: there is no generated recovery key, no password
+change re-wrap, and no Prisma client extension. As with all server-side
+decryption in a self-hosted app, a motivated administrator who modifies the
+running application can capture the key while it is entered.
+
+### Red-team checklist
+
+1. Save an unmistakable, non-production test string in the vault lab. Query
+   `VaultEntry` directly or inspect a database dump: it must contain only a
+   `v1.<salt>.<iv>.<tag>.<ciphertext>` value, never the test string or vault
+   key.
+2. Reload the page, enter a wrong key, and confirm the entry stays locked with
+   the same generic error used for tampering.
+3. Sign in as a second user and call `GET /api/v1/vault` with the first user's
+   key. It must return `404`, the same response as that user's missing entry.
+4. Copy a ciphertext to another user's row in a disposable local database.
+   It must fail authentication because the owning user ID is bound as AEAD
+   associated data.
+5. Treat a modified running application as an expected failure: it can capture
+   the request header while a user unlocks the vault. Record that result as the
+   boundary of the eventual threat model, not as a defect in this experiment.

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   KeyRound,
+  LockKeyhole,
   Paperclip,
   ShieldCheck,
   UserRound,
@@ -38,6 +39,12 @@ const sections = [
     label: "Files",
     description: "Avatars, images and PDFs",
     icon: Paperclip,
+  },
+  {
+    href: "/settings/vault",
+    label: "Vault lab",
+    description: "Experimental encrypted note",
+    icon: LockKeyhole,
   },
   {
     href: "/settings/access",

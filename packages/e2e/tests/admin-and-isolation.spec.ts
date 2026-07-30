@@ -101,6 +101,28 @@ test.describe.serial("administration and data isolation", () => {
         `/api/v1/uploads/${ownerUploadId}`,
       );
       expect(foreignRead.status()).toBe(404);
+
+      // The vault adds a second isolation boundary: an authenticated account
+      // also needs its own per-request vault key. The value itself is only
+      // ciphertext in Postgres (unit-tested in vault-crypto.test.ts); these
+      // requests prove it cannot be read through another user's session.
+      const vaultKey = `vault-key-${uniqueSuffix()}`;
+      const vaultSecret = `vault-secret-${uniqueSuffix()}`;
+      const savedVault = await page.request.post("/api/v1/vault", {
+        data: { secret: vaultSecret },
+        headers: { origin, "x-billow-vault-key": vaultKey },
+      });
+      expect(savedVault.status()).toBe(201);
+
+      const wrongKey = await page.request.get("/api/v1/vault", {
+        headers: { "x-billow-vault-key": "not-the-owner-key" },
+      });
+      expect(wrongKey.status()).toBe(401);
+
+      const foreignVaultRead = await colleaguePage.request.get("/api/v1/vault", {
+        headers: { "x-billow-vault-key": vaultKey },
+      });
+      expect(foreignVaultRead.status()).toBe(404);
     } finally {
       await colleagueContext.close();
       // Always closes registration again, even if an assertion above threw:
