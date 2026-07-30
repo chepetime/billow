@@ -422,7 +422,8 @@ Export requirements:
 - Add admin-only registration mode controls.
 - Add an admin-only user list.
 - Make the app tolerate an empty database.
-- Keep production startup limited to `prisma migrate deploy` and `next start`.
+- Keep production startup limited to `prisma migrate deploy` and starting the
+  server (`apps/web/server.js`, from Next's standalone output).
 
 ### Phase 3: User Interface
 

@@ -67,10 +67,25 @@ else
   log "WARNING: storage dir ${STORAGE_DIR} is NOT writable by uid $(id -u) — uploads will fail"
 fi
 
+# Repo root, derived from this script's own location rather than assumed, so
+# the script works whether it is invoked from /repo or from apps/web.
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
+
+# There is no pnpm in the production image any more — it ships Next's traced
+# standalone output instead of an installed dependency tree. The Prisma CLI is
+# copied in flattened, so it is invoked through node directly. Running from
+# packages/db is what lets the CLI find prisma.config.ts.
+run_migrations() {
+  (
+    cd "${REPO_ROOT}/packages/db" \
+      && node node_modules/prisma/build/index.js migrate deploy
+  )
+}
+
 log "applying database migrations"
 attempt=0
 
-until pnpm --filter @billow/db exec prisma migrate deploy; do
+until run_migrations; do
   attempt=$((attempt + 1))
 
   if [ "$attempt" -ge 30 ]; then
@@ -89,4 +104,6 @@ else
 fi
 
 log "starting next on port ${PORT:-3000}"
-exec node node_modules/next/dist/bin/next start
+# Standalone output ships its own minimal server rather than the `next start`
+# CLI, which is not present in the image.
+exec node "${REPO_ROOT}/apps/web/server.js"

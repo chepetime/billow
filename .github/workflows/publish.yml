@@ -52,6 +52,11 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Publishing ${IMAGE_NAME}:${VERSION} and :latest"
 
+      # arm64 is built under emulation on an amd64 runner, so QEMU has to be
+      # registered before buildx can target it.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -62,15 +67,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Both architectures under one manifest list, so the digest pinned in the
+      # store repo stays correct for either. amd64 covers Umbrel Home and most
+      # mini-PCs; arm64 covers Raspberry Pi, which could not run this image at
+      # all before.
+      #
+      # Nothing in the runtime is architecture-specific by luck: Prisma 7's
+      # `prisma-client` generator emits TypeScript and queries go through the
+      # `pg` driver adapter, so there is no query-engine binary. The only
+      # native pieces are the schema-engine used by `migrate deploy` and
+      # sharp, and both are installed inside the per-platform build.
+      #
+      # The arm64 half is emulated and therefore slow. The registry cache keeps
+      # unchanged layers from being rebuilt on every release.
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
 
   # Proves the tag is really pullable and the image actually boots, applies
   # migrations, and serves traffic — the checks that used to be done by hand
@@ -107,11 +127,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Confirm the published manifest resolves
+      # Asserts both architectures are present, not merely that the tag
+      # resolves. A silently amd64-only manifest still passes every other check
+      # in this job, because the runner is amd64 — it would only surface as an
+      # install failure on a Raspberry Pi.
+      - name: Confirm the published manifest resolves for both architectures
         run: |
           VERSION="${{ needs.publish.outputs.version }}"
-          docker manifest inspect "${IMAGE_NAME}:${VERSION}" > /dev/null
-          echo "${IMAGE_NAME}:${VERSION} is pullable"
+          MANIFEST=$(docker manifest inspect "${IMAGE_NAME}:${VERSION}")
+          echo "$MANIFEST" | jq -r '.manifests[] | "\(.platform.os)/\(.platform.architecture)"' | sort -u
+          for PLATFORM in amd64 arm64; do
+            echo "$MANIFEST" \
+              | jq -e --arg a "$PLATFORM" \
+                '.manifests | map(select(.platform.os == "linux" and .platform.architecture == $a)) | length > 0' \
+                > /dev/null \
+              || { echo "::error::linux/${PLATFORM} missing from ${IMAGE_NAME}:${VERSION}"; exit 1; }
+          done
+          echo "${IMAGE_NAME}:${VERSION} publishes linux/amd64 and linux/arm64"
 
       - name: Boot the published image
         run: |

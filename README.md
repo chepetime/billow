@@ -68,9 +68,15 @@ docker build -t ghcr.io/chepetime/billow:local .
 ```
 
 The production image starts with `apps/web/scripts/start.sh`, which runs
-`prisma migrate deploy` (retrying while Postgres comes up) and then
-`next start` on port `3000`. The runtime needs `DATABASE_URL`,
-`BETTER_AUTH_SECRET` (≥32 chars), and `BETTER_AUTH_URL`.
+`prisma migrate deploy` (retrying while Postgres comes up) and then the
+standalone server at `apps/web/server.js` on port `3000`. The runtime needs
+`DATABASE_URL`, `BETTER_AUTH_SECRET` (≥32 chars), and `BETTER_AUTH_URL`.
+
+The image ships Next's `output: "standalone"` bundle — the traced server plus
+only the `node_modules` files it actually reaches — rather than an installed
+dependency tree, so there is no `pnpm` or `next` CLI in it. The Prisma CLI is
+reinstalled separately in the `migrator` stage purely so migrations can run at
+boot. Images are published for `linux/amd64` and `linux/arm64`.
 
 ### Releases (tag-driven)
 

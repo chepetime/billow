@@ -45,6 +45,42 @@ COPY config ./config
 RUN pnpm --filter @billow/web build \
   && rm -rf apps/web/.next/cache
 
+# The standalone server is traced from runtime imports only, so the Prisma CLI
+# — a build-time tool the entrypoint still needs for `migrate deploy` — is not
+# in it, and has to be reinstalled here as a plain flat tree the runner can
+# COPY.
+#
+# npm rather than pnpm on purpose. pnpm's store nests each package's
+# dependencies under its own `.pnpm/<pkg>@<version>/node_modules` directory, so
+# copying prisma and its immediate siblings still misses transitive deps
+# (`@prisma/config` needs `effect`, which lives beside `@prisma/config`, not
+# beside `prisma`) and the CLI dies with MODULE_NOT_FOUND at boot. npm produces
+# the full closure in one real directory.
+#
+# The versions are read from the lockfile-resolved install in `deps` rather
+# than written literally, so bumping Prisma in the workspace cannot leave the
+# image running a different CLI than the repo.
+FROM node:24-alpine AS migrator
+COPY --from=deps /repo/packages/db/node_modules/prisma/package.json /tmp/prisma.json
+COPY --from=deps /repo/packages/db/node_modules/dotenv/package.json /tmp/dotenv.json
+WORKDIR /migrate
+RUN set -eu; \
+  prisma_version="$(node -p "require('/tmp/prisma.json').version")"; \
+  dotenv_version="$(node -p "require('/tmp/dotenv.json').version")"; \
+  echo "installing prisma@${prisma_version} dotenv@${dotenv_version}"; \
+  npm install --omit=dev --no-audit --no-fund --no-package-lock \
+    "prisma@${prisma_version}" "dotenv@${dotenv_version}"; \
+  # Alternative database drivers and the TypeScript compiler, none of which
+  # `migrate deploy` loads. Each was removed and the real command re-run to
+  # confirm it still works before being listed here.
+  #
+  # `@prisma/studio-core` (~42 MB) and `@prisma/dev` (~18 MB) look like
+  # equally obvious cuts and are NOT: the CLI bundle requires both at load
+  # time, so removing either fails immediately with MODULE_NOT_FOUND even
+  # though `migrate deploy` never uses a studio or a dev server. That is why
+  # the migration toolchain stays around 225 MB.
+  rm -rf node_modules/mysql2 node_modules/postgres node_modules/typescript
+
 FROM node:24-alpine AS runner
 
 WORKDIR /repo
@@ -52,12 +88,14 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV COREPACK_HOME=/usr/local/share/corepack
 # Cap V8's heap so the idle server returns memory instead of holding it.
 # ~halves idle RSS (~145MiB -> ~60MiB) with ample headroom for this app.
 ENV NODE_OPTIONS=--max-old-space-size=128
 
-RUN corepack enable && corepack install --global pnpm@10.34.1
+# No corepack/pnpm here any more. The runner used to `pnpm install --prod` the
+# whole dependency graph, which was most of the image; it now receives Next's
+# traced standalone output instead, and the only other thing it runs is the
+# Prisma CLI, invoked through `node` directly.
 
 # su-exec lets the entrypoint fix volume ownership as root and then drop to the
 # unprivileged user before the app starts.
@@ -71,9 +109,7 @@ RUN apk add --no-cache su-exec
 # root and chown on every boot. Matching Umbrel's uid removes that need, and is
 # what most apps in the official store do (`user: "1000:1000"`).
 #
-# No user is created here: `node` already exists in the base image at 1000:1000
-# with a real home directory, which pnpm wants for its cache during the
-# migration step.
+# No user is created here: `node` already exists in the base image at 1000:1000.
 
 # Uploads live on a mounted volume so they survive container replacement. The
 # mount point is created here for the no-volume case; when a host directory is
@@ -84,31 +120,31 @@ RUN apk add --no-cache su-exec
 ENV BILLOW_STORAGE_DIR=/data/uploads
 RUN mkdir -p /data/uploads && chown -R node:node /data
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
-COPY apps/web/package.json ./apps/web/package.json
-COPY packages/auth/package.json ./packages/auth/package.json
-COPY packages/db/package.json ./packages/db/package.json
-COPY packages/email/package.json ./packages/email/package.json
-COPY packages/shadcn/package.json ./packages/shadcn/package.json
-COPY config/eslint-config/package.json ./config/eslint-config/package.json
-COPY config/tailwind-config/package.json ./config/tailwind-config/package.json
-COPY config/typescript-config/package.json ./config/typescript-config/package.json
-COPY config/vitest-config/package.json ./config/vitest-config/package.json
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-  pnpm install --prod --filter @billow/web... --frozen-lockfile --store-dir /pnpm/store
+# The standalone bundle already mirrors the workspace layout (apps/web,
+# packages/*) and carries its own pruned node_modules, so it unpacks straight
+# onto the workdir. Everything the server imports is either inside it or
+# bundled into .next/server — there is nothing left to install.
+#
+# Unlike the old per-package COPY list, this needs no maintenance when a
+# workspace package is added: tracing decides what ships.
+COPY --from=builder /repo/apps/web/.next/standalone ./
+# Static assets and public files are excluded from tracing by design and have
+# to be placed alongside the server by hand.
+COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /repo/apps/web/public ./apps/web/public
 
+# Migration toolchain: the schema and its config, plus the flattened CLI from
+# the migrator stage. `prisma.config.ts` resolves `prisma/config` and
+# `dotenv/config` out of this node_modules, so it has to sit at the package
+# root rather than anywhere else.
 COPY packages/db/prisma ./packages/db/prisma
 COPY packages/db/prisma.config.ts ./packages/db/prisma.config.ts
-COPY packages/db/src ./packages/db/src
-COPY packages/auth/src ./packages/auth/src
-COPY packages/email/src ./packages/email/src
-COPY packages/shadcn/src ./packages/shadcn/src
-COPY apps/web/scripts ./apps/web/scripts
-COPY --from=builder /repo/apps/web/.next ./apps/web/.next
-COPY --from=builder /repo/apps/web/public ./apps/web/public
-COPY --from=builder /repo/packages/db/generated/prisma ./packages/db/generated/prisma
+COPY --from=migrator /migrate/node_modules ./packages/db/node_modules
 
-WORKDIR /repo/apps/web
+COPY apps/web/scripts ./apps/web/scripts
+
 EXPOSE 3000
 
-CMD ["sh", "scripts/start.sh"]
+# Workdir stays at the repo root: the entrypoint runs migrations from
+# packages/db and then starts the standalone server at apps/web/server.js.
+CMD ["sh", "apps/web/scripts/start.sh"]

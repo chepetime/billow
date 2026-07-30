@@ -144,16 +144,23 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] **Gallery images** — still the same placeholder imgur URL three times.
       Best fix: real screenshots of the running app (landing, dashboard, settings)
 - [ ] `CHANGELOG.md` generated from tags
-- [ ] **Multi-arch images (`linux/arm64`)** — the published image is amd64-only.
-      Umbrel Home is x86, so this install is fine, but any Raspberry Pi Umbrel
-      cannot run Billow at all. Required before the app could go to the
-      official store.
-- [ ] **`output: "standalone"`** — the image is ~1.9 GB locally / 326 MiB
-      compressed because it ships the full pnpm store and runs `next start` out
-      of `node_modules`. Standalone output traces only what is reached (~60 MiB),
-      but needs `outputFileTracingRoot` for the pnpm workspace and
-      `outputFileTracingIncludes` for the Prisma engine, and `start.sh` has to
-      stop shelling out to `pnpm --filter @billow/db exec prisma migrate deploy`.
+- [x] **Multi-arch images (`linux/amd64` + `linux/arm64`)** — one manifest list,
+      so the digest pinned in the store repo covers both. `verify` asserts both
+      architectures are present rather than just that the tag resolves, since
+      an amd64-only manifest passes every other check on an amd64 runner.
+- [x] **`output: "standalone"`** — 326 MiB → 140 MiB compressed (1.9 GB → 492 MB
+      on disk). The runner ships the traced bundle instead of
+      `pnpm install --prod`, so it contains no pnpm and no `next` CLI. No
+      `outputFileTracingIncludes` was needed: Prisma 7's `prisma-client`
+      generator emits TypeScript and `@prisma/adapter-pg` routes queries
+      through `pg`, so there is no query-engine binary to trace.
+- [ ] **Shrink the migration toolchain (~225 MB, now the largest single thing
+      in the image)** — the Prisma CLI is only there so `migrate deploy` can run
+      at boot, and it cannot be trimmed further: the CLI bundle eagerly requires
+      `@prisma/studio-core` (~42 MB) and `@prisma/dev` (~18 MB), neither of
+      which `migrate deploy` uses. Options are an init container that carries
+      the CLI, or applying migrations directly through `pg` and owning the
+      `_prisma_migrations` bookkeeping.
 - [ ] Document required env vars for anyone reusing this as a template
 
 ## Developer experience
