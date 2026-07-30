@@ -43,13 +43,19 @@ published image against Postgres before the release is considered good.
 
 ## Platform and toolchain constraints
 
-The workflow publishes only `linux/amd64` for fast iteration on the current
-Umbrel target.
+The workflow publishes `linux/amd64` and `linux/arm64` under one manifest
+list. GitHub-hosted runners are amd64, so the arm64 half builds through QEMU
+and the Next.js build can sit at `Creating an optimized production build ...`
+for several minutes — expect releases to take noticeably longer than the
+amd64-only ones did. A registry build cache
+(`ghcr.io/chepetime/billow:buildcache`) keeps unchanged layers from being
+rebuilt every time; the first release after a Dockerfile change gets no
+benefit from it.
 
-If the target Umbrel is ARM-based later, add `linux/arm64` back and restore
-QEMU setup. GitHub-hosted amd64 runners build arm64 through QEMU, so the
-Next.js build can sit at `Creating an optimized production build ...` for
-several minutes.
+`verify` asserts both architectures are present in the published manifest.
+That check exists because every other check in that job runs on an amd64
+runner, so an accidentally amd64-only manifest would pass all of them and
+fail only when someone installs on a Raspberry Pi.
 
 Use Node 24-compatible action majors:
 
@@ -97,15 +103,29 @@ Still manual after every release. The store metadata lives in a separate repo:
    Do not skip the digest. Every app in the official store pins one (391 of
    391 at the time of writing), and it is what makes an install reproducible —
    a tag on its own is mutable, so re-pushing it changes what users already
-   have. Use the **index** digest shown above, not a per-platform one, so the
-   pin stays valid once arm64 is published. A stale digest paired with a new
-   tag fails the pull outright, which is the intended safety property: it
-   cannot silently install the wrong thing.
+   have. Use the **index** digest shown above, not a per-platform one: the
+   index covers both amd64 and arm64, while a per-platform digest would pin
+   every install to one architecture. A stale digest paired with a new tag
+   fails the pull outright, which is the intended safety property: it cannot
+   silently install the wrong thing.
 
 3. Bump `version` and `releaseNotes` in `billow/umbrel-app.yml`.
 4. Keep `id: billow` unchanged.
 5. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
 6. Push the store repo and refresh the alt store in Umbrel.
+
+### Changing compose without a new image
+
+Umbrel decides whether to offer an update by comparing `version` in
+`umbrel-app.yml` against what is installed. A store change that edits only
+`docker-compose.yml` and leaves `version` alone therefore **never shows an
+update badge**, and refreshing the store does not apply it either — a refresh
+only rewrites the store's copy of the file. It takes effect when the app is
+next started, because that is when `docker compose` re-reads it.
+
+So a compose-only change needs the app stopped and started by hand, and
+anyone waiting for an update prompt waits forever. If the change should reach
+users the normal way, cut a release so there is a version to compare against.
 
 The current Umbrel host port is `46247`. Earlier installs failed because the
 template port `4000` was already allocated, leaving `app_proxy` in `Created`.
