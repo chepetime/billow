@@ -86,7 +86,8 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       unwritable mount is reported at boot instead of being chowned away.
 - [x] Upload model, storage abstraction, size/MIME limits with magic-byte
       sniffing, generated filenames, per-user quotas, auth-checked serving
-- [ ] Backup and restore must cover files as well as the database
+- [x] Backup and restore cover files as well as the database (format v2, a
+      gzipped tar; see Operations)
 
 ## Operations
 
@@ -98,8 +99,13 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Memory capped (`--max-old-space-size=128`; ~60 MiB idle)
 - [x] **Backup / restore** — admin export/import of workspace data, one
       transaction, ownership forced to the importer, ids remapped
-- [ ] Backup should also cover uploaded files once uploads exist — the largest gap for self-hosting: one-click export
-      and restore of the database plus uploads
+- [x] **Backup covers uploaded files** — the export is a gzipped tar
+      (`backup.json` + `files/NNNN`) rather than bare JSON, streamed so peak
+      memory is one file: the 100 MB per-account upload quota does not fit in
+      the 128 MB heap cap if base64-inlined. Restores verify size and checksum
+      against the manifest, re-sniff the type, regenerate storage keys scoped
+      to the importing user, and report every skipped file. Version 1 exports
+      (JSON, no files) still restore.
 - [ ] SMTP provider alongside Resend — Resend is a hosted API needing outbound
       internet and an account, which not every self-hosted install wants. The
       seam is in place (`packages/email/src/provider.ts`); this is a new file
@@ -222,18 +228,15 @@ feature release follows.
 
 1. **i18n** — the last unfinished phase of the platform plan, and the largest
    remaining user-visible gap.
-2. **Backup covering uploads** — the export is the one feature that silently
-   does less than an operator will assume: it covers domain rows and not the
-   files, so a restore looks successful and comes back missing attachments.
-3. Audit log and structured logging — both currently absent, and the pair that
+2. Audit log and structured logging — both currently absent, and the pair that
    makes an incident reconstructable.
-4. Shrink the migration toolchain (~225 MB) — needs an init container or
+3. Shrink the migration toolchain (~225 MB) — needs an init container or
    owning the `_prisma_migrations` bookkeeping; a real architectural choice,
    not a cleanup.
-5. SMTP provider alongside Resend; API conventions (pagination, error codes,
+4. SMTP provider alongside Resend; API conventions (pagination, error codes,
    per-key rate limiting, key expiry in the UI).
-6. `CHANGELOG.md`, loading/empty states, a11y and mobile passes.
-7. Passkeys once HTTPS is in place.
+5. `CHANGELOG.md`, loading/empty states, a11y and mobile passes.
+6. Passkeys once HTTPS is in place.
 
 Before trusting a checkbox here, grep for it. Three items in this file were
 marked todo while already implemented — security headers, auth rate limiting,

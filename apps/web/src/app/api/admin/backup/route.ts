@@ -1,18 +1,32 @@
+import { Readable } from "node:stream";
+import { createGzip } from "node:zlib";
+
 import { NextResponse } from "next/server";
 
 import { getAdminSession } from "@billow/auth";
 import { error } from "@/lib/api/respond";
-import { exportWorkspace } from "@/lib/backup";
+import { writeTar, type TarEntrySource } from "@/lib/backup-archive";
+import {
+  exportUploadRecords,
+  exportWorkspace,
+  uploadEntryName,
+} from "@/lib/backup";
 import { recordError } from "@/lib/error-log";
+import { readObject } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/admin/backup
  *
- * Exports the signed-in administrator's own domain data (profiles, bank
- * accounts, clients, invoices with line items and revisions) as a downloadable
- * JSON file. See lib/backup.ts for exactly what is and is not included.
+ * Exports the signed-in administrator's own domain data *and* their uploaded
+ * files as a gzipped tar: `backup.json` holds the manifest, `files/NNNN` hold
+ * the bytes. See lib/backup.ts for exactly what is and is not included.
+ *
+ * Streamed rather than assembled. Uploads are capped at 100 MB per account
+ * while the container's heap is capped at 128 MB, so building the archive in
+ * memory would fail on precisely the accounts most worth backing up. Each file
+ * is read and emitted one at a time.
  */
 export async function GET() {
   const { session, admin } = await getAdminSession();
@@ -20,13 +34,51 @@ export async function GET() {
   if (!admin) return error("Administrator access required.", 403);
 
   try {
-    const payload = await exportWorkspace(session.user.id);
-    const filename = `billow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const userId = session.user.id;
+    const payload = await exportWorkspace(userId);
+    const records = await exportUploadRecords(userId);
+    const manifest = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
 
-    return new NextResponse(JSON.stringify(payload, null, 2), {
+    async function* entries(): AsyncGenerator<TarEntrySource> {
+      yield {
+        name: "backup.json",
+        size: manifest.byteLength,
+        body: () => [manifest],
+      };
+
+      for (const [index, record] of records.entries()) {
+        // Read inside the generator so only the file being written is held.
+        // A file that has vanished from disk is skipped rather than aborting
+        // the export: a backup missing one attachment is worth far more than
+        // no backup at all, and the manifest still records that it existed —
+        // which is what makes the gap visible on restore.
+        let bytes: Buffer;
+        try {
+          bytes = await readObject(record.storageKey);
+        } catch (readError) {
+          await recordError("admin.backup.export.missingFile", readError, {
+            storageKey: record.storageKey,
+          });
+          continue;
+        }
+
+        yield {
+          name: uploadEntryName(index),
+          size: bytes.byteLength,
+          body: () => [bytes],
+        };
+      }
+    }
+
+    const gzip = createGzip();
+    Readable.from(writeTar(entries())).pipe(gzip);
+
+    const filename = `billow-backup-${new Date().toISOString().slice(0, 10)}.tar.gz`;
+
+    return new NextResponse(Readable.toWeb(gzip) as ReadableStream, {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/gzip",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });

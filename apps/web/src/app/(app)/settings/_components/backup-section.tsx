@@ -13,6 +13,28 @@ function contentDispositionFilename(header: string | null): string | null {
   return match?.[1] ?? null;
 }
 
+type UploadRestoreResult = {
+  uploads: number;
+  skippedUploads: number;
+  reasons: string[];
+};
+
+/**
+ * Files are reported separately from rows, and a skip is always stated.
+ *
+ * A restore that silently returned fewer files than the backup held is the
+ * exact failure this feature exists to remove, so "0 files" and "3 of 5 files"
+ * both have to be visible rather than implied.
+ */
+function uploadsDescription(result: UploadRestoreResult | undefined): string {
+  if (!result) return "";
+
+  const restored = `Restored ${result.uploads} file${result.uploads === 1 ? "" : "s"}.`;
+  return result.skippedUploads > 0
+    ? `${restored} Skipped ${result.skippedUploads}: ${result.reasons.slice(1).join("; ")}`
+    : restored;
+}
+
 function summaryDescription(summary: ImportSummary): string {
   const parts = [
     `${summary.userProfiles} profile${summary.userProfiles === 1 ? "" : "s"}`,
@@ -70,19 +92,19 @@ export function BackupSection() {
 
   async function handleRestore() {
     if (!selectedFile) {
-      notifyError("Choose a file first", "Select a Billow backup JSON file to restore.");
+      notifyError("Choose a file first", "Select a Billow backup file to restore.");
       return;
     }
 
     setIsRestoring(true);
     try {
-      const text = await selectedFile.text();
-      const payload = JSON.parse(text);
-
+      // Sent as raw bytes rather than parsed here: a backup is now a gzipped
+      // archive, and the server has to detect the format anyway to keep
+      // accepting the older JSON-only exports.
       const response = await fetch("/api/admin/restore", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/octet-stream" },
+        body: selectedFile,
       });
       const body = await response.json().catch(() => null);
 
@@ -96,11 +118,19 @@ export function BackupSection() {
         return;
       }
 
-      notifySuccess("Backup restored", summaryDescription(body.summary as ImportSummary));
+      notifySuccess(
+        "Backup restored",
+        [
+          summaryDescription(body.summary as ImportSummary),
+          uploadsDescription(body.uploads as UploadRestoreResult | undefined),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       setSelectedFile(null);
       setFileInputKey((key) => key + 1);
     } catch {
-      notifyError("Restore failed", "The selected file is not valid JSON.");
+      notifyError("Restore failed", "The selected file could not be read.");
     } finally {
       setIsRestoring(false);
     }
@@ -111,10 +141,11 @@ export function BackupSection() {
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Backup</h2>
         <p className="text-sm text-muted-foreground">
-          Export your profiles, bank accounts, clients and invoices as a JSON
-          file you control. Restoring a file <strong>adds</strong> its rows to
-          the current account — it never deletes or overwrites what is already
-          here, so restoring the same file twice creates duplicates.
+          Export your profiles, bank accounts, clients and invoices, together
+          with your uploaded files, as a single archive you control. Restoring
+          <strong> adds</strong> to the current account — it never deletes or
+          overwrites what is already here, so restoring the same file twice
+          creates duplicates.
         </p>
       </div>
 
@@ -130,7 +161,7 @@ export function BackupSection() {
           <Input
             key={fileInputKey}
             type="file"
-            accept="application/json"
+            accept=".tar.gz,.gz,application/gzip,application/json"
             className="w-auto"
             onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
           />

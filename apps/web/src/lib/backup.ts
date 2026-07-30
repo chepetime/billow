@@ -27,7 +27,17 @@ import type { Prisma } from "@billow/db/client";
  * never overwrites or deletes existing data.
  */
 
-export const BACKUP_FORMAT_VERSION = 1;
+export const BACKUP_FORMAT_VERSION = 2;
+
+/**
+ * Versions this build can restore.
+ *
+ * Version 1 was a bare JSON file with no uploads. Those exports are still
+ * valid backups of everything they ever contained, and refusing them would
+ * strand anyone who took one before this change — so v1 is accepted and
+ * simply restores no files.
+ */
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS = [1, 2] as const;
 
 const isoDateString = z
   .string()
@@ -131,21 +141,49 @@ const invoiceSchema = z.object({
   revisions: z.array(invoiceRevisionSchema),
 });
 
+/**
+ * An uploaded file's metadata. The bytes live in the archive alongside the
+ * manifest, at the entry named by `archiveEntry`.
+ *
+ * `storageKey` is deliberately NOT exported: keys encode the owning user and
+ * are regenerated on import, exactly as integer ids are remapped. That keeps a
+ * restore from writing into another account's storage prefix even if the file
+ * is hand-edited.
+ *
+ * `checksum` is carried so a restore can prove the bytes it extracted are the
+ * bytes that were exported, rather than trusting the archive.
+ */
+const uploadSchema = z.object({
+  archiveEntry: z.string().min(1),
+  filename: z.string().min(1),
+  contentType: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  checksum: z.string().min(1),
+  kind: z.string().min(1),
+  createdAt: isoDateString,
+});
+
 export const backupDataSchema = z.object({
   userProfiles: z.array(userProfileSchema),
   bankAccounts: z.array(bankAccountSchema),
   clientCompanies: z.array(clientCompanySchema),
   invoices: z.array(invoiceSchema),
+  // Absent in version 1 exports, which predate uploads being included.
+  uploads: z.array(uploadSchema).default([]),
 });
 
-// formatVersion is checked against the literal so an old or future export
-// gets one clear rejection message rather than a pile of unrelated field
-// errors from a shape mismatch.
+// formatVersion is checked against the supported set so an old or future
+// export gets one clear rejection message rather than a pile of unrelated
+// field errors from a shape mismatch.
 export const backupPayloadSchema = z.object({
-  formatVersion: z.literal(
-    BACKUP_FORMAT_VERSION,
-    `Unsupported backup format version. This build only reads version ${BACKUP_FORMAT_VERSION}.`,
-  ),
+  formatVersion: z
+    .number()
+    .int()
+    .refine(
+      (value) =>
+        (SUPPORTED_BACKUP_FORMAT_VERSIONS as readonly number[]).includes(value),
+      `Unsupported backup format version. This build reads versions ${SUPPORTED_BACKUP_FORMAT_VERSIONS.join(" and ")}.`,
+    ),
   exportedAt: isoDateString,
   data: backupDataSchema,
 });
@@ -164,11 +202,16 @@ export type ImportSummary = {
   skippedInvoices: number;
 };
 
+/** Archive entry name for the Nth exported upload. Generated, never user text. */
+export function uploadEntryName(index: number): string {
+  return `files/${String(index).padStart(4, "0")}`;
+}
+
 /** Reads the signed-in user's domain data into a JSON-serialisable snapshot. */
 export async function exportWorkspace(userId: string): Promise<BackupPayload> {
   const prisma = getPrisma();
 
-  const [userProfiles, bankAccounts, clientCompanies, invoices] =
+  const [userProfiles, bankAccounts, clientCompanies, invoices, uploads] =
     await Promise.all([
       prisma.userProfile.findMany({
         where: { userId },
@@ -190,6 +233,9 @@ export async function exportWorkspace(userId: string): Promise<BackupPayload> {
         },
         orderBy: { id: "asc" },
       }),
+      // Same ordering as exportUploadRecords, so the Nth manifest entry and
+      // the Nth archive entry describe the same file.
+      prisma.upload.findMany({ where: { userId }, orderBy: { id: "asc" } }),
     ]);
 
   const data: BackupData = {
@@ -272,6 +318,15 @@ export async function exportWorkspace(userId: string): Promise<BackupPayload> {
         createdAt: revision.createdAt.toISOString(),
       })),
     })),
+    uploads: uploads.map((upload, index) => ({
+      archiveEntry: uploadEntryName(index),
+      filename: upload.filename,
+      contentType: upload.contentType,
+      size: upload.size,
+      checksum: upload.checksum,
+      kind: upload.kind,
+      createdAt: upload.createdAt.toISOString(),
+    })),
   };
 
   return {
@@ -279,6 +334,22 @@ export async function exportWorkspace(userId: string): Promise<BackupPayload> {
     exportedAt: new Date().toISOString(),
     data,
   };
+}
+
+/**
+ * The upload rows backing an export, in the same order `exportWorkspace`
+ * records them, so entry N in the archive is `data.uploads[N]`.
+ *
+ * Returned separately from the payload because the payload is JSON and these
+ * carry `storageKey`, which is where the bytes are read from and is
+ * deliberately never written into the file.
+ */
+export async function exportUploadRecords(userId: string) {
+  return getPrisma().upload.findMany({
+    where: { userId },
+    orderBy: { id: "asc" },
+    select: { storageKey: true, size: true, filename: true },
+  });
 }
 
 /**
