@@ -33,8 +33,9 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       email provider: hidden (and the request page 404s) until a test message
       has actually been delivered, and hidden again if a live send later fails
       Needs either a real mail transport or a "copy this link" admin surface.
-- [ ] **Session management UI** — list active sessions and revoke individually
-      (`auth.api.listSessions` / `revokeSession` already exist)
+- [x] **Session management UI** — active sessions on /settings/security with
+      device/IP/expiry, individual revocation and "sign out everywhere else".
+      The current session is listed but cannot revoke itself.
 - [x] **Account deletion** (`auth.api.deleteUser`) with a confirmation step
 
 - [ ] Email verification (only if a mail transport is ever added)
@@ -175,12 +176,16 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       sign-in by email and username, session protection, API key →
       `/api/v1/me`, upload round-trip, admin visibility, cross-account
       isolation. Nightly against the production image via `e2e.yml`
-- [ ] 2FA enrolment coverage in the e2e suite (the one flow still untested)
+- [x] 2FA enrolment coverage in the e2e suite — enrols, signs in with a
+      generated TOTP code, then turns 2FA back off. Lives in
+      `auth-flows.spec.ts` because enabling 2FA changes every password
+      sign-in and only tests within a file run serially.
 - [ ] **Domain docs**: `CONTEXT.md` (glossary) + `docs/adr/` at the repo root,
       per `docs/agents/domain.md`. Neither exists yet — they are meant to be
       created lazily by `/domain-modeling` as terms and decisions actually get
       resolved, so this is a marker, not a prompt to write them upfront
-- [ ] `db:reset` command for a clean local database
+- [x] `db:reset` command for a clean local database (`prisma migrate reset
+      --force`; Prisma 7 has no `--skip-generate`)
 - [ ] Extract the platform layer into a reusable template once the invoicing
       domain lands on top (the long-term goal implied by all of the above)
 
@@ -215,14 +220,21 @@ feature release follows.
 
 ## Suggested order
 
-1. **`output: "standalone"`** + **multi-arch arm64** — both are packaging
-   changes to the same Dockerfile, so they ship as one release. Standalone is
-   the one with a payoff you feel locally (faster pulls and updates on the
-   Umbrel); arm64 only matters if this ever goes to the official store.
-2. **i18n** — the last unfinished phase of the platform plan.
-3. Session management UI, log retention, audit log, structured logging.
-4. Backup covering uploads; SMTP provider alongside Resend.
-5. `CHANGELOG.md`, `db:reset`, 2FA e2e coverage, documented env vars.
-6. Passkeys once HTTPS is in place.
+1. **i18n** — the last unfinished phase of the platform plan, and the largest
+   remaining user-visible gap.
+2. **Backup covering uploads** — the export is the one feature that silently
+   does less than an operator will assume: it covers domain rows and not the
+   files, so a restore looks successful and comes back missing attachments.
+3. Audit log and structured logging — both currently absent, and the pair that
+   makes an incident reconstructable.
+4. Shrink the migration toolchain (~225 MB) — needs an init container or
+   owning the `_prisma_migrations` bookkeeping; a real architectural choice,
+   not a cleanup.
+5. SMTP provider alongside Resend; API conventions (pagination, error codes,
+   per-key rate limiting, key expiry in the UI).
+6. `CHANGELOG.md`, loading/empty states, a11y and mobile passes.
+7. Passkeys once HTTPS is in place.
 
-Before trusting a checkbox here, grep for it. This file has drifted twice.
+Before trusting a checkbox here, grep for it. Three items in this file were
+marked todo while already implemented — security headers, auth rate limiting,
+and error-log retention — and were nearly rebuilt from scratch as a result.
