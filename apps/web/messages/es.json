@@ -1,0 +1,35 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "delete": "Eliminar",
+    "language": "Idioma",
+    "languageDescription": "Elige el idioma que se usa en Billow."
+  },
+  "auth": {
+    "signIn": "Iniciar sesión",
+    "signingIn": "Iniciando sesión...",
+    "identifier": "Usuario o correo electrónico",
+    "password": "Contraseña",
+    "signInFailed": "No se pudo iniciar sesión.",
+    "forgotPassword": "¿Olvidaste tu contraseña?"
+  },
+  "twoFactor": {
+    "authenticationCode": "Código de autenticación",
+    "backupCode": "Código de respaldo",
+    "verify": "Verificar",
+    "verifying": "Verificando...",
+    "codeHint": "Introduce el código de 6 dígitos de tu aplicación de autenticación.",
+    "backupHint": "Cada código de respaldo solo puede usarse una vez."
+  },
+  "settings": {
+    "security": "Seguridad",
+    "activeSessions": "Sesiones activas",
+    "activeSessionsDescription": "Todos los dispositivos con sesión iniciada en esta cuenta. Cerrar una sesión surte efecto de inmediato.",
+    "thisDevice": "Este dispositivo",
+    "signOut": "Cerrar sesión",
+    "signingOut": "Cerrando sesión...",
+    "signOutOthers": "Cerrar sesión en los demás dispositivos ({count})"
+  }
+}

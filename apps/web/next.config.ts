@@ -4,8 +4,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 import { securityHeaders } from "./src/lib/security-headers";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const { version } = JSON.parse(
   readFileSync(new URL("./package.json", import.meta.url), "utf8"),
@@ -104,4 +107,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wires src/i18n/request.ts in as the per-request locale/message source. The
+// plugin also makes `messages/*.json` part of the build, which matters for the
+// standalone output: dynamically imported JSON is only traced because this
+// tells Next where it lives.
+export default withNextIntl(nextConfig);

@@ -1,0 +1,35 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "delete": "Delete",
+    "language": "Language",
+    "languageDescription": "Choose the language used across Billow."
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "identifier": "Username or email",
+    "password": "Password",
+    "signInFailed": "Unable to sign in.",
+    "forgotPassword": "Forgot your password?"
+  },
+  "twoFactor": {
+    "authenticationCode": "Authentication code",
+    "backupCode": "Backup code",
+    "verify": "Verify",
+    "verifying": "Verifying...",
+    "codeHint": "Enter the 6-digit code from your authenticator app.",
+    "backupHint": "Each backup code can only be used once."
+  },
+  "settings": {
+    "security": "Security",
+    "activeSessions": "Active sessions",
+    "activeSessionsDescription": "Every device currently signed in to this account. Signing one out takes effect immediately.",
+    "thisDevice": "This device",
+    "signOut": "Sign out",
+    "signingOut": "Signing out...",
+    "signOutOthers": "Sign out all other devices ({count})"
+  }
+}

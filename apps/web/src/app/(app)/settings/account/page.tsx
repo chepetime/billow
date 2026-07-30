@@ -1,4 +1,5 @@
 import { AccountForm } from "@/app/(app)/_components/account-form";
+import { LanguageSection } from "@/app/(app)/_components/language-section";
 import { requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export default async function AccountSettingsPage() {
         email={user.email}
         username={user.username ?? null}
       />
+
+      <LanguageSection />
     </div>
   );
 }
