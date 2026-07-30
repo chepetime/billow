@@ -46,13 +46,40 @@ jobs:
             exit 1
           fi
 
+          # Derived from the workspace rather than hardcoded: a fixed list went
+          # stale the moment @billow/auth and @billow/email were added, leaving
+          # them behind at the previous version while everything else moved.
+          # config/* and packages/e2e are excluded on purpose — they are build
+          # tooling and tests, not part of the shipped app.
           node -e '
             const fs = require("fs");
+            const path = require("path");
             const version = process.argv[1];
-            for (const f of ["package.json", "apps/web/package.json", "packages/db/package.json"]) {
+
+            const roots = ["apps", "packages"];
+            const skip = new Set(["packages/e2e"]);
+            const files = ["package.json"];
+
+            for (const root of roots) {
+              if (!fs.existsSync(root)) continue;
+              for (const entry of fs.readdirSync(root)) {
+                const dir = `${root}/${entry}`;
+                if (skip.has(dir)) continue;
+                const manifest = path.join(dir, "package.json");
+                if (fs.existsSync(manifest)) files.push(manifest);
+              }
+            }
+
+            for (const f of files) {
               const pkg = JSON.parse(fs.readFileSync(f, "utf8"));
+              if (!("version" in pkg)) continue;
               pkg.version = version;
-              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + "\n");
+              // Mode 644 explicitly: writeFileSync preserves an existing
+              // file mode, but a manifest that ever lands at 600 is copied
+              // into the image that way and the unprivileged user can no
+              // longer read it, killing the container at startup.
+              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + "\n", { mode: 0o644 });
+              console.log(`bumped ${f} -> ${version}`);
             }
           ' "$VERSION"
 
