@@ -63,20 +63,26 @@ RUN corepack enable && corepack install --global pnpm@10.34.1
 # unprivileged user before the app starts.
 RUN apk add --no-cache su-exec
 
-# -G nodejs matters: without it adduser leaves the account in the default
-# group, so the process ran as gid 65533 (nogroup) while /data was chowned to
-# the nodejs group. Writes only worked because the owner uid happened to match,
-# and anything relying on group permissions would have failed for no visible
-# reason.
-RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 -G nodejs nextjs
+# Runs as the base image's own `node` account, uid/gid 1000:1000. That is not
+# arbitrary: Umbrel creates ${APP_DATA_DIR} as 1000:1000, so a bind-mounted
+# uploads directory is owned by 1000 and only uid 1000 can write it — a
+# directory at mode 755 gives everyone else r-x. The previous dedicated user at
+# 1001 could never write it, which is the entire reason start.sh has to become
+# root and chown on every boot. Matching Umbrel's uid removes that need, and is
+# what most apps in the official store do (`user: "1000:1000"`).
+#
+# No user is created here: `node` already exists in the base image at 1000:1000
+# with a real home directory, which pnpm wants for its cache during the
+# migration step.
 
 # Uploads live on a mounted volume so they survive container replacement. The
 # mount point is created here for the no-volume case; when a host directory is
-# bind-mounted it arrives root-owned and masks this, so start.sh re-applies
-# ownership at boot.
+# bind-mounted it arrives with the host's ownership and masks this, so start.sh
+# re-applies ownership at boot. (Named volumes behave differently — they are
+# seeded from the image, ownership included — which is why this only bites on
+# bind mounts.)
 ENV BILLOW_STORAGE_DIR=/data/uploads
-RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data
+RUN mkdir -p /data/uploads && chown -R node:node /data
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
