@@ -44,13 +44,25 @@ published image against Postgres before the release is considered good.
 ## Platform and toolchain constraints
 
 The workflow publishes `linux/amd64` and `linux/arm64` under one manifest
-list. GitHub-hosted runners are amd64, so the arm64 half builds through QEMU
-and the Next.js build can sit at `Creating an optimized production build ...`
-for several minutes — expect releases to take noticeably longer than the
-amd64-only ones did. A registry build cache
-(`ghcr.io/chepetime/billow:buildcache`) keeps unchanged layers from being
-rebuilt every time; the first release after a Dockerfile change gets no
-benefit from it.
+list, building **each architecture on a runner of that architecture**
+(`ubuntu-latest` and `ubuntu-24.04-arm`) and merging the two digests into a
+manifest list afterwards. Per-architecture registry caches are
+`ghcr.io/chepetime/billow:buildcache-{amd64,arm64}`.
+
+Do not "simplify" this back to one job with `platforms:` and QEMU. That was
+tried in 0.1.31 and does not work — the emulated arm64 build dies partway
+through `next build`:
+
+```text
+qemu: uncaught target signal 4 (Illegal instruction) - core dumped
+Next.js build worker exited with code: null and signal: SIGILL
+```
+
+QEMU's arm64 translation does not cover everything Next's build workers
+execute. The amd64 half succeeded in the same run, and the same commit builds
+cleanly on real hardware of both architectures, so this is an emulator limit
+rather than anything in this repo. Native ARM runners are free for public
+repositories and are also much faster.
 
 `verify` asserts both architectures are present in the published manifest.
 That check exists because every other check in that job runs on an amd64
