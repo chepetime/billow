@@ -76,13 +76,12 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ## Storage and files
 
-- [x] **Persistent volume for the app** — `${APP_DATA_DIR}/uploads`, with
-      ownership fixed at boot before privileges are dropped, and reported in
-      diagnostics (including whether it is a real mount) — only Postgres has one today, so
-      anything written to the container filesystem is lost on update. This is
-      the prerequisite for uploads: `${APP_DATA_DIR}/uploads:/data/uploads`,
-      writable by uid 1001.
-- [ ] Upload model, storage abstraction, size/MIME limits with magic-byte
+- [x] **Persistent volume for the app** — `${APP_DATA_DIR}/uploads:/data/uploads`,
+      reported in diagnostics (including whether it is a real mount). The
+      container runs as uid 1000 to match the owner Umbrel creates app data
+      with, and the store repo commits an empty `uploads/` so the host path
+      exists with that owner before the container starts.
+- [x] Upload model, storage abstraction, size/MIME limits with magic-byte
       sniffing, generated filenames, per-user quotas, auth-checked serving
 - [ ] Backup and restore must cover files as well as the database
 
@@ -120,14 +119,10 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] **CSRF posture** — `trustedOrigins` derives from the served host
       (`x-forwarded-host`/`proto`), never the request `Origin`, with
       `BILLOW_TRUSTED_ORIGINS` as an escape hatch
-- [ ] ~~Revisit CSRF posture~~ — `trustedOrigins` trusts the request `Origin`,
-      which makes the check tautological. **Now fixable**: production
-      diagnostics confirmed `x-forwarded-host` and `x-forwarded-proto` are
-      present through *both* Umbrel's app_proxy and the Cloudflare tunnel, so
-      the origin can be derived from the served host instead. The original
-      premise (that Umbrel strips these) was wrong.
 - [ ] Security headers / CSP
-- [ ] Rate limiting on auth endpoints (brute-force protection)
+- [ ] Rate limiting on auth endpoints (brute-force protection). BetterAuth ships
+      a `rateLimit` option; the store is in-memory by default, which is fine for
+      a single container but resets on every update.
 - [x] Dependency audit in CI (`pnpm audit`)
 
 ## Release & packaging
@@ -140,7 +135,16 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] **Gallery images** — still the same placeholder imgur URL three times.
       Best fix: real screenshots of the running app (landing, dashboard, settings)
 - [ ] `CHANGELOG.md` generated from tags
-- [ ] Multi-arch images (`linux/arm64`) if a non-amd64 Umbrel is ever targeted
+- [ ] **Multi-arch images (`linux/arm64`)** — the published image is amd64-only.
+      Umbrel Home is x86, so this install is fine, but any Raspberry Pi Umbrel
+      cannot run Billow at all. Required before the app could go to the
+      official store.
+- [ ] **`output: "standalone"`** — the image is ~1.9 GB locally / 326 MiB
+      compressed because it ships the full pnpm store and runs `next start` out
+      of `node_modules`. Standalone output traces only what is reached (~60 MiB),
+      but needs `outputFileTracingRoot` for the pnpm workspace and
+      `outputFileTracingIncludes` for the Prisma engine, and `start.sh` has to
+      stop shelling out to `pnpm --filter @billow/db exec prisma migrate deploy`.
 - [ ] Document required env vars for anyone reusing this as a template
 
 ## Developer experience
@@ -162,25 +166,25 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 
 ---
 
-## Planned refactor: extract `@billow/auth`
+## Done: extract `@billow/auth`
 
 Auth is the largest security surface here, so it should be auditable in
 isolation rather than read out of `apps/web/src/lib`. Roughly 340 lines across
 eight cohesive modules, depending only on `@billow/db` and `error-log` — no
 circular dependency.
 
-- [ ] `packages/auth` with three entry points, mirroring how `@billow/db`
+- [x] `packages/auth` with three entry points, mirroring how `@billow/db`
       separates server from client:
       `@billow/auth` (server: the auth instance, `requireSession`,
       `requireAdmin`), `@billow/auth/client` (`"use client"`: `authClient`),
       and `@billow/auth/env` (pure: `getAuthEnv`, `resolveTrustedOrigins`,
       `canRegister`). The pure entry is the audit win — the security-critical
       logic becomes testable without Next or a database.
-- [ ] Split the Prisma schema into a folder so the seven auth-owned models
+- [x] Split the Prisma schema into a folder so the seven auth-owned models
       live in their own file. Do this in the same change: the package boundary
       is otherwise code-only, and an auditor still has to read `packages/db`
       for the schema.
-- [ ] Update the Dockerfile's manifest `COPY` list in the same commit. The
+- [x] Update the Dockerfile's manifest `COPY` list in the same commit. The
       image installs with `--filter @billow/web...`, so a new package the web
       app depends on must be copied or the build fails. CI's `docker image`
       job catches this.
@@ -191,9 +195,12 @@ feature release follows.
 
 ## Suggested order
 
-1. Finish form migration + **Phase 2 API docs** (biggest external value: agents
-   and developers can actually use the API keys)
-2. **Theming**, then **i18n** (both mostly wiring; theming is nearly free)
-3. Session management UI + password reset (closes the obvious auth gaps)
-4. Playwright E2E, then backup/restore
-5. Passkeys once HTTPS is in place
+1. **Security pass** — headers/CSP + rate limiting on auth. The only remaining
+   gap where "missing" means "actually exposed", and this install is reachable
+   through a Cloudflare tunnel.
+2. **Multi-arch arm64** + **`output: "standalone"`** — both are packaging
+   changes to the same Dockerfile, so they ship as one release.
+3. **i18n** — the last unfinished phase of the platform plan.
+4. Session management UI, log retention, audit log.
+5. Backup covering uploads; SMTP provider alongside Resend.
+6. Passkeys once HTTPS is in place.
