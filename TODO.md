@@ -64,6 +64,28 @@ tells an admin *who you bill and how much*, which is arguably as sensitive as
 an account number. Encrypting them means list views cannot render without the
 user's key. This is a product decision, not a technical one.
 
+### Onboarding state (needed by the recovery key)
+
+A recovery key is worthless if the user never saved it, and there is currently
+nothing that records whether they did. Track per-user onboarding state —
+starting with "generated a recovery key" and "confirmed they saved it" as
+separate facts, because generating one and writing it down are different
+events and only the second means anything.
+
+Design notes:
+
+- Prefer a `UserOnboarding` model keyed 1:1 on `userId` with explicit nullable
+  `DateTime` columns (`recoveryKeyGeneratedAt`, `recoveryKeySavedAt`) over
+  booleans. A timestamp answers "did they" *and* "when", and a JSON blob of
+  flags would escape the schema and the classification doc.
+- Confirmation should require the user to re-enter part of the key, not just
+  tick a box. A checkbox records that they clicked, not that they have it.
+- Build it **with** the key hierarchy, not before: what is worth recording
+  depends on what the flow ends up being, and a table shipped early will be
+  migrated immediately.
+- Classify it in `apps/docs/content/docs/data-classification.mdx` when added —
+  it is internal, not sensitive, and holds no key material.
+
 ### Knock-on effects to handle
 
 - Password reset must warn hard, and the recovery key must be the documented
