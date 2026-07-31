@@ -48,21 +48,36 @@ the user", not "the admin can never see it".
 - Migration is cheap — `BankAccount`, `UserProfile` and `ClientCompany` are
   24 kB each in production. The risk is entirely in the key design.
 
-### Open question, blocking the field list
+### Scope: build the mechanism, not the field list
 
-Must stay plaintext (needed before a key exists, or for constraints):
-`user.email`, `username`, foreign keys, timestamps, `invoiceNumber`, and all
-installation config.
+This repo is the blueprint. The invoicing models are a placeholder for whatever
+domain gets built on top, so **do not spend time deciding which invoice fields
+are encrypted** — that is the eventual app's call, not the platform's.
 
-Clearly sensitive: `BankAccount.accountNumber` / `iban` / `clabe` / `swift` /
-`routingNumber` / `institutionNumber` / `transitNumber` /
-`accountHolderName` / `accountHolderAddress`, `UserProfile.taxId` /
-`address`.
+What the platform owes is a mechanism that makes the choice cheap and hard to
+get wrong:
 
-**Undecided: invoice amounts and client names.** Leaving them plaintext still
-tells an admin *who you bill and how much*, which is arguably as sensitive as
-an account number. Encrypting them means list views cannot render without the
-user's key. This is a product decision, not a technical one.
+- A **declarative list** of encrypted fields in one reviewable place, applied
+  through a Prisma client extension. Adding a field to the list should be the
+  entire change.
+- The classification doc and its skill are what keep that list honest.
+- Prove it on fields that already exist and are unambiguously sensitive —
+  `BankAccount.accountNumber` / `iban` / `clabe` / `swift` / `routingNumber` /
+  `institutionNumber` / `transitNumber` / `accountHolderName` /
+  `accountHolderAddress`, and `UserProfile.taxId` / `address`.
+
+Structural constraints that hold for any domain, and belong in the docs:
+
+- Cannot be encrypted: anything needed *before* a key exists (`user.email`,
+  `username`), anything under a unique constraint or used for ordering
+  (`invoiceNumber`), foreign keys, timestamps, and installation config.
+- Encrypted columns are unsearchable and unsortable in SQL, and a list view
+  cannot render an encrypted column without the user's key. That tradeoff is
+  the thing a downstream app needs stated plainly so it can choose.
+
+Previously logged here as an open product question — whether invoice amounts
+and client names should be encrypted — which is moot until there is a real
+invoicing app to ask it of.
 
 ### Onboarding state (needed by the recovery key)
 

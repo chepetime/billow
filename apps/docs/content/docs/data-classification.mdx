@@ -66,11 +66,16 @@ The following fields are established candidates for encryption:
 and installation configuration remain plaintext because they are needed for
 identity, constraints, or operation before a user key is available.
 
-Whether client names and invoice amounts are encrypted is still a product
-decision. They are classified **sensitive** because plaintext disclosure is
-harmful; encrypting them changes list-view, search, and sort behaviour because
-the server cannot read them without the signed-in user's key. Do not implement
-field-level encryption for these fields until that decision is made.
+Client names and invoice amounts are classified **sensitive** because plaintext
+disclosure is harmful, but whether they are encrypted is not this repository's
+call. Billow is a blueprint: the invoicing models stand in for whatever domain
+is built on top, so the platform's job is to make encrypting a field a
+one-line, reviewable change — not to pick the fields.
+
+What any downstream app needs to weigh: an encrypted column cannot be searched
+or sorted in SQL, and a list view cannot render it without the signed-in user's
+key. Sensitivity is a property of the data; encryption is a tradeoff against
+those behaviours, and the two decisions are separate.
 
 ## Experimental vault lab
 
