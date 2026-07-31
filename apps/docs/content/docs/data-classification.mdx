@@ -86,6 +86,16 @@ backups. The experimental record is intentionally excluded from workspace
 backup/restore: that format imports data under a different user ID, which must
 not make an old ciphertext readable as the importing user.
 
+It is, however, sent **in the clear on a default install**. Umbrel serves
+Billow over plain HTTP — the same reason `lib/security-headers.ts` omits HSTS
+and passkeys remain deferred — so the vault key crosses the local network
+unencrypted on every save and unlock, and anyone able to observe that traffic
+can read it. Encryption at rest is unaffected: a database dump is still useless
+on its own. But the lab is only meaningfully private when Billow is reached
+over HTTPS, via a tunnel or Tailscale. The UI shows a warning when the browser
+reports an insecure context, so the limitation is visible where the key is
+actually typed rather than only here.
+
 Use the lab to verify a database dump contains no plaintext, that a wrong key
 cannot unlock it, and that a second account cannot read it. It is not yet the
 production key hierarchy: there is no generated recovery key, no password
@@ -106,6 +116,10 @@ running application can capture the key while it is entered.
 4. Copy a ciphertext to another user's row in a disposable local database.
    It must fail authentication because the owning user ID is bound as AEAD
    associated data.
-5. Treat a modified running application as an expected failure: it can capture
+5. Over plain HTTP, capture traffic while unlocking (any packet sniffer on the
+   same network). The `x-billow-vault-key` header is readable — an expected
+   failure that is the reason for the in-app warning, and the argument for
+   fronting Billow with HTTPS before trusting this.
+6. Treat a modified running application as an expected failure: it can capture
    the request header while a user unlocks the vault. Record that result as the
    boundary of the eventual threat model, not as a defect in this experiment.

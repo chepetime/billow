@@ -17,18 +17,52 @@ function isCredentialedByApiKey(request: Request): boolean {
 }
 
 function vaultKey(request: Request): string | null {
-  // This header is intentionally never logged or copied into an error. TLS
-  // protects it in transit; a modified self-hosted runtime could still read it,
-  // which is the documented limit of this experiment.
+  // This header is intentionally never logged or copied into an error.
+  //
+  // It is NOT protected in transit on a default install. Umbrel serves this app
+  // over plain HTTP at `umbrel.local:<port>` — which is exactly why
+  // lib/security-headers.ts omits HSTS and why passkeys are still deferred — so
+  // the vault key crosses the local network in cleartext on every save and
+  // every unlock. Anyone able to observe that traffic sees the key that
+  // protects the ciphertext, which defeats the point of encrypting it.
+  //
+  // Encryption at rest still holds: a database dump remains useless on its own.
+  // But this is only meaningfully private when the app is reached over HTTPS
+  // (a tunnel, or Tailscale). The UI says so where the key is entered.
+  //
+  // A modified self-hosted runtime could also read the key regardless of
+  // transport, which is the documented limit of the whole experiment.
   return request.headers.get("x-billow-vault-key");
 }
+
+// Methods that change state, and so are the ones a cross-site page could be
+// tricked into triggering with the user's cookie.
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 async function identityFor(request: Request) {
   const identity = await requireApiIdentity(request.headers);
   if (identity instanceof NextResponse) return identity;
-  if (!isCredentialedByApiKey(request) && !isSameOriginRequest(request)) {
+
+  // The origin check applies to mutations only, matching what
+  // isSameOriginRequest documents itself as ("reject cookie-authenticated
+  // mutations") and how the restore route uses it.
+  //
+  // Applying it to GET as well looks stricter but breaks the feature: browsers
+  // do not send `Origin` on a same-origin GET, so the vault's own Unlock button
+  // was answered with 403 before it ever reached the key check. The e2e
+  // isolation test caught this by expecting 401 and receiving 403.
+  //
+  // GET needs no CSRF guard of its own: it changes nothing, and reading it
+  // cross-origin requires the custom vault-key header, which forces a CORS
+  // preflight that this app never answers.
+  if (
+    MUTATING_METHODS.has(request.method) &&
+    !isCredentialedByApiKey(request) &&
+    !isSameOriginRequest(request)
+  ) {
     return error("Invalid request origin.", 403);
   }
+
   return identity;
 }
 

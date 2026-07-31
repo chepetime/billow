@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
@@ -17,11 +17,28 @@ async function readError(response: Response) {
  * A deliberately small, experimental proving ground for encrypted-at-rest
  * data. The key remains in this form's memory and is sent only in the request
  * header that needs it; it is never saved in a cookie, local storage, or DB.
+ *
+ * It is still sent over whatever transport the page was loaded on, and Umbrel
+ * serves this app over plain HTTP by default — see the transport warning below,
+ * which is shown only when the connection is actually insecure.
  */
 export function VaultSection() {
   const [vaultKey, setVaultKey] = useState("");
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState<"save" | "unlock" | "delete" | null>(null);
+  // Read from the browser rather than held in state: the value never changes
+  // for the life of the page, so there is nothing to synchronise. The server
+  // snapshot is `false` so an HTTPS install does not flash a warning before
+  // hydration.
+  //
+  // `isSecureContext` is the browser's own judgement and already treats
+  // localhost as secure, which is what keeps `pnpm dev:local` warning-free
+  // without a special case here.
+  const insecureTransport = useSyncExternalStore(
+    () => () => {},
+    () => !window.isSecureContext,
+    () => false,
+  );
 
   function requestHeaders() {
     return { "Content-Type": "application/json", "x-billow-vault-key": vaultKey };
@@ -90,10 +107,21 @@ export function VaultSection() {
         <h2 className="text-base font-semibold">Experimental data vault</h2>
         <p className="text-sm leading-6 text-muted-foreground">
           Save one private note as AES-256-GCM ciphertext. Your vault key is never stored and
-          is required again to read the note. This is a security test, not a recovery-ready
-          feature.
+          is required again to read the note — lose it and the note is gone. This is a
+          security test, not a recovery-ready feature.
         </p>
       </div>
+
+      {insecureTransport ? (
+        <p className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm leading-6">
+          This page is not on a secure connection, so the vault key is sent
+          across your network in the clear every time you save or unlock.
+          Anyone who can watch that traffic can read it. Encryption at rest
+          still holds — a database dump stays useless on its own — but reach
+          Billow over HTTPS before putting anything you actually care about
+          here.
+        </p>
+      ) : null}
 
       <Field label="Vault key" htmlFor="vault-key">
         <Input
