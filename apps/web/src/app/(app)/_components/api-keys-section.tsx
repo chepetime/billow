@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
-import { CopyButton } from "@/components/motion/copy-button";
+import { SecretReveal } from "@/components/secret-reveal";
 import { createApiKeySchema, type CreateApiKeyInput } from "@/lib/schemas/api-keys";
 
 export type ApiKeySummary = {
@@ -31,6 +31,7 @@ function formatDate(value: Date | string | null | undefined) {
 export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
   const router = useRouter();
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [createdKeyName, setCreatedKeyName] = useState<string>("");
   const form = useForm<CreateApiKeyInput>({
     resolver: zodResolver(createApiKeySchema),
     defaultValues: { name: "" },
@@ -38,14 +39,16 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
 
   async function createKey({ name }: CreateApiKeyInput) {
     setCreatedKey(null);
-    const { data, error: createError } = await authClient.apiKey.create({ name: name || "Personal key" });
+    const resolvedName = name || "Personal key";
+    const { data, error: createError } = await authClient.apiKey.create({ name: resolvedName });
     if (createError || !data) {
       notifyError("Key not created", createError?.message ?? undefined);
       return;
     }
     setCreatedKey(data.key);
+    setCreatedKeyName(resolvedName);
     form.reset();
-    notifySuccess("API key created", "Copy it now — it won't be shown again.");
+    notifySuccess("API key created", "Save it now — it won't be shown again.");
     router.refresh();
   }
 
@@ -70,10 +73,16 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
       {createdKey ? (
         <div className="space-y-3 rounded-md border bg-muted/40 p-4">
           <p className="text-sm font-medium">
-            Copy your key now — it won&apos;t be shown again.
+            Save your key now — it won&apos;t be shown again.
           </p>
-          <p className="font-mono text-xs break-all">{createdKey}</p>
-          <CopyButton value={createdKey} label="Copy key" copiedLabel="Copied" />
+          <SecretReveal
+            title={`Billow API key${createdKeyName ? ` — ${createdKeyName}` : ""}`}
+            secret={createdKey}
+            label="API key"
+            autoComplete="new-password"
+            onePasswordType="api-key"
+            notes="Send this as an x-api-key header to call the Billow API."
+          />
         </div>
       ) : null}
       <form className="flex flex-wrap items-end gap-3" onSubmit={form.handleSubmit(createKey)} noValidate>

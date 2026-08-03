@@ -13,13 +13,28 @@ import { authClient } from "@billow/auth/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
 import { twoFactorPasswordSchema, type TwoFactorPasswordInput } from "@/lib/schemas/account";
 import { twoFactorCodeSchema, type TwoFactorCodeInput } from "@/lib/schemas/auth";
+import { SecretReveal } from "@/components/secret-reveal";
 
 type Stage = "idle" | "enrolling";
+
+/**
+ * The `secret` parameter of an otpauth:// URI — what authenticators call the
+ * "setup key" and ask for when a camera is not an option (a desktop app, a
+ * hardware token, a phone that cannot see the screen it is enrolling from).
+ */
+function setupKeyFrom(uri: string): string | null {
+  try {
+    return new URL(uri).searchParams.get("secret");
+  } catch {
+    return null;
+  }
+}
 
 export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("idle");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [totpUri, setTotpUri] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const passwordForm = useForm<TwoFactorPasswordInput>({
     resolver: zodResolver(twoFactorPasswordSchema),
@@ -35,6 +50,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
     passwordForm.reset();
     codeForm.reset();
     setQrDataUrl(null);
+    setTotpUri(null);
     setBackupCodes([]);
   }
 
@@ -45,6 +61,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       return;
     }
     setQrDataUrl(await QRCode.toDataURL(data.totpURI, { margin: 1, width: 220 }));
+    setTotpUri(data.totpURI);
     setBackupCodes(data.backupCodes ?? []);
     passwordForm.reset();
     setStage("enrolling");
@@ -83,6 +100,17 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           <div className="space-y-2"><p className="text-sm">Scan this with your authenticator app, then enter the 6-digit code to confirm.</p>{qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- inline QR data URI needs no image optimization
             <img src={qrDataUrl} alt="Two-factor QR code" className="rounded-md border bg-white p-2" width={220} height={220} />
+          ) : null}
+          {totpUri ? (
+            <SecretReveal
+              title="Billow"
+              secret={setupKeyFrom(totpUri) ?? totpUri}
+              label="Setup key"
+              autoComplete="one-time-code"
+              onePasswordType="login"
+              otpauthUri={totpUri}
+              notes="Two-factor setup key for Billow. Scan the QR code instead if your authenticator supports it."
+            />
           ) : null}</div>
           {backupCodes.length > 0 ? <div className="space-y-2 rounded-md border bg-muted/40 p-4"><p className="text-sm font-medium">Save your backup codes — they won&apos;t be shown again.</p><ul className="grid grid-cols-2 gap-1 font-mono text-xs">{backupCodes.map((backupCode) => <li key={backupCode}>{backupCode}</li>)}</ul></div> : null}
           <form className="space-y-4" onSubmit={codeForm.handleSubmit(verify)} noValidate>
