@@ -11,6 +11,7 @@ RUN corepack enable && corepack install --global pnpm@10.34.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/auth/package.json ./packages/auth/package.json
+COPY packages/crypto/package.json ./packages/crypto/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/email/package.json ./packages/email/package.json
 COPY packages/shadcn/package.json ./packages/shadcn/package.json
@@ -31,6 +32,7 @@ RUN corepack enable
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /repo/packages/auth/node_modules ./packages/auth/node_modules
+COPY --from=deps /repo/packages/crypto/node_modules ./packages/crypto/node_modules
 COPY --from=deps /repo/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /repo/packages/email/node_modules ./packages/email/node_modules
 COPY --from=deps /repo/packages/shadcn/node_modules ./packages/shadcn/node_modules
@@ -38,6 +40,7 @@ COPY --from=deps /repo/config ./config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web ./apps/web
 COPY packages/auth ./packages/auth
+COPY packages/crypto ./packages/crypto
 COPY packages/db ./packages/db
 COPY packages/email ./packages/email
 COPY packages/shadcn ./packages/shadcn

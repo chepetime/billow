@@ -1,0 +1,18 @@
+{
+  "name": "@billow/crypto",
+  "version": "0.1.34",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "@billow/vitest-config": "workspace:*",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}
