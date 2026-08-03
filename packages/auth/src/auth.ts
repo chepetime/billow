@@ -15,6 +15,7 @@ import {
   enrollUser,
   openSessionDataKey,
   parkDataKeyForTwoFactor,
+  rewrapForNewPassword,
   unlockDataKey,
 } from "./data-key";
 import { deliverPasswordReset } from "./mailer";
@@ -183,11 +184,35 @@ export const auth = betterAuth({
         path === "/sign-in/email" ||
         path === "/sign-in/username";
       const verifiesSecondFactor = path?.startsWith("/two-factor/verify") ?? false;
-      if (!entersPassword && !verifiesSecondFactor) return;
+      const changesPassword = path === "/change-password";
+      if (!entersPassword && !verifiesSecondFactor && !changesPassword) return;
 
       const newSession = ctx.context.newSession;
 
       try {
+        if (changesPassword) {
+          // Without this the keyset stays sealed under the old password and
+          // the user loses every encrypted field at their next sign-in.
+          const session = ctx.context.session ?? newSession;
+          const current = ctx.body?.currentPassword;
+          const next = ctx.body?.newPassword;
+          if (!session || typeof current !== "string" || typeof next !== "string") return;
+
+          const dataKey = await rewrapForNewPassword(session.user.id, current, next);
+          if (!dataKey) return;
+
+          // `revokeOtherSessions` may have replaced the session this request
+          // arrived on, so re-open whichever one it is leaving behind.
+          const target = newSession ?? session;
+          const sessionKey = await openSessionDataKey(
+            session.user.id,
+            target.session.id,
+            dataKey,
+          );
+          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          return;
+        }
+
         if (verifiesSecondFactor) {
           // The password was consumed at the sign-in step, so the data key is
           // wherever that step parked it.

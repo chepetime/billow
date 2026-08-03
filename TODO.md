@@ -37,17 +37,31 @@ component* decrypt — a client-held key would have forced every encrypted read
 into a client fetch. It is random, not derived: this path runs on every
 request, and scrypt there would cost tens of ms per render.
 
+**Also built:** the better-auth wiring. An `after` hook on `/sign-up/email`,
+`/sign-in/{email,username}`, `/two-factor/verify-*` and `/change-password`
+mints, unwraps and re-wraps the key; `getDataKey(userId, sessionId)` is
+exported from `@billow/auth` for server components. Verified against a running
+app, not only in unit tests.
+
+Two-factor needed its own path: the password arrives at `/sign-in/email` but no
+session exists until `/two-factor/verify-*`, so the key is parked in a
+ten-minute `Verification` row whose unwrapping key rides in a separate cookie.
+
 Still to do, in order:
 
-- **Wire it into better-auth.** `hooks.before`/`after` take an `AuthMiddleware`
-  whose context carries `ctx.path` and `ctx.body` — verified present in 1.6.25
-  — so `/sign-up/email` can mint a keyset and `/sign-in/email` can unwrap and
-  start the session, both while the plaintext password is in scope. Nothing
-  else in the request lifecycle ever sees it.
-- **Onboarding UI**: show the recovery key once, confirm by re-entry (not a
-  checkbox), and stamp `UserOnboarding`.
-- **A `getDataKey()` accessor** for server components, reading the cookie and
-  the session row.
+- **Password reset orphans the keyset.** `/reset-password` has no current
+  password, so the data key cannot be re-wrapped and the account keeps a keyset
+  sealed under a password nobody knows. Today that only costs the (empty)
+  encrypted set, but it **must** be resolved before the Prisma extension lands
+  or a reset becomes silent data loss. The recovery key is the intended way
+  through: `resetPasswordWithRecoveryKey` already exists and is tested, and
+  needs the reset flow to demand a recovery key.
+- **Onboarding UI**: `issueRecoveryKey` is built and tested but nothing calls
+  it, so no account has a recovery arm yet. Show the key once, confirm by
+  re-entry (not a checkbox), re-issue until confirmed, and stamp
+  `UserOnboarding` — which still has no writer.
+- **The admin "set a password directly" feature** has the same orphaning
+  problem as a reset. Decide whether it survives.
 - **Prisma client extension** + the declarative field list — the seam that
   makes crypto impossible to forget rather than merely available. Call-site
   crypto is where these designs leak: one forgotten query writes plaintext into

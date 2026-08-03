@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import {
   KeyHierarchyError,
   beginSession,
+  changePassword,
   createUserKeyset,
   resumeSession,
   unlockWithPassword,
@@ -64,6 +65,46 @@ export async function unlockDataKey(userId: string, password: string): Promise<B
     // mismatched keyset rather than a wrong guess. Signing in without a data
     // key is the right outcome: encrypted fields read as unavailable instead
     // of the whole sign-in failing.
+    if (error instanceof KeyHierarchyError) return null;
+    throw error;
+  }
+}
+
+/**
+ * Follows a password change by re-wrapping the data key under the new one.
+ * Without this the keyset would still be sealed under the old password and the
+ * user would lose every encrypted field at their next sign-in — silently, and
+ * with nothing left to recover from but the recovery key.
+ *
+ * Returns the data key so the caller can re-open the session, since changing a
+ * password can revoke and replace it.
+ */
+export async function rewrapForNewPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<Buffer | null> {
+  const prisma = getPrisma();
+  const stored = await prisma.userKeyset.findUnique({ where: { userId } });
+  if (!stored) return null;
+
+  try {
+    const keyset = await changePassword(
+      userId,
+      stored as UserKeyset,
+      currentPassword,
+      newPassword,
+    );
+    await prisma.userKeyset.update({
+      where: { userId },
+      data: {
+        passwordSalt: keyset.passwordSalt,
+        dataKeyWrappedByPassword: keyset.dataKeyWrappedByPassword,
+      },
+    });
+
+    return await unlockWithPassword(userId, keyset, newPassword);
+  } catch (error) {
     if (error instanceof KeyHierarchyError) return null;
     throw error;
   }
