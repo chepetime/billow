@@ -43,21 +43,31 @@ export async function GET() {
     // installation-wide error log — whose stacks and metadata belong to every
     // account, not the one asking. Any-session was the wrong bar for a route
     // named /api/admin.
+    let session = null;
     let admin = false;
     try {
-      ({ admin } = await getAdminSession());
+      ({ session, admin } = await getAdminSession());
     } catch {
+      session = null;
       admin = false;
     }
 
-    if (!admin) {
+    // 401 and 403 are different answers and the caller can act on which one
+    // they get: no credentials means sign in, wrong credentials means this
+    // account will never be enough. Collapsing both into 403 told an anonymous
+    // caller their (absent) credentials had been rejected.
+    if (!session) {
       return NextResponse.json(
         {
           error:
-            "Administrator access required. Sign in as an administrator, or send x-debug-token if BILLOW_DEBUG_TOKEN is configured.",
+            "Authentication required. Sign in as an administrator, or send x-debug-token if BILLOW_DEBUG_TOKEN is configured.",
         },
-        { status: 403 },
+        { status: 401 },
       );
+    }
+
+    if (!admin) {
+      return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
     }
   }
 
