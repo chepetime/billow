@@ -8,6 +8,7 @@ import {
   changePassword,
   createUserKeyset,
   issueRecoveryKey,
+  resetPasswordWithRecoveryKey,
   resumeSession,
   unlockWithPassword,
   unlockWithRecoveryKey,
@@ -234,6 +235,8 @@ export type RecoveryKeyState = {
   hasRecoveryArm: boolean;
   generatedAt: Date | null;
   savedAt: Date | null;
+  /** Whether this request can actually reach the data key right now. */
+  dataKeyAvailable: boolean;
 };
 
 /** True when the user still owes us a confirmed, working recovery key. */
@@ -242,11 +245,96 @@ export function needsRecoveryKey(state: RecoveryKeyState | null): boolean {
   return !state.hasRecoveryArm || !state.savedAt;
 }
 
-export async function getRecoveryKeyState(userId: string): Promise<RecoveryKeyState> {
+/**
+ * True when the account has a keyset that its own password no longer opens.
+ *
+ * A password *reset* cannot re-wrap the data key — there is no current
+ * password to unwrap it with — so the keyset is left sealed under a password
+ * nobody knows. The same is true of an administrator setting a password
+ * directly. Rather than patch each of those paths, this detects the state they
+ * all produce and routes the user to the one flow that can undo it.
+ *
+ * Requires a cookie session: an API-key caller legitimately has no data key
+ * and must not be told its account is broken.
+ */
+export function needsAccessRestored(state: RecoveryKeyState | null): boolean {
+  if (!state?.hasKeyset || !state.hasRecoveryArm) return false;
+  return !state.dataKeyAvailable;
+}
+
+/**
+ * Puts a locked-out account back together: unwrap the data key with the
+ * recovery key, re-wrap it under the password the user now has, and re-open
+ * the session.
+ *
+ * Takes the password as well as the recovery key because re-wrapping needs
+ * both, and by the time the user reaches this page their sign-in password is
+ * long out of scope. Asking again is also the right shape for the operation —
+ * it is the one that hands back every encrypted field they own.
+ */
+export async function restoreAccessWithRecoveryKey(
+  userId: string,
+  sessionId: string,
+  recoveryKey: string,
+  password: string,
+  verifyPassword: (password: string) => Promise<boolean>,
+): Promise<string | null> {
   const prisma = getPrisma();
-  const [keyset, onboarding] = await Promise.all([
+  const stored = await prisma.userKeyset.findUnique({ where: { userId } });
+  if (!stored) return null;
+
+  // The password must be checked against the account before anything is
+  // re-wrapped. `resetPasswordWithRecoveryKey` re-wraps under whatever it is
+  // given and cannot tell a real password from a typo — so without this, a
+  // mistyped password would seal the data key under a password the account
+  // does not have, locking it a second time and looking like success.
+  if (!(await verifyPassword(password))) return null;
+
+  let keyset: UserKeyset;
+  try {
+    keyset = await resetPasswordWithRecoveryKey(
+      userId,
+      stored as UserKeyset,
+      recoveryKey,
+      password,
+    );
+  } catch (error) {
+    if (error instanceof KeyHierarchyError) return null;
+    throw error;
+  }
+
+  await prisma.$transaction([
+    prisma.userKeyset.update({
+      where: { userId },
+      data: {
+        passwordSalt: keyset.passwordSalt,
+        dataKeyWrappedByPassword: keyset.dataKeyWrappedByPassword,
+      },
+    }),
+    // The recovery key has now been typed into a form, possibly on a machine
+    // that is not theirs, to rescue an account that was already in trouble.
+    // Clearing the confirmation sends them back through onboarding for a fresh
+    // one, so a key that has been spent is never also the key still on file.
+    prisma.userOnboarding.upsert({
+      where: { userId },
+      create: { userId },
+      update: { recoveryKeySavedAt: null },
+    }),
+  ]);
+
+  const dataKey = await unlockWithPassword(userId, keyset, password);
+  return await openSessionDataKey(userId, sessionId, dataKey);
+}
+
+export async function getRecoveryKeyState(
+  userId: string,
+  sessionId?: string,
+): Promise<RecoveryKeyState> {
+  const prisma = getPrisma();
+  const [keyset, onboarding, dataKey] = await Promise.all([
     prisma.userKeyset.findUnique({ where: { userId }, select: { recoverySalt: true } }),
     prisma.userOnboarding.findUnique({ where: { userId } }),
+    sessionId ? getDataKey(userId, sessionId) : Promise.resolve(null),
   ]);
 
   return {
@@ -254,6 +342,7 @@ export async function getRecoveryKeyState(userId: string): Promise<RecoveryKeySt
     hasRecoveryArm: Boolean(keyset?.recoverySalt),
     generatedAt: onboarding?.recoveryKeyGeneratedAt ?? null,
     savedAt: onboarding?.recoveryKeySavedAt ?? null,
+    dataKeyAvailable: Boolean(dataKey),
   };
 }
 

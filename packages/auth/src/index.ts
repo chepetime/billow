@@ -19,6 +19,8 @@ export {
   getDataKey,
   getRecoveryKeyState,
   needsRecoveryKey,
+  needsAccessRestored,
+  restoreAccessWithRecoveryKey,
   issueRecoveryKeyFor,
   confirmRecoveryKeySaved,
   DATA_KEY_COOKIE,

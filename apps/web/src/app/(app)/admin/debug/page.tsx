@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { requireSession } from "@billow/auth";
+import { requireAdmin } from "@billow/auth";
 import { collectDiagnostics, type Field } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +75,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 }
 
 export default async function DebugPage() {
-  await requireSession();
+  await requireAdmin();
   const d = await collectDiagnostics(await headers());
 
   return (

@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const ONBOARDING_PATH = "/onboarding/recovery-key";
+const RECOVERY_KEY_PATH = "/onboarding/recovery-key";
+const RESTORE_PATH = "/onboarding/restore-access";
 
 /**
  * Sends a signed-in user to collect their recovery key until they confirm they
@@ -20,15 +21,29 @@ const ONBOARDING_PATH = "/onboarding/recovery-key";
  * and a server-side gate that can trap someone in a redirect loop is far worse
  * than a brief flash.
  */
-export function OnboardingGate({ needsRecoveryKey }: { needsRecoveryKey: boolean }) {
+export function OnboardingGate({
+  needsRestore,
+  needsRecoveryKey,
+}: {
+  needsRestore: boolean;
+  needsRecoveryKey: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!needsRecoveryKey) return;
-    if (pathname === ONBOARDING_PATH) return;
-    router.replace(ONBOARDING_PATH);
-  }, [needsRecoveryKey, pathname, router]);
+    // Restore comes first: an account that cannot reach its data key has a
+    // more urgent problem than one that merely owes us a confirmation, and
+    // restoring is what makes the recovery-key step meaningful afterwards.
+    const destination = needsRestore
+      ? RESTORE_PATH
+      : needsRecoveryKey
+        ? RECOVERY_KEY_PATH
+        : null;
+
+    if (!destination || pathname === destination) return;
+    router.replace(destination);
+  }, [needsRestore, needsRecoveryKey, pathname, router]);
 
   return null;
 }

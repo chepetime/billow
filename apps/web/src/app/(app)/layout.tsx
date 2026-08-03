@@ -2,7 +2,12 @@ import Link from "next/link";
 
 import { OnboardingGate } from "@/app/(app)/_components/onboarding-gate";
 import { UserMenu } from "@/app/(app)/_components/user-menu";
-import { getRecoveryKeyState, needsRecoveryKey, requireSession } from "@billow/auth";
+import {
+  getRecoveryKeyState,
+  needsAccessRestored,
+  needsRecoveryKey,
+  requireSession,
+} from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +17,9 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const session = await requireSession();
-  const recoveryKey = await getRecoveryKeyState(session.user.id).catch(() => null);
+  const keyState = await getRecoveryKeyState(session.user.id, session.session.id).catch(
+    () => null,
+  );
 
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
@@ -22,7 +29,8 @@ export default async function AppLayout({
         recovery key could protect, so sending it here would be a dead end.
       */}
       <OnboardingGate
-        needsRecoveryKey={needsRecoveryKey(recoveryKey)}
+        needsRestore={needsAccessRestored(keyState)}
+        needsRecoveryKey={needsRecoveryKey(keyState)}
       />
       <header className="border-b print:hidden">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-4 sm:px-8">

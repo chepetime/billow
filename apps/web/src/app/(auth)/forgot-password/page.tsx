@@ -35,6 +35,18 @@ export default async function ForgotPasswordPage() {
         <div className="rounded-lg border bg-card p-6">
           <ForgotPasswordForm />
         </div>
+
+        {/*
+          Stated before the reset, not after it. A reset changes the password
+          but not the key the data is encrypted with, so anyone without their
+          recovery key needs to know that now — while they might still remember
+          the old password — rather than discovering it at the next sign-in.
+        */}
+        <p className="text-sm text-muted-foreground">
+          Resetting your password does not unlock your data on its own. You will
+          need your recovery key afterwards to get back to it — without it, a
+          reset leaves that data unreadable.
+        </p>
       </div>
     </main>
   );

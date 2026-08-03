@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getSession } from "@billow/auth";
+import { getAdminSession } from "@billow/auth";
 import { collectDiagnostics } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -38,20 +38,25 @@ export async function GET() {
   const requestHeaders = await headers();
 
   if (!hasValidDebugToken(requestHeaders.get("x-debug-token"))) {
-    let session = null;
+    // Admin, not merely signed in. This payload carries environment variable
+    // names and lengths, request headers, database internals and the
+    // installation-wide error log — whose stacks and metadata belong to every
+    // account, not the one asking. Any-session was the wrong bar for a route
+    // named /api/admin.
+    let admin = false;
     try {
-      session = await getSession();
+      ({ admin } = await getAdminSession());
     } catch {
-      session = null;
+      admin = false;
     }
 
-    if (!session) {
+    if (!admin) {
       return NextResponse.json(
         {
           error:
-            "Authentication required. Sign in, or send x-debug-token if BILLOW_DEBUG_TOKEN is configured.",
+            "Administrator access required. Sign in as an administrator, or send x-debug-token if BILLOW_DEBUG_TOKEN is configured.",
         },
-        { status: 401 },
+        { status: 403 },
       );
     }
   }

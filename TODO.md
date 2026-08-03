@@ -49,7 +49,12 @@ ten-minute `Verification` row whose unwrapping key rides in a separate cookie.
 
 Still to do, in order:
 
-- **Password reset still orphans the keyset — next, and blocking.**
+- ~~**Password reset orphans the keyset**~~ — handled by a restore flow rather
+  than by patching each cause. `/onboarding/restore-access` takes the recovery
+  key plus the current password, re-wraps, re-opens the session and clears
+  `recoveryKeySavedAt` so a spent key is rotated. Catches an admin-set password
+  too, since it keys off the resulting state rather than the endpoint.
+  Superseded note:
   `/reset-password` has no current password, so the data key cannot be
   re-wrapped and the account keeps a keyset sealed under a password nobody
   knows. Today that only costs the (empty) encrypted set, but it **must** be
@@ -139,14 +144,45 @@ needed no change.
   translated; everything else is English literals.
 - Server components use `getTranslations`, client ones `useTranslations`.
 
-## 3. Operations gaps
+## 3. From the 2026-08-03 audit
+
+Confirmed by reading the code; not yet fixed.
+
+- **Rate-limit the scrypt routes.** better-auth's limiter only covers
+  `/api/auth/*`. `/api/v1/vault` and `/api/v1/recovery-key/*` run scrypt at
+  N=32768 per request, so an authenticated caller can exhaust a single-process
+  container with a 128 MB heap. Fix together with the persisted `rateLimit`
+  model, which also closes the redeploy window in §6.
+- **Account deletion leaves uploaded files on disk.** Rows cascade, nothing
+  calls `deleteObject`. Keys are `<userId>/<uuid>`, so a recursive delete of
+  the user directory is enough. Retention problem, not just disk.
+- **`/api/admin/restore` buffers the whole body before any size check.**
+  `MAX_ARCHIVE_BYTES` only bounds the decompressed output. The uploads route
+  already does the content-length pre-check — copy it and stream the gunzip.
+- **Upload downloads buffer fully into memory.** 10 MB x concurrency against a
+  128 MB heap; the backup route already streams.
+- **`getInvoiceWorkspace` loads everything to render eight rows** — all line
+  items, three revisions each, totals in JS, per request. Needs `take`,
+  `groupBy` for stats, no revisions.
+- **`/api/admin/backup` is admin-gated but exports only the caller's data**, so
+  non-admins cannot export their own and admins cannot back up the install.
+- **Data-key cookie has no `maxAge`**, so it dies with the browser while the
+  session cookie persists — reopen and you are signed in with no data key.
+  Becomes a support burden the moment field encryption ships.
+- **No session cookie cache.** Every `getSession()` is a round-trip; the
+  `(app)` layout adds `getRecoveryKeyState` on every navigation.
+- **API keys have no scope.** `Apikey.permissions` exists and is never read.
+- **CSP still needs `unsafe-inline`.** `src/proxy.ts` now exists, so a
+  per-request nonce is a small change rather than a new mechanism.
+
+## 4. Operations gaps
 
 - **Audit log** — who changed what, distinct from the error log.
 - **Structured logging** — currently `console.*`.
 - Both are absent, and together they are what makes an incident
   reconstructable.
 
-## 4. Shrink the image (~225 MB of 495 MB)
+## 5. Shrink the image (~225 MB of 495 MB)
 
 The Prisma CLI ships purely so `migrate deploy` can run at boot. It cannot be
 trimmed further: the CLI bundle eagerly requires `@prisma/studio-core`
@@ -158,7 +194,7 @@ Two real options, both architectural: an init container that carries the CLI,
 or applying migrations through `pg` and owning the `_prisma_migrations`
 bookkeeping ourselves.
 
-## 5. Smaller, well-scoped
+## 6. Smaller, well-scoped
 
 - Rate-limit counters are in-memory, so they reset on every deploy and briefly
   reopen the brute-force window. Needs a `rateLimit` model + migration.
@@ -173,7 +209,7 @@ bookkeeping ourselves.
 - Passkeys, once the app is reached over HTTPS. WebAuthn needs a secure
   context and Umbrel serves plain HTTP.
 
-## 6. Not code
+## 7. Not code
 
 - Extract the platform layer into a reusable template — the long-term goal
   behind all of the above. The invoicing domain is still in the schema, which
