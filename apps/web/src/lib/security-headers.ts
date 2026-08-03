@@ -10,23 +10,35 @@
 /**
  * Content-Security-Policy directives.
  *
+ * In development only, `script-src` also gets `'unsafe-eval'`. React's dev
+ * build uses `eval()` for debugging features such as reconstructing
+ * callstacks across environments, and without it the dev overlay reports a
+ * console error and those features silently stop working. React never uses
+ * `eval()` in a production build, so the shipped policy is unaffected — this
+ * is the one place the two policies deliberately differ.
+ *
  * `script-src` includes `'unsafe-inline'` as a known, deliberate weakening:
  * `next-themes` (see `src/components/theme-provider.tsx`) injects a small
  * inline `<script>` into the document `<head>` that sets the theme class
  * before first paint, to avoid a flash of the wrong theme. Next.js itself
  * may also inject small inline bootstrap scripts. Neither is nonce-tagged
- * today, and there is no `middleware`/`proxy` step in this app that rewrites
- * the response to inject a per-request nonce, so `'self'` alone white-screens
- * the app. If a nonce is added later (via `proxy.ts`), tighten this back to
- * `'self' 'nonce-<value>'` and drop `'unsafe-inline'`.
+ * today, so `'self'` alone white-screens the app.
+ *
+ * `src/proxy.ts` does now exist (it guards `/dashboard` and `/settings`), so
+ * injecting a per-request nonce is a matter of widening its matcher and
+ * passing the nonce to `next-themes`, rather than introducing a new mechanism.
+ * When that happens, tighten this back to `'self' 'nonce-<value>'` and drop
+ * `'unsafe-inline'`.
  *
  * `style-src` keeps `'unsafe-inline'` for the same reason (Next.js emits
  * inline `style` attributes/tags, and `@scalar/api-reference-react` on
  * `/docs/api` injects its own inline styles at runtime).
  */
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${IS_PRODUCTION ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
