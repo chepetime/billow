@@ -3,6 +3,7 @@ export {
   beginSession,
   changePassword,
   createUserKeyset,
+  issueRecoveryKey,
   normalizeRecoveryKey,
   resetPasswordWithRecoveryKey,
   resumeSession,

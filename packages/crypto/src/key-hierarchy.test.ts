@@ -2,17 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import {
   KeyHierarchyError,
+  beginSession,
+  changePassword,
   createUserKeyset,
+  issueRecoveryKey,
+  resetPasswordWithRecoveryKey,
+  resumeSession,
   unlockWithPassword,
   unlockWithRecoveryKey,
-  changePassword,
-  resetPasswordWithRecoveryKey,
-  beginSession,
-  resumeSession,
 } from "./key-hierarchy";
 
 const USER = "user_alice";
 const PASSWORD = "correct horse battery staple";
+
+/** A keyset that has been through onboarding, as most of these tests need. */
+async function enrolled(userId = USER, password = PASSWORD) {
+  const { keyset, dataKey } = await createUserKeyset(userId, password);
+  const issued = await issueRecoveryKey(userId, keyset, dataKey);
+
+  return { keyset: issued.keyset, recoveryKey: issued.recoveryKey, dataKey };
+}
 
 describe("createUserKeyset", () => {
   it("issues a 32-byte data key that the password unlocks again", async () => {
@@ -20,6 +29,13 @@ describe("createUserKeyset", () => {
 
     expect(dataKey).toHaveLength(32);
     expect(await unlockWithPassword(USER, keyset, PASSWORD)).toEqual(dataKey);
+  });
+
+  it("starts without a recovery arm, because nobody has been shown a key yet", async () => {
+    const { keyset } = await createUserKeyset(USER, PASSWORD);
+
+    expect(keyset.recoverySalt).toBeNull();
+    expect(keyset.dataKeyWrappedByRecoveryKey).toBeNull();
   });
 
   it("gives two users different data keys for the same password", async () => {
@@ -79,36 +95,76 @@ describe("unlockWithPassword", () => {
   });
 });
 
-describe("recovery key", () => {
+describe("issueRecoveryKey", () => {
   it("is issued in readable groups drawn from an unambiguous alphabet", async () => {
-    const { recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { recoveryKey } = await enrolled();
 
     expect(recoveryKey).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){7}$/);
   });
 
   it("unlocks the same data key the password does", async () => {
-    const { keyset, dataKey, recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey, recoveryKey } = await enrolled();
 
     expect(await unlockWithRecoveryKey(USER, keyset, recoveryKey)).toEqual(dataKey);
   });
 
+  it("needs only the data key, so onboarding can run without the password", async () => {
+    const { keyset, dataKey } = await createUserKeyset(USER, PASSWORD);
+
+    const issued = await issueRecoveryKey(USER, keyset, dataKey);
+
+    expect(await unlockWithRecoveryKey(USER, issued.keyset, issued.recoveryKey)).toEqual(dataKey);
+  });
+
+  it("replaces a previous key, so an unconfirmed one can be regenerated", async () => {
+    const first = await enrolled();
+
+    const second = await issueRecoveryKey(USER, first.keyset, first.dataKey);
+
+    expect(second.recoveryKey).not.toEqual(first.recoveryKey);
+    expect(await unlockWithRecoveryKey(USER, second.keyset, second.recoveryKey)).toEqual(
+      first.dataKey,
+    );
+    await expect(unlockWithRecoveryKey(USER, second.keyset, first.recoveryKey)).rejects.toThrow(
+      KeyHierarchyError,
+    );
+  });
+
+  it("leaves the password arm untouched", async () => {
+    const { keyset, dataKey } = await createUserKeyset(USER, PASSWORD);
+
+    const issued = await issueRecoveryKey(USER, keyset, dataKey);
+
+    expect(await unlockWithPassword(USER, issued.keyset, PASSWORD)).toEqual(dataKey);
+  });
+});
+
+describe("unlockWithRecoveryKey", () => {
+  it("refuses when onboarding never issued one", async () => {
+    const { keyset } = await createUserKeyset(USER, PASSWORD);
+
+    await expect(
+      unlockWithRecoveryKey(USER, keyset, "ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ"),
+    ).rejects.toThrow(KeyHierarchyError);
+  });
+
   it("accepts the key as a user would retype it", async () => {
-    const { keyset, dataKey, recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey, recoveryKey } = await enrolled();
     const retyped = ` ${recoveryKey.toLowerCase().replaceAll("-", " ")} `;
 
     expect(await unlockWithRecoveryKey(USER, keyset, retyped)).toEqual(dataKey);
   });
 
   it("reads letters a user could confuse for digits", async () => {
-    const { keyset, dataKey, recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey, recoveryKey } = await enrolled();
     const misread = recoveryKey.replaceAll("1", "I").replaceAll("0", "O");
 
     expect(await unlockWithRecoveryKey(USER, keyset, misread)).toEqual(dataKey);
   });
 
   it("refuses a recovery key from another account", async () => {
-    const { keyset } = await createUserKeyset(USER, PASSWORD);
-    const other = await createUserKeyset("user_bob", PASSWORD);
+    const { keyset } = await enrolled();
+    const other = await enrolled("user_bob");
 
     await expect(unlockWithRecoveryKey(USER, keyset, other.recoveryKey)).rejects.toThrow(
       KeyHierarchyError,
@@ -120,7 +176,7 @@ describe("changePassword", () => {
   const NEW_PASSWORD = "a completely different password";
 
   it("keeps the same data key, so stored data stays readable", async () => {
-    const { keyset, dataKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey } = await enrolled();
 
     const rewrapped = await changePassword(USER, keyset, PASSWORD, NEW_PASSWORD);
 
@@ -128,7 +184,7 @@ describe("changePassword", () => {
   });
 
   it("stops accepting the old password", async () => {
-    const { keyset } = await createUserKeyset(USER, PASSWORD);
+    const { keyset } = await enrolled();
 
     const rewrapped = await changePassword(USER, keyset, PASSWORD, NEW_PASSWORD);
 
@@ -136,7 +192,7 @@ describe("changePassword", () => {
   });
 
   it("leaves the recovery key working", async () => {
-    const { keyset, dataKey, recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey, recoveryKey } = await enrolled();
 
     const rewrapped = await changePassword(USER, keyset, PASSWORD, NEW_PASSWORD);
 
@@ -144,7 +200,7 @@ describe("changePassword", () => {
   });
 
   it("refuses to re-wrap without the current password", async () => {
-    const { keyset } = await createUserKeyset(USER, PASSWORD);
+    const { keyset } = await enrolled();
 
     await expect(changePassword(USER, keyset, "not the password", NEW_PASSWORD)).rejects.toThrow(
       KeyHierarchyError,
@@ -154,7 +210,7 @@ describe("changePassword", () => {
 
 describe("resetPasswordWithRecoveryKey", () => {
   it("restores access to the same data key without the old password", async () => {
-    const { keyset, dataKey, recoveryKey } = await createUserKeyset(USER, PASSWORD);
+    const { keyset, dataKey, recoveryKey } = await enrolled();
 
     const rewrapped = await resetPasswordWithRecoveryKey(USER, keyset, recoveryKey, "chosen anew");
 
@@ -163,7 +219,7 @@ describe("resetPasswordWithRecoveryKey", () => {
   });
 
   it("refuses a wrong recovery key", async () => {
-    const { keyset } = await createUserKeyset(USER, PASSWORD);
+    const { keyset } = await enrolled();
 
     await expect(
       resetPasswordWithRecoveryKey(USER, keyset, "ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ", "x"),
@@ -177,9 +233,9 @@ describe("session re-wrap", () => {
 
     const session = await beginSession(USER, dataKey);
 
-    expect(await resumeSession(USER, session.dataKeyWrappedBySessionKey, session.sessionKey)).toEqual(
-      dataKey,
-    );
+    expect(
+      await resumeSession(USER, session.dataKeyWrappedBySessionKey, session.sessionKey),
+    ).toEqual(dataKey);
   });
 
   it("gives every session its own key, so revoking one cannot open another", async () => {

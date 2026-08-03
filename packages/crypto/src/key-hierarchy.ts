@@ -28,11 +28,18 @@ export class KeyHierarchyError extends Error {
  * safe at rest: none of them yields the data key without a secret the server
  * does not keep.
  */
+/**
+ * The recovery arm is nullable because it is minted during onboarding rather
+ * than at sign-up. A recovery key can only be shown once and is unrecoverable
+ * afterwards, so it is issued where there is a page to display it, confirm it
+ * by re-entry, and re-issue it until the user says they have written it down —
+ * none of which a sign-up API response can offer.
+ */
 export type UserKeyset = {
   passwordSalt: string;
   dataKeyWrappedByPassword: string;
-  recoverySalt: string;
-  dataKeyWrappedByRecoveryKey: string;
+  recoverySalt: string | null;
+  dataKeyWrappedByRecoveryKey: string | null;
 };
 
 // Crockford base32: no I, L, O or U, so nothing in a printed key can be
@@ -156,24 +163,53 @@ function unwrap(stored: string, keyEncryptionKey: Buffer, aad: Buffer): Buffer {
 export async function createUserKeyset(
   userId: string,
   password: string,
-): Promise<{ keyset: UserKeyset; dataKey: Buffer; recoveryKey: string }> {
+): Promise<{ keyset: UserKeyset; dataKey: Buffer }> {
   if (!userId) throw new KeyHierarchyError("A keyset needs an owner.");
 
   const dataKey = randomBytes(KEY_BYTES);
-  const recoveryKey = generateRecoveryKey();
   const passwordSalt = randomBytes(SALT_BYTES);
-  const recoverySalt = randomBytes(SALT_BYTES);
-  const [passwordKek, recoveryKek] = await Promise.all([
-    deriveKeyEncryptionKey(password, passwordSalt),
-    deriveKeyEncryptionKey(normalizeRecoveryKey(recoveryKey), recoverySalt),
-  ]);
+  const passwordKek = await deriveKeyEncryptionKey(password, passwordSalt);
 
   return {
     dataKey,
-    recoveryKey,
     keyset: {
       passwordSalt: passwordSalt.toString("base64url"),
       dataKeyWrappedByPassword: wrap(dataKey, passwordKek, context(userId, "password")),
+      recoverySalt: null,
+      dataKeyWrappedByRecoveryKey: null,
+    },
+  };
+}
+
+/**
+ * Mints a recovery key and wraps the data key under it, replacing any previous
+ * recovery arm. Takes the data key rather than the password because onboarding
+ * runs against a signed-in session, where the password is long gone — and
+ * because re-issuing must stay possible for a user who closed the tab before
+ * writing the first key down.
+ *
+ * Re-issuing invalidates the previous key, which is the point: only one
+ * recovery key is ever valid, so a key printed and discarded cannot come back.
+ */
+export async function issueRecoveryKey(
+  userId: string,
+  keyset: UserKeyset,
+  dataKey: Buffer,
+): Promise<{ keyset: UserKeyset; recoveryKey: string }> {
+  if (!userId) throw new KeyHierarchyError("A keyset needs an owner.");
+  if (dataKey.length !== KEY_BYTES) throw new KeyHierarchyError();
+
+  const recoveryKey = generateRecoveryKey();
+  const recoverySalt = randomBytes(SALT_BYTES);
+  const recoveryKek = await deriveKeyEncryptionKey(
+    normalizeRecoveryKey(recoveryKey),
+    recoverySalt,
+  );
+
+  return {
+    recoveryKey,
+    keyset: {
+      ...keyset,
       recoverySalt: recoverySalt.toString("base64url"),
       dataKeyWrappedByRecoveryKey: wrap(dataKey, recoveryKek, context(userId, "recovery")),
     },
@@ -280,6 +316,11 @@ export async function unlockWithRecoveryKey(
   keyset: UserKeyset,
   recoveryKey: string,
 ): Promise<Buffer> {
+  // An account that never finished onboarding has no recovery arm. It fails
+  // with the same error as a wrong key: whether a given account can be
+  // recovered at all is not worth confirming to whoever is guessing.
+  if (!keyset.recoverySalt || !keyset.dataKeyWrappedByRecoveryKey) throw new KeyHierarchyError();
+
   const salt = Buffer.from(keyset.recoverySalt, "base64url");
   if (salt.length !== SALT_BYTES) throw new KeyHierarchyError();
 

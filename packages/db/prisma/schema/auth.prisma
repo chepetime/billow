@@ -50,8 +50,12 @@ model UserKeyset {
   userId                      String   @unique
   passwordSalt                String
   dataKeyWrappedByPassword    String
-  recoverySalt                String
-  dataKeyWrappedByRecoveryKey String
+  /// Null until onboarding issues a recovery key. It is minted there rather
+  /// than at sign-up because it can only ever be shown once: it needs a page
+  /// that displays it, confirms it by re-entry, and can re-issue it until the
+  /// user says they have written it down.
+  recoverySalt                String?
+  dataKeyWrappedByRecoveryKey String?
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
   user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)

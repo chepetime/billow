@@ -159,7 +159,6 @@ bookkeeping ourselves.
 
 ## 6. Not code
 
-- GitHub repo description and topics were drafted but never applied.
 - Extract the platform layer into a reusable template — the long-term goal
   behind all of the above. The invoicing domain is still in the schema, which
   is why the repo is not honestly "boilerplate" yet.

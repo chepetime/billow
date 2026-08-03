@@ -15,3 +15,4 @@ export {
   type PasswordResetMessage,
 } from "./mailer";
 export { getRegistrationEnabled } from "./registration-settings";
+export { getDataKey, DATA_KEY_COOKIE } from "./data-key";

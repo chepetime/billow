@@ -1,7 +1,7 @@
 import "server-only";
 
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin, openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
@@ -9,6 +9,14 @@ import { apiKey } from "@better-auth/api-key";
 import { getPrisma } from "@billow/db";
 
 import { getAuthEnv } from "./auth-env";
+import {
+  claimParkedDataKey,
+  dataKeyCookies,
+  enrollUser,
+  openSessionDataKey,
+  parkDataKeyForTwoFactor,
+  unlockDataKey,
+} from "./data-key";
 import { deliverPasswordReset } from "./mailer";
 import { canRegister } from "./registration";
 import { getRegistrationEnabled } from "./registration-settings";
@@ -17,6 +25,53 @@ import { resolveTrustedOrigins } from "./trusted-origins";
 const authEnv = getAuthEnv(process.env, {
   allowBuildFallback: process.env.NEXT_PHASE === "phase-production-build",
 });
+
+/**
+ * Reads one of this app's own unsigned cookies off the request. better-auth's
+ * cookie helpers are tuned for its signed session cookies; these are ours and
+ * plain, so parsing the header directly avoids depending on that behaviour.
+ */
+function readCookie(headers: Headers | undefined, name: string): string | null {
+  const header = headers?.get("cookie");
+  if (!header) return null;
+
+  for (const pair of header.split(";")) {
+    const separator = pair.indexOf("=");
+    if (separator < 0) continue;
+    if (pair.slice(0, separator).trim() !== name) continue;
+    return decodeURIComponent(pair.slice(separator + 1).trim());
+  }
+
+  return null;
+}
+
+/**
+ * Resolves the account a sign-in was for when no session was created, which is
+ * what a pending second factor looks like. The credentials already verified by
+ * this point, so this is a lookup rather than a check.
+ */
+async function userIdForSignIn(body: unknown): Promise<string | null> {
+  const credentials = body as { email?: unknown; username?: unknown } | undefined;
+  const prisma = getPrisma();
+
+  if (typeof credentials?.email === "string") {
+    const user = await prisma.user.findUnique({
+      where: { email: credentials.email },
+      select: { id: true },
+    });
+    return user?.id ?? null;
+  }
+
+  if (typeof credentials?.username === "string") {
+    const user = await prisma.user.findUnique({
+      where: { username: credentials.username },
+      select: { id: true },
+    });
+    return user?.id ?? null;
+  }
+
+  return null;
+}
 
 export const auth = betterAuth({
   baseURL: authEnv.baseUrl,
@@ -112,6 +167,87 @@ export const auth = betterAuth({
     // Keep auth's generated specification available without its CDN-hosted UI.
     openAPI({ disableDefaultReference: true }),
   ],
+  // Sign-in and sign-up are the only points in the request lifecycle where the
+  // plaintext password exists, and so the only points where the data key can be
+  // unwrapped. Everything downstream works from the session wrap instead.
+  //
+  // Every branch here is best-effort: a failure leaves the session without a
+  // data key, which renders encrypted fields as unavailable. It must never
+  // fail the sign-in itself — being unable to decrypt is recoverable, being
+  // unable to authenticate is not.
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      const path = ctx.path;
+      const entersPassword =
+        path === "/sign-up/email" ||
+        path === "/sign-in/email" ||
+        path === "/sign-in/username";
+      const verifiesSecondFactor = path?.startsWith("/two-factor/verify") ?? false;
+      if (!entersPassword && !verifiesSecondFactor) return;
+
+      const newSession = ctx.context.newSession;
+
+      try {
+        if (verifiesSecondFactor) {
+          // The password was consumed at the sign-in step, so the data key is
+          // wherever that step parked it.
+          if (!newSession) return;
+          const pendingKey = readCookie(ctx.headers, dataKeyCookies.pendingName);
+          if (!pendingKey) return;
+
+          const dataKey = await claimParkedDataKey(newSession.user.id, pendingKey);
+          ctx.setCookie(dataKeyCookies.pendingName, "", {
+            ...dataKeyCookies.pendingOptions,
+            maxAge: 0,
+          });
+          if (!dataKey) return;
+
+          const sessionKey = await openSessionDataKey(
+            newSession.user.id,
+            newSession.session.id,
+            dataKey,
+          );
+          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          return;
+        }
+
+        const password = typeof ctx.body?.password === "string" ? ctx.body.password : null;
+        if (!password) return;
+
+        if (path === "/sign-up/email") {
+          if (!newSession) return;
+          const dataKey = await enrollUser(newSession.user.id, password);
+          const sessionKey = await openSessionDataKey(
+            newSession.user.id,
+            newSession.session.id,
+            dataKey,
+          );
+          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          return;
+        }
+
+        // Sign-in. With two-factor enabled there is no session yet — the
+        // response is a redirect to the second factor — so the key has to be
+        // parked until that step completes.
+        const userId = newSession?.user.id ?? (await userIdForSignIn(ctx.body));
+        if (!userId) return;
+
+        const dataKey = await unlockDataKey(userId, password);
+        if (!dataKey) return;
+
+        if (!newSession) {
+          const pendingKey = await parkDataKeyForTwoFactor(userId, dataKey);
+          ctx.setCookie(dataKeyCookies.pendingName, pendingKey, dataKeyCookies.pendingOptions);
+          return;
+        }
+
+        const sessionKey = await openSessionDataKey(userId, newSession.session.id, dataKey);
+        ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+      } catch (error) {
+        console.error("[auth] data key hook failed:", error);
+      }
+    }),
+  },
   databaseHooks: {
     user: {
       create: {

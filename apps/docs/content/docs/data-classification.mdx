@@ -39,7 +39,7 @@ documented next to the field and reviewed.
 | auth | `TwoFactor` | Sensitive | TOTP secret and backup codes are authentication credentials. |
 | auth | `Session` | Sensitive | Bearer session token, IP address, user agent, impersonation relationship, and the data key wrapped under this session's cookie key. |
 | auth | `Account` | Sensitive | Password hash and third-party OAuth tokens, scopes, and identifiers. |
-| auth | `Verification` | Sensitive | Password-reset and verification tokens and their identifiers. |
+| auth | `Verification` | Sensitive | Password-reset and verification tokens and their identifiers. Also holds the short-lived `data-key-pending:<userId>` wrap that carries a data key across two-factor verification; that value is inert without the matching cookie and is deleted as soon as it is claimed. |
 | auth | `VaultEntry` | Sensitive | Experimental user-encrypted note. Its ciphertext must never be substituted for another owner, and its plaintext/key are never stored. |
 | auth | `UserKeyset` | Sensitive | The wrapped forms of a user's data key, plus the KDF salts they belong to. Nothing here yields the data key without the password or recovery key, but holding a wrap is what makes an offline attack on a weak password possible. Never return it from an endpoint or include it in a backup. |
 | auth | `UserOnboarding` | Internal | Timestamps recording that a recovery key was generated and that the user confirmed saving it. No key material, and disclosure reveals nothing beyond account activity. |
@@ -89,7 +89,7 @@ server does not keep.
 | Wrap | Unwrapped by | Lives in | Exists so that |
 | --- | --- | --- | --- |
 | `UserKeyset.dataKeyWrappedByPassword` | scrypt KEK from the account password | database | Signing in reaches the data key. |
-| `UserKeyset.dataKeyWrappedByRecoveryKey` | scrypt KEK from the recovery key issued at signup | database | A forgotten password is recoverable rather than fatal. |
+| `UserKeyset.dataKeyWrappedByRecoveryKey` | scrypt KEK from the recovery key issued at onboarding | database | A forgotten password is recoverable rather than fatal. |
 | `Session.dataKeyWrappedBySessionKey` | a random 256-bit key in an httpOnly cookie | database + browser | A request — including a server component — can reach the data key without the password. |
 
 Two consequences follow from the data key never changing. A password change
@@ -112,6 +112,32 @@ session row it belongs to.
 
 API-key callers have no cookie and so cannot decrypt. That is the correct
 outcome rather than a gap: a key stored in a script is not the signed-in user.
+
+### Where the wrapping happens
+
+Sign-in and sign-up are the only points in the request lifecycle where the
+plaintext password exists, so they are the only points where the password arm
+can be opened. `@billow/auth` does this in a better-auth `after` hook on
+`/sign-up/email`, `/sign-in/email` and `/sign-in/username`.
+
+Every branch of that hook is best-effort. A failure leaves the session without
+a data key, so encrypted fields read as unavailable — it must never fail the
+sign-in itself, because being unable to decrypt is recoverable and being unable
+to authenticate is not. Accounts created before the keyset existed have no
+keyset at all and sign in normally.
+
+With two-factor enabled the password arrives at `/sign-in/email` but no session
+exists until `/two-factor/verify-*`, so the key is parked in between: wrapped
+under a fresh key that rides in a separate ten-minute cookie, with the wrap in
+`Verification`. Neither half is usable alone, and the row is deleted on the
+first claim attempt whether or not it succeeds.
+
+The recovery arm is issued during onboarding rather than at sign-up, and is
+null until then. A recovery key can be shown exactly once and is unrecoverable
+afterwards, so it needs a page that displays it, confirms it by re-entry, and
+can re-issue it until the user says they have written it down — none of which a
+sign-up API response can offer. Re-issuing invalidates the previous key, so
+only ever one is valid.
 
 ## Experimental vault lab
 
