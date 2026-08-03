@@ -49,17 +49,19 @@ ten-minute `Verification` row whose unwrapping key rides in a separate cookie.
 
 Still to do, in order:
 
-- **Password reset orphans the keyset.** `/reset-password` has no current
-  password, so the data key cannot be re-wrapped and the account keeps a keyset
-  sealed under a password nobody knows. Today that only costs the (empty)
-  encrypted set, but it **must** be resolved before the Prisma extension lands
-  or a reset becomes silent data loss. The recovery key is the intended way
-  through: `resetPasswordWithRecoveryKey` already exists and is tested, and
-  needs the reset flow to demand a recovery key.
-- **Onboarding UI**: `issueRecoveryKey` is built and tested but nothing calls
-  it, so no account has a recovery arm yet. Show the key once, confirm by
-  re-entry (not a checkbox), re-issue until confirmed, and stamp
-  `UserOnboarding` — which still has no writer.
+- **Password reset still orphans the keyset — next, and blocking.**
+  `/reset-password` has no current password, so the data key cannot be
+  re-wrapped and the account keeps a keyset sealed under a password nobody
+  knows. Today that only costs the (empty) encrypted set, but it **must** be
+  resolved before the Prisma extension lands or a reset becomes silent data
+  loss. Everything it needs now exists: `resetPasswordWithRecoveryKey` is built
+  and tested, and onboarding guarantees a recovery key to demand.
+- ~~**Onboarding UI**~~ — built. `/onboarding/recovery-key` reveals the key
+  once, confirms it by unwrapping the data key with it, re-issues until
+  confirmed, and stamps `UserOnboarding`. Gating is derived from the keyset's
+  recovery arm rather than the saved flag, so a keyset without one is caught
+  however the bookkeeping looks. Accounts with no keyset are backfilled at
+  sign-in, the only moment their password is in scope.
 - **The admin "set a password directly" feature** has the same orphaning
   problem as a reset. Decide whether it survives.
 - **Prisma client extension** + the declarative field list — the seam that

@@ -1,7 +1,8 @@
 import Link from "next/link";
 
+import { OnboardingGate } from "@/app/(app)/_components/onboarding-gate";
 import { UserMenu } from "@/app/(app)/_components/user-menu";
-import { requireSession } from "@billow/auth";
+import { getRecoveryKeyState, needsRecoveryKey, requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,18 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const session = await requireSession();
+  const recoveryKey = await getRecoveryKeyState(session.user.id).catch(() => null);
 
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
+      {/*
+        Only gates accounts that actually have a keyset. One that does not —
+        signed in before keysets existed, or a failed lookup — has nothing a
+        recovery key could protect, so sending it here would be a dead end.
+      */}
+      <OnboardingGate
+        needsRecoveryKey={needsRecoveryKey(recoveryKey)}
+      />
       <header className="border-b print:hidden">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-4 sm:px-8">
           <Link href="/dashboard" className="text-sm font-medium hover:text-muted-foreground">

@@ -7,8 +7,10 @@ import {
   beginSession,
   changePassword,
   createUserKeyset,
+  issueRecoveryKey,
   resumeSession,
   unlockWithPassword,
+  unlockWithRecoveryKey,
   type UserKeyset,
 } from "@billow/crypto";
 import { getPrisma } from "@billow/db";
@@ -56,7 +58,22 @@ export async function enrollUser(userId: string, password: string): Promise<Buff
  */
 export async function unlockDataKey(userId: string, password: string): Promise<Buffer | null> {
   const stored = await getPrisma().userKeyset.findUnique({ where: { userId } });
-  if (!stored) return null;
+  if (!stored) {
+    // Backfill. An account created before the keyset existed has none, and
+    // sign-in is the only moment its password is in scope — so it is the only
+    // moment one can be minted. Doing it here means every existing account
+    // acquires a keyset by simply signing in, with no migration and nothing
+    // for the user to do.
+    try {
+      return await enrollUser(userId, password);
+    } catch {
+      // Two concurrent sign-ins race for the same unique userId. Whichever
+      // lost re-reads the winner's row rather than failing the sign-in.
+      const raced = await getPrisma().userKeyset.findUnique({ where: { userId } });
+      if (!raced) return null;
+      return await unlockWithPassword(userId, raced as UserKeyset, password).catch(() => null);
+    }
+  }
 
   try {
     return await unlockWithPassword(userId, stored as UserKeyset, password);
@@ -203,6 +220,110 @@ export async function getDataKey(userId: string, sessionId: string): Promise<Buf
     if (error instanceof KeyHierarchyError) return null;
     throw error;
   }
+}
+
+export type RecoveryKeyState = {
+  /** False for an account that has never signed in since keysets existed. */
+  hasKeyset: boolean;
+  /**
+   * Whether a recovery key currently exists. Read from the keyset itself
+   * rather than inferred from `savedAt`, because that flag is bookkeeping and
+   * this is the fact: a keyset with no recovery arm cannot be recovered no
+   * matter what any timestamp claims.
+   */
+  hasRecoveryArm: boolean;
+  generatedAt: Date | null;
+  savedAt: Date | null;
+};
+
+/** True when the user still owes us a confirmed, working recovery key. */
+export function needsRecoveryKey(state: RecoveryKeyState | null): boolean {
+  if (!state?.hasKeyset) return false;
+  return !state.hasRecoveryArm || !state.savedAt;
+}
+
+export async function getRecoveryKeyState(userId: string): Promise<RecoveryKeyState> {
+  const prisma = getPrisma();
+  const [keyset, onboarding] = await Promise.all([
+    prisma.userKeyset.findUnique({ where: { userId }, select: { recoverySalt: true } }),
+    prisma.userOnboarding.findUnique({ where: { userId } }),
+  ]);
+
+  return {
+    hasKeyset: Boolean(keyset),
+    hasRecoveryArm: Boolean(keyset?.recoverySalt),
+    generatedAt: onboarding?.recoveryKeyGeneratedAt ?? null,
+    savedAt: onboarding?.recoveryKeySavedAt ?? null,
+  };
+}
+
+/**
+ * Mints a recovery key and returns it — the only time it is ever knowable.
+ * Replaces any previous one, so a user who abandoned the flow can start again;
+ * that also clears `recoveryKeySavedAt`, because a confirmation refers to the
+ * key that was confirmed and means nothing about its replacement.
+ */
+export async function issueRecoveryKeyFor(
+  userId: string,
+  dataKey: Buffer,
+): Promise<string | null> {
+  const prisma = getPrisma();
+  const stored = await prisma.userKeyset.findUnique({ where: { userId } });
+  if (!stored) return null;
+
+  const { keyset, recoveryKey } = await issueRecoveryKey(userId, stored as UserKeyset, dataKey);
+  const generatedAt = new Date();
+
+  await prisma.$transaction([
+    prisma.userKeyset.update({
+      where: { userId },
+      data: {
+        recoverySalt: keyset.recoverySalt,
+        dataKeyWrappedByRecoveryKey: keyset.dataKeyWrappedByRecoveryKey,
+      },
+    }),
+    prisma.userOnboarding.upsert({
+      where: { userId },
+      create: { userId, recoveryKeyGeneratedAt: generatedAt },
+      update: { recoveryKeyGeneratedAt: generatedAt, recoveryKeySavedAt: null },
+    }),
+  ]);
+
+  return recoveryKey;
+}
+
+/**
+ * Confirms the user actually holds the key, by using it.
+ *
+ * The whole key is required rather than a few groups of it. A partial check
+ * would have to compare against something stored, and the one thing that must
+ * never be stored is the recovery key — so "did they write it down" is only
+ * answerable by watching the key do its job. Unwrapping the data key with it
+ * proves possession and proves the key works, which a checkbox or a substring
+ * comparison proves neither of.
+ */
+export async function confirmRecoveryKeySaved(
+  userId: string,
+  candidate: string,
+): Promise<boolean> {
+  const prisma = getPrisma();
+  const stored = await prisma.userKeyset.findUnique({ where: { userId } });
+  if (!stored) return false;
+
+  try {
+    await unlockWithRecoveryKey(userId, stored as UserKeyset, candidate);
+  } catch (error) {
+    if (error instanceof KeyHierarchyError) return false;
+    throw error;
+  }
+
+  await prisma.userOnboarding.upsert({
+    where: { userId },
+    create: { userId, recoveryKeyGeneratedAt: new Date(), recoveryKeySavedAt: new Date() },
+    update: { recoveryKeySavedAt: new Date() },
+  });
+
+  return true;
 }
 
 export const dataKeyCookies = {
