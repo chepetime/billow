@@ -6,26 +6,12 @@ trusting a checkbox in either file.** Three items there were marked todo while
 already implemented (security headers, auth rate limiting, error-log
 retention) and were nearly rebuilt from scratch as a result.
 
-Shipped through **0.1.33** (i18n foundation). Both repos pushed, working tree
-clean.
+Shipped through **0.1.34** (experimental vault). Data classification (docs +
+the `data-classification` skill) shipped and is no longer listed here.
 
 ---
 
-## 1. Data classification: docs + a Claude skill
-
-Started, not written. The goal is that "which fields are sensitive" lives
-somewhere reviewable instead of dying in a code comment.
-
-- Classify every model in `packages/db/prisma/schema/` (17 models across
-  `auth.prisma`, `invoicing.prisma`, `platform.prisma`, `base.prisma`) as
-  public / internal / sensitive, with the reason, as a page in `apps/docs`
-  (`content/docs/*.mdx`, ordered by `content/docs/meta.json`).
-- Add a Claude skill so a new model or field cannot be added without being
-  classified — this is the control that stops the list rotting.
-
-Prerequisite for §2: the classification *is* the encryption boundary.
-
-## 2. Encrypt personal data so a DB dump is useless
+## 1. Encrypt personal data so a DB dump is useless
 
 **Decided:** recovery key generated at signup (the Bitwarden model).
 
@@ -36,17 +22,38 @@ against a stolen dump, a leaked backup, a volume snapshot, and casual
 snooping — not against a motivated operator. "The database is useless without
 the user", not "the admin can never see it".
 
-- Key hierarchy: per-user data key (DEK) wrapped by a key derived from the
-  password (KEK), plus a second wrap under the recovery key. A password
-  *change* then re-wraps the DEK instead of re-encrypting every row.
-- The DEK only exists while signed in — never at rest server-side.
-- Implement through a **Prisma client extension**, not encrypt/decrypt at each
-  call site. Call-site crypto is where these designs leak: one forgotten query
-  writes plaintext into an "encrypted" column and nothing notices.
-- `packages/email/src/crypto.ts` already does AES-256-GCM + HKDF and is the
-  precedent to follow.
-- Migration is cheap — `BankAccount`, `UserProfile` and `ClientCompany` are
-  24 kB each in production. The risk is entirely in the key design.
+**Built (`@billow/crypto`, 21 tests) — do not rebuild:** the whole key
+lifecycle. `createUserKeyset` / `unlockWithPassword` / `unlockWithRecoveryKey` /
+`changePassword` / `resetPasswordWithRecoveryKey` / `beginSession` /
+`resumeSession`. Persisted by `UserKeyset`, `UserOnboarding` and
+`Session.dataKeyWrappedBySessionKey` (migration
+`20260803174343_add_user_key_hierarchy`, additive). Documented under "Key
+hierarchy" in `apps/docs/content/docs/data-classification.mdx`.
+
+Session custody was the open question and is **decided**: the data key is
+re-wrapped per session under a random 256-bit key carried in an httpOnly
+cookie, with the wrap on the session row. That is what lets a *server
+component* decrypt — a client-held key would have forced every encrypted read
+into a client fetch. It is random, not derived: this path runs on every
+request, and scrypt there would cost tens of ms per render.
+
+Still to do, in order:
+
+- **Wire it into better-auth.** `hooks.before`/`after` take an `AuthMiddleware`
+  whose context carries `ctx.path` and `ctx.body` — verified present in 1.6.25
+  — so `/sign-up/email` can mint a keyset and `/sign-in/email` can unwrap and
+  start the session, both while the plaintext password is in scope. Nothing
+  else in the request lifecycle ever sees it.
+- **Onboarding UI**: show the recovery key once, confirm by re-entry (not a
+  checkbox), and stamp `UserOnboarding`.
+- **A `getDataKey()` accessor** for server components, reading the cookie and
+  the session row.
+- **Prisma client extension** + the declarative field list — the seam that
+  makes crypto impossible to forget rather than merely available. Call-site
+  crypto is where these designs leak: one forgotten query writes plaintext into
+  an "encrypted" column and nothing notices.
+- Migration of existing rows is cheap — `BankAccount`, `UserProfile` and
+  `ClientCompany` are 24 kB each in production.
 
 ### Scope: build the mechanism, not the field list
 
@@ -81,25 +88,20 @@ invoicing app to ask it of.
 
 ### Onboarding state (needed by the recovery key)
 
-A recovery key is worthless if the user never saved it, and there is currently
-nothing that records whether they did. Track per-user onboarding state —
-starting with "generated a recovery key" and "confirmed they saved it" as
-separate facts, because generating one and writing it down are different
-events and only the second means anything.
+A recovery key is worthless if the user never saved it. "Generated one" and
+"confirmed they saved it" are separate facts, because only the second means
+anything.
 
-Design notes:
+The `UserOnboarding` model exists — 1:1 on `userId`, nullable
+`recoveryKeyGeneratedAt` / `recoveryKeySavedAt`, timestamps rather than
+booleans so "when" is answerable too. **Nothing writes to it yet.** What
+remains is the flow:
 
-- Prefer a `UserOnboarding` model keyed 1:1 on `userId` with explicit nullable
-  `DateTime` columns (`recoveryKeyGeneratedAt`, `recoveryKeySavedAt`) over
-  booleans. A timestamp answers "did they" *and* "when", and a JSON blob of
-  flags would escape the schema and the classification doc.
-- Confirmation should require the user to re-enter part of the key, not just
-  tick a box. A checkbox records that they clicked, not that they have it.
-- Build it **with** the key hierarchy, not before: what is worth recording
-  depends on what the flow ends up being, and a table shipped early will be
-  migrated immediately.
-- Classify it in `apps/docs/content/docs/data-classification.mdx` when added —
-  it is internal, not sensitive, and holds no key material.
+- Confirmation must require re-entering part of the key, not ticking a box. A
+  checkbox records that they clicked, not that they have it.
+- If the flow turns out to need more than these two facts, add columns rather
+  than a JSON blob of flags — a blob escapes both the schema and the
+  classification doc.
 
 ### Knock-on effects to handle
 
@@ -111,7 +113,7 @@ Design notes:
 - Backup export runs as the user, so it writes plaintext — intended, but say
   so in the docs.
 
-## 3. Finish i18n
+## 2. Finish i18n
 
 Foundation is in (cookie + `Accept-Language`, stored choice wins, picker under
 Settings → Account, 9 negotiation tests). Theme already followed the OS and
@@ -121,14 +123,14 @@ needed no change.
   translated; everything else is English literals.
 - Server components use `getTranslations`, client ones `useTranslations`.
 
-## 4. Operations gaps
+## 3. Operations gaps
 
 - **Audit log** — who changed what, distinct from the error log.
 - **Structured logging** — currently `console.*`.
 - Both are absent, and together they are what makes an incident
   reconstructable.
 
-## 5. Shrink the image (~225 MB of 495 MB)
+## 4. Shrink the image (~225 MB of 495 MB)
 
 The Prisma CLI ships purely so `migrate deploy` can run at boot. It cannot be
 trimmed further: the CLI bundle eagerly requires `@prisma/studio-core`
@@ -140,7 +142,7 @@ Two real options, both architectural: an init container that carries the CLI,
 or applying migrations through `pg` and owning the `_prisma_migrations`
 bookkeeping ourselves.
 
-## 6. Smaller, well-scoped
+## 5. Smaller, well-scoped
 
 - Rate-limit counters are in-memory, so they reset on every deploy and briefly
   reopen the brute-force window. Needs a `rateLimit` model + migration.
@@ -155,7 +157,7 @@ bookkeeping ourselves.
 - Passkeys, once the app is reached over HTTPS. WebAuthn needs a secure
   context and Umbrel serves plain HTTP.
 
-## 7. Not code
+## 6. Not code
 
 - GitHub repo description and topics were drafted but never applied.
 - Extract the platform layer into a reusable template — the long-term goal
