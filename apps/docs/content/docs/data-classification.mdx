@@ -37,10 +37,12 @@ documented next to the field and reviewed.
 | auth | `User` | Sensitive | Account identity and contact fields (`name`, `email`, `username`, image), role and ban state. |
 | auth | `Apikey` | Sensitive | Authentication credential material, permissions, and usage information. The key is hashed but remains security-sensitive. |
 | auth | `TwoFactor` | Sensitive | TOTP secret and backup codes are authentication credentials. |
-| auth | `Session` | Sensitive | Bearer session token, IP address, user agent, and impersonation relationship. |
+| auth | `Session` | Sensitive | Bearer session token, IP address, user agent, impersonation relationship, and the data key wrapped under this session's cookie key. |
 | auth | `Account` | Sensitive | Password hash and third-party OAuth tokens, scopes, and identifiers. |
 | auth | `Verification` | Sensitive | Password-reset and verification tokens and their identifiers. |
 | auth | `VaultEntry` | Sensitive | Experimental user-encrypted note. Its ciphertext must never be substituted for another owner, and its plaintext/key are never stored. |
+| auth | `UserKeyset` | Sensitive | The wrapped forms of a user's data key, plus the KDF salts they belong to. Nothing here yields the data key without the password or recovery key, but holding a wrap is what makes an offline attack on a weak password possible. Never return it from an endpoint or include it in a backup. |
+| auth | `UserOnboarding` | Internal | Timestamps recording that a recovery key was generated and that the user confirmed saving it. No key material, and disclosure reveals nothing beyond account activity. |
 | invoicing | `UserProfile` | Sensitive | Legal identity, address, tax ID, work identity, and contact information. |
 | invoicing | `BankAccount` | Sensitive | Bank account, routing, SWIFT/IBAN/CLABE, holder, and bank-contact data. |
 | invoicing | `ClientCompany` | Sensitive | Client identity, billing address, email, contact, and notes reveal a user's commercial relationships. |
@@ -50,7 +52,7 @@ documented next to the field and reviewed.
 
 ## Encryption boundary
 
-The planned field-level-encryption design protects a stolen database dump,
+The field-level-encryption design protects a stolen database dump,
 backup, or volume snapshot with a user-held key. It cannot protect against a
 motivated self-hosted administrator who changes the running application to
 capture a key at sign-in.
@@ -76,6 +78,40 @@ What any downstream app needs to weigh: an encrypted column cannot be searched
 or sorted in SQL, and a list view cannot render it without the signed-in user's
 key. Sensitivity is a property of the data; encryption is a tradeoff against
 those behaviours, and the two decisions are separate.
+
+## Key hierarchy
+
+`@billow/crypto` holds the key lifecycle that field-level encryption will use.
+There is one **data key** per user. It is random, it never changes, and it is
+never stored in usable form — only wrapped, under keys derived from secrets the
+server does not keep.
+
+| Wrap | Unwrapped by | Lives in | Exists so that |
+| --- | --- | --- | --- |
+| `UserKeyset.dataKeyWrappedByPassword` | scrypt KEK from the account password | database | Signing in reaches the data key. |
+| `UserKeyset.dataKeyWrappedByRecoveryKey` | scrypt KEK from the recovery key issued at signup | database | A forgotten password is recoverable rather than fatal. |
+| `Session.dataKeyWrappedBySessionKey` | a random 256-bit key in an httpOnly cookie | database + browser | A request — including a server component — can reach the data key without the password. |
+
+Two consequences follow from the data key never changing. A password change
+re-wraps 32 bytes instead of re-encrypting every row, so it is instant and
+cannot half-fail. And a password reset **without** the recovery key cannot
+restore access: the data key would remain wrapped under a secret nobody holds.
+The recovery key is therefore the documented way through a forgotten password,
+and `UserOnboarding` exists to record whether the user actually has one.
+
+Every wrap is bound by GCM associated data to both its owner and its slot, so a
+ciphertext cannot be moved between accounts or between the three arms. All
+unwrap failures return a single error: which half of a guess was correct is not
+something to report.
+
+The session key is random rather than derived. That is deliberate — this is the
+path every request takes, and running scrypt on each one would cost tens of
+milliseconds per render. It also means the two halves are useless apart: the
+server holds a wrap it cannot open, and the cookie opens nothing without the
+session row it belongs to.
+
+API-key callers have no cookie and so cannot decrypt. That is the correct
+outcome rather than a gap: a key stored in a script is not the signed-in user.
 
 ## Experimental vault lab
 

@@ -25,8 +25,56 @@ model User {
   clientCompanies ClientCompany[]
   invoices        Invoice[]
   vaultEntry      VaultEntry?
+  keyset          UserKeyset?
+  onboarding      UserOnboarding?
 
   @@map("user")
+}
+
+/// The wrapped forms of one user's data key — the key field-level encryption
+/// will use. No column here yields that key on its own: each is the data key
+/// sealed under a secret the server never stores, either the account password
+/// or the recovery key issued at signup. Two arms exist so that changing a
+/// password re-wraps 32 bytes instead of re-encrypting every row, and so that
+/// a forgotten password is recoverable rather than fatal.
+///
+/// Sensitive, and never returned by any endpoint or included in a backup:
+/// holding a wrap is precisely what makes an offline guessing attack against a
+/// weak password possible. The salts are not secret by design — they are here
+/// because they are meaningless apart from the wrap they belong to.
+///
+/// Not itself encrypted at the field level: this model *is* the encryption
+/// mechanism, and encrypting it would need a key that does not exist yet.
+model UserKeyset {
+  id                          String   @id @default(cuid())
+  userId                      String   @unique
+  passwordSalt                String
+  dataKeyWrappedByPassword    String
+  recoverySalt                String
+  dataKeyWrappedByRecoveryKey String
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// The one-time steps that must happen before a user's data can be encrypted.
+///
+/// Internal: it records that events occurred and when, holds no key material,
+/// and discloses nothing beyond account activity.
+///
+/// Timestamps rather than booleans, because "did they" and "when" are both
+/// worth answering and null is an honest "not yet". Generating a recovery key
+/// and confirming it was written down are separate columns deliberately —
+/// only the second means the user can actually recover, and a checkbox would
+/// record a click rather than possession.
+model UserOnboarding {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  recoveryKeyGeneratedAt DateTime?
+  recoveryKeySavedAt     DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Experimental per-user encrypted payload. `ciphertext` contains its KDF
@@ -102,6 +150,13 @@ model Session {
   userAgent String?
   impersonatedBy String?
   userId    String
+  /// The user's data key, sealed under a random key that exists only in this
+  /// session's httpOnly cookie. Storing it is safe because it is inert without
+  /// that cookie, and it is what lets a server component reach the data key
+  /// without the password and without the server holding anything usable at
+  /// rest. Null for sessions predating the keyset and for API-key callers,
+  /// which carry no cookie and so cannot decrypt.
+  dataKeyWrappedBySessionKey String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

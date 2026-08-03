@@ -32,10 +32,14 @@ production image.
 
 ## Adding a workspace package
 
-The `Dockerfile` has explicit per-package `COPY` lines in three places
-(manifests for the deps stage, sources for the builder, `src` for the runner).
-A new package that is not added to all of them builds locally and fails only
-in the image, with `Module not found`.
+The `Dockerfile` has explicit per-package `COPY` lines in three places: the
+manifest and the pruned `node_modules` for the deps stage, and the sources for
+the builder. A new package that is not added to all three builds locally and
+fails only in the image, with `Module not found`.
+
+The runner stage needs nothing: it unpacks Next's standalone bundle, so tracing
+decides what ships. That was not always true — do not re-add a per-package
+`COPY` there on the strength of an older note.
 
 Package manifests must stay mode 644. Editing one through `mktemp` + `mv`
 silently leaves it at 600, and `COPY` carries that into the image, where the
