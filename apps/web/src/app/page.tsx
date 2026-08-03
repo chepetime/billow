@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Check,
-  FileText,
-  Landmark,
-  Send,
+  Container,
+  Database,
+  ShieldCheck,
 } from "lucide-react";
 
 import { buttonVariants } from "@billow/shadcn/components/button";
@@ -21,22 +21,50 @@ export const dynamic = "force-dynamic";
 
 const capabilities = [
   {
-    icon: FileText,
-    title: "Professional invoices",
+    icon: ShieldCheck,
+    title: "Accounts, already finished",
     description:
-      "Create clear invoices with your details, payment terms, and a consistent number sequence.",
+      "Email and username sign-in, TOTP two-factor with backup codes, API keys, session management, admin roles and impersonation.",
   },
   {
-    icon: Send,
-    title: "Ready to send",
+    icon: Database,
+    title: "A typed data layer",
     description:
-      "Keep each invoice moving from draft to sent, paid, or void without losing the history.",
+      "Prisma against PostgreSQL, with migrations applied at container start, schema-validated forms, and workspace backup and restore.",
   },
   {
-    icon: Landmark,
-    title: "Payment details included",
+    icon: Container,
+    title: "Built to be operated",
     description:
-      "Store your bank details once and give every client exactly what they need to pay you.",
+      "One Docker image, a health endpoint, a persisted error log, and CI that boots the built image and smoke-tests it before release.",
+  },
+] as const;
+
+/**
+ * Major versions only. Patch numbers on a landing page are stale within a
+ * fortnight and nobody is choosing a starter on them; the major is the part
+ * that actually tells you what you are getting into.
+ */
+const stack = [
+  {
+    layer: "Interface",
+    items: ["Next.js 16 (App Router, RSC)", "React 19", "TypeScript 5", "Tailwind CSS 4", "shadcn/ui on Base UI"],
+  },
+  {
+    layer: "Data",
+    items: ["PostgreSQL 16", "Prisma 7", "Zod 4", "React Hook Form"],
+  },
+  {
+    layer: "Identity",
+    items: ["better-auth", "TOTP two-factor", "API keys", "Admin and impersonation"],
+  },
+  {
+    layer: "Platform",
+    items: ["next-intl", "next-themes", "Resend email", "File uploads", "Health and error log"],
+  },
+  {
+    layer: "Build and ship",
+    items: ["pnpm workspaces", "Turborepo", "Vitest", "Playwright", "Docker on Node 24", "GitHub Actions to GHCR"],
   },
 ] as const;
 
@@ -62,7 +90,7 @@ export default async function Home() {
   ]);
   const name = metadata?.name ?? "Billow";
   const tagline =
-    metadata?.tagline ?? "Personal invoices without the spreadsheet drift.";
+    metadata?.tagline ?? "A self-hosted app with the boring parts already built.";
   const registrationOpen =
     userCount !== null &&
     canRegister(userCount, registrationEnabled);
@@ -107,14 +135,25 @@ export default async function Home() {
       <section className="border-b">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 pt-20 pb-12 text-center sm:px-8 sm:pt-28">
           <p className="mb-5 text-sm font-medium text-muted-foreground">
-            Invoicing for independent work
+            A foundation for self-hosted apps
           </p>
           <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-balance sm:text-6xl">
-            Send invoices that make getting paid feel straightforward.
+            Everything before the interesting part, already done.
           </h1>
+          {/*
+            The tagline is operator-set metadata, so it stands as its own line
+            rather than being glued to the front of the sentence below. Joined,
+            an unexpected tagline turns the whole paragraph into a run-on that
+            contradicts itself — which is exactly what a stale seeded value did.
+          */}
           <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-            {tagline} {name} gives your invoices a dependable home from first
-            draft through payment.
+            {tagline}
+          </p>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+            {name} is a full-stack starter for software you run yourself:
+            accounts, two-factor, an API, migrations, backups, a Docker image
+            and a release pipeline — so the only thing left to build is
+            whatever you actually wanted to build.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -134,71 +173,37 @@ export default async function Home() {
             <div className="flex items-center justify-between border-b px-5 py-3 sm:px-6">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
-                Invoice workspace
+                The stack
               </div>
-              <span className="text-xs text-muted-foreground">July 2026</span>
+              <span className="text-xs text-muted-foreground">
+                TypeScript end to end
+              </span>
             </div>
-            <div className="grid divide-y sm:grid-cols-[1.25fr_0.75fr] sm:divide-x sm:divide-y-0">
-              <div className="p-5 sm:p-6">
-                <div className="mb-6 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">
-                      INVOICE
-                    </p>
-                    <p className="mt-1 text-xl font-semibold">#INV-024</p>
-                  </div>
-                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                    Paid
-                  </span>
+            <dl className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:grid-cols-5">
+              {stack.map(({ layer, items }) => (
+                <div key={layer} className="p-5 sm:p-6">
+                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {layer}
+                  </dt>
+                  <dd>
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </dd>
                 </div>
-                <div className="space-y-3">
-                  {[
-                    ["Product design", "$1,800.00"],
-                    ["Development support", "$950.00"],
-                    ["Project handoff", "$250.00"],
-                  ].map(([item, amount]) => (
-                    <div
-                      key={item}
-                      className="flex items-center justify-between border-b pb-3 text-sm"
-                    >
-                      <span>{item}</span>
-                      <span className="font-medium">{amount}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 flex items-center justify-between text-sm font-semibold">
-                  <span>Total</span>
-                  <span>$3,000.00 USD</span>
-                </div>
-              </div>
-              <div className="flex flex-col justify-between bg-muted/30 p-5 sm:p-6">
-                <div>
-                  <p className="text-sm font-medium">Invoice overview</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    See each invoice, its status, and the amount due at a glance.
-                  </p>
-                </div>
-                <dl className="mt-8 grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground">Outstanding</dt>
-                    <dd className="mt-1 text-lg font-semibold">$1,240</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">This month</dt>
-                    <dd className="mt-1 text-lg font-semibold">$8,450</dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
+              ))}
+            </dl>
           </div>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-20">
         <div className="max-w-xl">
-          <p className="text-sm font-medium text-muted-foreground">Everything in one place</p>
+          <p className="text-sm font-medium text-muted-foreground">What comes with it</p>
           <h2 className="mt-3 text-3xl font-semibold text-balance sm:text-4xl">
-            Less invoice admin. More confidence in every payment.
+            The scaffolding every app needs and nobody enjoys writing twice.
           </h2>
         </div>
 
@@ -220,9 +225,10 @@ export default async function Home() {
 
         <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-8 text-sm text-muted-foreground">
           {[
-            "Clear payment terms",
-            "Printable invoice records",
-            "A focused personal workspace",
+            "A pnpm and Turborepo monorepo",
+            "Tested with Vitest and Playwright",
+            "Ships as a single Docker image",
+            "Runs on Umbrel, or any Docker host",
           ].map((item) => (
             <span key={item} className="flex items-center gap-2">
               <Check aria-hidden="true" className="size-4 text-emerald-600 dark:text-emerald-400" />
@@ -230,13 +236,22 @@ export default async function Home() {
             </span>
           ))}
         </div>
+
+        <p className="mt-10 max-w-2xl text-sm leading-6 text-muted-foreground">
+          The signed-in app ships with a small invoicing workspace. It is a
+          worked example of the platform rather than the point — a real domain
+          wired through the same auth, validation, backups and API conventions,
+          there to be replaced by yours.
+        </p>
       </section>
 
       <footer className="border-t bg-muted/30">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-8 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <div>
             <p className="font-medium text-foreground">{name}</p>
-            <p className="mt-1 text-muted-foreground">Personal invoicing, kept simple.</p>
+            <p className="mt-1 text-muted-foreground">
+              A self-hosted starter, kept boring on purpose.
+            </p>
           </div>
           <div className="flex items-center gap-4 text-muted-foreground">
             <Link href="/" className="hover:text-foreground">

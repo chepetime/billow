@@ -13,7 +13,7 @@ const pool = new Pool({ connectionString });
 const billowMetadata = {
   appId: "billow",
   name: "Billow",
-  tagline: "Personal invoices without the spreadsheet drift.",
+  tagline: "A self-hosted app with the boring parts already built.",
   version: "0.1.6",
   dockerImage: "ghcr.io/chepetime/billow:v0.1.6",
   repositoryUrl: "https://github.com/getumbrel/umbrel-community-app-store",

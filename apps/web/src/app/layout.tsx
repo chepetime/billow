@@ -7,7 +7,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Billow",
-  description: "Personal invoices backed by Next.js, Prisma, and Postgres.",
+  description:
+    "A self-hosted app starter built on Next.js, React, Prisma, Postgres and better-auth.",
 };
 
 export default async function RootLayout({

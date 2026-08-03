@@ -3,10 +3,15 @@ title: Overview
 description: Internal documentation for Billow — the primary source of truth for architecture, conventions, package responsibilities, and operations.
 ---
 
-Billow is a personal invoicing app for [Umbrel](https://umbrel.com), and in
-practice a **base setup for self-hosted apps**: first-user registration,
-sessions, two-factor auth, usernames, personal API keys, health diagnostics, and
-tag-driven releases.
+Billow is a **base setup for self-hosted apps**, packaged for
+[Umbrel](https://umbrel.com): first-user registration, sessions, two-factor
+auth, usernames, personal API keys, health diagnostics, and tag-driven
+releases — the work every self-hosted app needs before it can do anything
+interesting.
+
+The signed-in app ships a small invoicing workspace. That is a **worked example
+of the platform, not the product**: a real domain wired through the same auth,
+validation, backup and API conventions, there to be replaced by yours.
 
 This site is the **primary source of truth**. `AGENTS.md` and `README.md` in the
 repository root stay short and point here.

@@ -34,7 +34,7 @@ export default async function RegisterPage() {
                 Create your Billow account
               </h1>
               <p className="text-sm text-muted-foreground">
-                Create an account for your personal invoice workspace.
+                The first account owns this installation and administers it.
               </p>
             </div>
 

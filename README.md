@@ -1,7 +1,23 @@
 # Billow
 
-Billow is a personal invoices app for Umbrel. It uses Next.js App Router,
-React Server Components, Tailwind, shadcn/ui, Prisma, and Postgres.
+Billow is a base setup for self-hosted apps, packaged for Umbrel. It exists so
+that the parts every such app needs — accounts, two-factor, an API, migrations,
+backups, a Docker image, a release pipeline — are already built and tested, and
+the only thing left is the domain you actually care about.
+
+## Stack
+
+| Layer | What it uses |
+| --- | --- |
+| Interface | Next.js 16 (App Router, React Server Components), React 19, TypeScript 5, Tailwind CSS 4, shadcn/ui on Base UI |
+| Data | PostgreSQL 16, Prisma 7, Zod 4, React Hook Form |
+| Identity | better-auth — email and username sign-in, TOTP two-factor with backup codes, personal API keys, admin roles and impersonation |
+| Platform | next-intl, next-themes, Resend email, file uploads, workspace backup/restore, health endpoint, persisted error log |
+| Build and ship | pnpm workspaces, Turborepo, Vitest, Playwright, Docker on Node 24, GitHub Actions publishing to GHCR |
+
+The signed-in app ships a small invoicing workspace. It is a worked example of
+the platform rather than the point — a real domain wired through the same auth,
+validation, backup and API conventions, there to be replaced by yours.
 
 ## Local Development
 
