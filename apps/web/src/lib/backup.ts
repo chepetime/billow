@@ -207,9 +207,22 @@ export function uploadEntryName(index: number): string {
   return `files/${String(index).padStart(4, "0")}`;
 }
 
-/** Reads the signed-in user's domain data into a JSON-serialisable snapshot. */
-export async function exportWorkspace(userId: string): Promise<BackupPayload> {
-  const prisma = getPrisma();
+/**
+ * Reads the signed-in user's domain data into a JSON-serialisable snapshot.
+ *
+ * The client is passed in rather than resolved here so this module keeps no
+ * dependency on the auth stack — it is pure enough to unit-test, and importing
+ * the session machinery to fetch a client would have made that impossible.
+ *
+ * Callers should pass the encrypted-aware client: a user-initiated export is
+ * plaintext by design, which the data-classification docs state, and the plain
+ * client would write ciphertext nobody can restore from.
+ */
+export async function exportWorkspace(
+  userId: string,
+  client: Pick<ReturnType<typeof getPrisma>, "userProfile" | "bankAccount" | "clientCompany" | "invoice" | "upload"> = getPrisma(),
+): Promise<BackupPayload> {
+  const prisma = client;
 
   const [userProfiles, bankAccounts, clientCompanies, invoices, uploads] =
     await Promise.all([

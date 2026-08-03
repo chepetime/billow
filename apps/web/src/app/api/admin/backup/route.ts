@@ -12,6 +12,7 @@ import {
   uploadEntryName,
 } from "@/lib/backup";
 import { recordError } from "@/lib/error-log";
+import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 import { readObject } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,8 @@ export async function GET() {
 
   try {
     const userId = session.user.id;
-    const payload = await exportWorkspace(userId);
+    const { prisma } = await getWorkspacePrisma();
+    const payload = await exportWorkspace(userId, prisma);
     const records = await exportUploadRecords(userId);
     const manifest = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
 

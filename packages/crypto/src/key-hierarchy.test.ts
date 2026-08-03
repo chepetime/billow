@@ -5,6 +5,9 @@ import {
   beginSession,
   changePassword,
   createUserKeyset,
+  decryptField,
+  encryptField,
+  isEncryptedField,
   issueRecoveryKey,
   resetPasswordWithRecoveryKey,
   resumeSession,
@@ -266,5 +269,44 @@ describe("session re-wrap", () => {
     await expect(
       resumeSession(USER, keyset.dataKeyWrappedByPassword, session.sessionKey),
     ).rejects.toThrow(KeyHierarchyError);
+  });
+});
+
+describe("field encryption", () => {
+  const dataKey = Buffer.alloc(32, 7);
+
+  it("round-trips a value under the data key", async () => {
+    const sealed = encryptField(dataKey, "BankAccount.iban", "GB33BUKB20201555555555");
+
+    expect(sealed).not.toContain("GB33");
+    expect(decryptField(dataKey, "BankAccount.iban", sealed)).toBe("GB33BUKB20201555555555");
+  });
+
+  it("gives a different ciphertext every write, so equal values do not look equal", () => {
+    const a = encryptField(dataKey, "BankAccount.iban", "same");
+    const b = encryptField(dataKey, "BankAccount.iban", "same");
+
+    expect(a).not.toEqual(b);
+  });
+
+  it("refuses a value moved to another field", () => {
+    const sealed = encryptField(dataKey, "BankAccount.iban", "GB33BUKB20201555555555");
+
+    expect(() => decryptField(dataKey, "BankAccount.swift", sealed)).toThrow(KeyHierarchyError);
+  });
+
+  it("refuses another user's data key", () => {
+    const sealed = encryptField(dataKey, "UserProfile.taxId", "TAX-1");
+
+    expect(() => decryptField(Buffer.alloc(32, 9), "UserProfile.taxId", sealed)).toThrow(
+      KeyHierarchyError,
+    );
+  });
+
+  it("recognises its own ciphertext and nothing else", () => {
+    expect(isEncryptedField(encryptField(dataKey, "UserProfile.taxId", "TAX-1"))).toBe(true);
+    // Plaintext written before encryption shipped must be readable as itself.
+    expect(isEncryptedField("TAX-1")).toBe(false);
+    expect(isEncryptedField("enc.v1.not-really")).toBe(false);
   });
 });

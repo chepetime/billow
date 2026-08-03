@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./generated/prisma/client.ts",
-    "./enums": "./generated/prisma/enums.ts"
+    "./enums": "./generated/prisma/enums.ts",
+    "./field-encryption": "./src/field-encryption.ts"
   },
   "scripts": {
     "build": "prisma generate",
@@ -16,6 +17,7 @@
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
+    "@billow/crypto": "workspace:*",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "dotenv": "^17.4.2",

@@ -198,3 +198,23 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+/// Rate-limit counters, in the shape BetterAuth's database storage expects
+/// (`key`, `count`, `lastRequest`). Also backs the limiter on this app's own
+/// scrypt-bearing routes, which BetterAuth's limiter does not cover because it
+/// only sees `/api/auth/*`.
+///
+/// Internal: counters and opaque bucket keys. A key can embed a user id or an
+/// IP address, so it is not public, but it holds no credential or content.
+///
+/// Exists because in-memory counters reset on every restart, and this app
+/// restarts on every update — briefly reopening the brute-force window each
+/// time it is deployed.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rateLimit")
+}

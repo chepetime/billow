@@ -2,6 +2,7 @@ import "server-only";
 
 import { recordError } from "@/lib/error-log";
 import { getPrisma } from "@billow/db";
+import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -66,7 +67,9 @@ export async function getInvoiceById(id: number, userId: string) {
 
 export async function getInvoiceWorkspace(userId: string) {
   try {
-    const prisma = getPrisma();
+    // Encrypted-aware: bank and profile fields come back readable when this
+    // request can reach the data key, and as ciphertext when it cannot.
+    const { prisma } = await getWorkspacePrisma();
     const [
       metadata,
       userProfiles,

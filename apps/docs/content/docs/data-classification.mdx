@@ -42,6 +42,7 @@ documented next to the field and reviewed.
 | auth | `Verification` | Sensitive | Password-reset and verification tokens and their identifiers. Also holds the short-lived `data-key-pending:<userId>` wrap that carries a data key across two-factor verification; that value is inert without the matching cookie and is deleted as soon as it is claimed. |
 | auth | `VaultEntry` | Sensitive | Experimental user-encrypted note. Its ciphertext must never be substituted for another owner, and its plaintext/key are never stored. |
 | auth | `UserKeyset` | Sensitive | The wrapped forms of a user's data key, plus the KDF salts they belong to. Nothing here yields the data key without the password or recovery key, but holding a wrap is what makes an offline attack on a weak password possible. Never return it from an endpoint or include it in a backup. |
+| auth | `RateLimit` | Internal | Counters and opaque bucket keys. A key can embed a user id or an IP address, so it is not public, but it holds no credential or content. |
 | auth | `UserOnboarding` | Internal | Timestamps recording that a recovery key was generated and that the user confirmed saving it. No key material, and disclosure reveals nothing beyond account activity. |
 | invoicing | `UserProfile` | Sensitive | Legal identity, address, tax ID, work identity, and contact information. |
 | invoicing | `BankAccount` | Sensitive | Bank account, routing, SWIFT/IBAN/CLABE, holder, and bank-contact data. |
@@ -57,12 +58,30 @@ backup, or volume snapshot with a user-held key. It cannot protect against a
 motivated self-hosted administrator who changes the running application to
 capture a key at sign-in.
 
-The following fields are established candidates for encryption:
+The following fields are **encrypted** as of 0.1.38, through the Prisma client
+extension in `packages/db/src/field-encryption.ts`:
 
 - `BankAccount.accountNumber`, `iban`, `clabe`, `swift`, `routingNumber`,
   `institutionNumber`, `transitNumber`, `accountHolderName`, and
   `accountHolderAddress`.
 - `UserProfile.taxId` and `address`.
+
+Adding a field to `ENCRYPTED_FIELDS` is the entire change — no call site moves.
+Each value is sealed under the user's data key with `Model.field` bound as
+associated data, so a ciphertext cannot be moved between columns, and a fresh
+IV per write means two rows holding the same value do not look alike.
+
+Three consequences worth stating plainly:
+
+- **There is no deploy-time migration, and there cannot be.** The server holds
+  no data keys, so existing plaintext can only be sealed while its owner is
+  signed in. The backfill therefore runs at sign-in and is idempotent.
+- **Plaintext stays readable.** A value that is not in the `encv1.` envelope is
+  returned as-is, so enabling encryption never made an existing row unreadable.
+- **A caller with no data key sees ciphertext.** API-key callers have no cookie
+  and so no key, by design: a key stored in a script is not the signed-in user.
+  A value that fails to decrypt is reported as `null` rather than throwing, so
+  one unreadable column cannot take down a page.
 
 `User.email`, `username`, foreign keys, timestamps, `Invoice.invoiceNumber`,
 and installation configuration remain plaintext because they are needed for

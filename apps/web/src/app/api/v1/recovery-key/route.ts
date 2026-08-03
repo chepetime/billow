@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getDataKey, getSession, issueRecoveryKeyFor } from "@billow/auth";
+import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 
@@ -23,6 +24,12 @@ export async function POST(request: Request) {
 
   const session = await getSession();
   if (!session) return error("Sign in to generate a recovery key.", 401);
+
+  // scrypt runs below; throttle before spending it.
+  const limit = await consumeRateLimit(`recovery-key:issue:${session.user.id}`, 5, 300);
+  if (!limit.allowed) {
+    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+  }
 
   const dataKey = await getDataKey(session.user.id, session.session.id);
   if (!dataKey) {

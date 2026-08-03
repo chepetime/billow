@@ -15,6 +15,7 @@ import {
   type UserKeyset,
 } from "@billow/crypto";
 import { getPrisma } from "@billow/db";
+import { backfillEncryptedFields } from "@billow/db/field-encryption";
 
 /**
  * The session key. httpOnly so no script can read it, and paired with a wrap
@@ -33,10 +34,20 @@ export const DATA_KEY_COOKIE = "billow.data_key";
 const PENDING_COOKIE = "billow.data_key_pending";
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Matches better-auth's own session lifetime (7 days). Without a maxAge this
+ * is a browser-session cookie while the session cookie beside it is
+ * persistent, so closing the browser leaves the user signed in with no data
+ * key — and the restore gate then reads that as a locked-out account and
+ * demands their recovery key on every browser restart.
+ */
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax",
   path: "/",
+  maxAge: SESSION_MAX_AGE_SECONDS,
 } as const;
 
 function pendingIdentifier(userId: string) {
@@ -145,6 +156,16 @@ export async function openSessionDataKey(
     data: { dataKeyWrappedBySessionKey },
   });
 
+  // Rows written before encryption shipped can only be sealed while their
+  // owner is signed in — the server holds no data keys otherwise — so this is
+  // the one moment it can happen. Never allowed to fail the sign-in: the
+  // fields stay plaintext and the next sign-in tries again.
+  try {
+    await backfillEncryptedFields(userId, dataKey);
+  } catch (error) {
+    console.error("[auth] encrypted-field backfill failed:", error);
+  }
+
   return sessionKey;
 }
 
@@ -237,6 +258,14 @@ export type RecoveryKeyState = {
   savedAt: Date | null;
   /** Whether this request can actually reach the data key right now. */
   dataKeyAvailable: boolean;
+  /**
+   * Whether sign-in managed to wrap a data key for this session. This is the
+   * honest orphan signal: sign-in writes the wrap only when the password
+   * opened the keyset, so its absence means the password no longer does. A
+   * missing *cookie* means something far more ordinary — cleared cookies, a
+   * different browser — and must not be mistaken for a lockout.
+   */
+  sessionHasDataKeyWrap: boolean;
 };
 
 /** True when the user still owes us a confirmed, working recovery key. */
@@ -259,7 +288,7 @@ export function needsRecoveryKey(state: RecoveryKeyState | null): boolean {
  */
 export function needsAccessRestored(state: RecoveryKeyState | null): boolean {
   if (!state?.hasKeyset || !state.hasRecoveryArm) return false;
-  return !state.dataKeyAvailable;
+  return !state.sessionHasDataKeyWrap;
 }
 
 /**
@@ -331,10 +360,16 @@ export async function getRecoveryKeyState(
   sessionId?: string,
 ): Promise<RecoveryKeyState> {
   const prisma = getPrisma();
-  const [keyset, onboarding, dataKey] = await Promise.all([
+  const [keyset, onboarding, dataKey, session] = await Promise.all([
     prisma.userKeyset.findUnique({ where: { userId }, select: { recoverySalt: true } }),
     prisma.userOnboarding.findUnique({ where: { userId } }),
     sessionId ? getDataKey(userId, sessionId) : Promise.resolve(null),
+    sessionId
+      ? prisma.session.findUnique({
+          where: { id: sessionId },
+          select: { dataKeyWrappedBySessionKey: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -343,6 +378,7 @@ export async function getRecoveryKeyState(
     generatedAt: onboarding?.recoveryKeyGeneratedAt ?? null,
     savedAt: onboarding?.recoveryKeySavedAt ?? null,
     dataKeyAvailable: Boolean(dataKey),
+    sessionHasDataKeyWrap: Boolean(session?.dataKeyWrappedBySessionKey),
   };
 }
 

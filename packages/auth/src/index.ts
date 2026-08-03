@@ -24,5 +24,6 @@ export {
   issueRecoveryKeyFor,
   confirmRecoveryKeySaved,
   DATA_KEY_COOKIE,
+  dataKeyCookies,
   type RecoveryKeyState,
 } from "./data-key";

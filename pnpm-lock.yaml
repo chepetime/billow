@@ -232,6 +232,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@billow/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@prisma/adapter-pg':
         specifier: ^7.9.0
         version: 7.9.0

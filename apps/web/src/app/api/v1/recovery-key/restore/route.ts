@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth, DATA_KEY_COOKIE, getSession, restoreAccessWithRecoveryKey } from "@billow/auth";
+import { auth, dataKeyCookies, getSession, restoreAccessWithRecoveryKey } from "@billow/auth";
 import { headers } from "next/headers";
+import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 
@@ -27,6 +28,12 @@ export async function POST(request: Request) {
 
   const session = await getSession();
   if (!session) return error("Sign in to restore access.", 401);
+
+  // scrypt runs below; throttle before spending it.
+  const limit = await consumeRateLimit(`recovery-key:restore:${session.user.id}`, 5, 300);
+  if (!limit.allowed) {
+    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+  }
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Enter your recovery key and password.", 400);
@@ -56,10 +63,8 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ restored: true }, { headers: noStore });
-  response.cookies.set(DATA_KEY_COOKIE, sessionKey, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-  });
+  // Shared options rather than a second copy: this cookie's lifetime has to
+  // track the session's, and two hand-written copies drift.
+  response.cookies.set(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
   return response;
 }

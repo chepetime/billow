@@ -327,3 +327,70 @@ export async function unlockWithRecoveryKey(
   const recoveryKek = await deriveKeyEncryptionKey(normalizeRecoveryKey(recoveryKey), salt);
   return unwrap(keyset.dataKeyWrappedByRecoveryKey, recoveryKek, context(userId, "recovery"));
 }
+
+const FIELD_PREFIX = "encv1";
+
+/**
+ * Encrypts one database field under the user's data key.
+ *
+ * `context` is the `Model.field` the value belongs to, bound as associated
+ * data so a ciphertext cannot be moved between columns — an IBAN cannot be
+ * pasted into the SWIFT column and still decrypt. It deliberately does not
+ * include the row id: creates do not know their id yet, and a scheme that
+ * only works on update is a scheme that gets bypassed. The consequence, worth
+ * stating plainly, is that an attacker who can write to the database can move
+ * a value between rows of the same column; they cannot read it.
+ *
+ * A fresh IV per write means two rows holding the same value do not look
+ * alike, so the column leaks nothing to frequency analysis.
+ */
+export function encryptField(dataKey: Buffer, context: string, plaintext: string): string {
+  if (dataKey.length !== KEY_BYTES) throw new KeyHierarchyError();
+
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(ALGORITHM, dataKey, iv);
+  cipher.setAAD(Buffer.from(`billow:field:${VERSION}:${context}`, "utf8"));
+  const sealed = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+
+  return [
+    FIELD_PREFIX,
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    sealed.toString("base64url"),
+  ].join(".");
+}
+
+/**
+ * Whether a stored value is one of ours. Anything else is treated as plaintext
+ * written before encryption shipped, and returned unchanged — the alternative
+ * is that enabling encryption makes every existing row unreadable.
+ */
+export function isEncryptedField(stored: unknown): stored is string {
+  if (typeof stored !== "string") return false;
+  const parts = stored.split(".");
+  if (parts.length !== 4 || parts[0] !== FIELD_PREFIX) return false;
+
+  return (
+    Buffer.from(parts[1]!, "base64url").length === IV_BYTES &&
+    Buffer.from(parts[2]!, "base64url").length === TAG_BYTES
+  );
+}
+
+export function decryptField(dataKey: Buffer, context: string, stored: string): string {
+  if (!isEncryptedField(stored)) throw new KeyHierarchyError();
+  if (dataKey.length !== KEY_BYTES) throw new KeyHierarchyError();
+
+  const [, ivPart, tagPart, sealedPart] = stored.split(".") as [string, string, string, string];
+
+  try {
+    const decipher = createDecipheriv(ALGORITHM, dataKey, Buffer.from(ivPart, "base64url"));
+    decipher.setAAD(Buffer.from(`billow:field:${VERSION}:${context}`, "utf8"));
+    decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(sealedPart, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new KeyHierarchyError();
+  }
+}

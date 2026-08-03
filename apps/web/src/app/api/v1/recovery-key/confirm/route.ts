@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { confirmRecoveryKeySaved, getSession } from "@billow/auth";
+import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 
@@ -20,6 +21,12 @@ export async function POST(request: Request) {
 
   const session = await getSession();
   if (!session) return error("Sign in to confirm your recovery key.", 401);
+
+  // scrypt runs below; throttle before spending it.
+  const limit = await consumeRateLimit(`recovery-key:confirm:${session.user.id}`, 10, 300);
+  if (!limit.allowed) {
+    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+  }
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Enter your recovery key.", 400);

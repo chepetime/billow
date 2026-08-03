@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { parseInvoiceStatus } from "@/lib/invoice-status";
 import { requireSession } from "@billow/auth";
 import { getPrisma } from "@billow/db";
+import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -56,7 +57,7 @@ function readInvoiceItems(formData: FormData) {
 }
 
 export async function createWorkspaceFromOnboarding(formData: FormData) {
-  const prisma = getPrisma();
+  const { prisma } = await getWorkspacePrisma();
   const session = await requireSession();
   const userId = session.user.id;
   const invoiceNumber = readInt(formData, "invoiceNumber");

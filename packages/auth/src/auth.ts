@@ -85,14 +85,7 @@ export const auth = betterAuth({
   // protection invisible here and dependent on NODE_ENV. `enabled: true`
   // pins it on regardless of environment.
   //
-  // Storage: "memory" (the BetterAuth default). BetterAuth's "database"
-  // storage needs its own `rateLimit` model (key/count/lastRequest) behind
-  // the Prisma adapter, and packages/db/prisma/schema.prisma has no such
-  // model — adding one means a new model plus a migration, which is out of
-  // scope here. This app runs as a single container/process, so an
-  // in-memory bucket is a correct enforcement point; the tradeoff is that
-  // every counter resets on restart/redeploy, briefly re-opening the window
-  // for an attacker who times it around a deploy.
+  // Storage is "database", backed by the RateLimit model.
   //
   // `window`/`max` below are the general limit for every other endpoint.
   // `customRules` tightens the specific brute-force targets: sign-in (email
@@ -104,6 +97,10 @@ export const auth = betterAuth({
   // behind a framework upgrade).
   rateLimit: {
     enabled: true,
+    // Database storage, backed by the RateLimit model. Memory storage reset
+    // every counter on restart, and this app restarts on every update — so the
+    // brute-force window reopened on each deploy.
+    storage: "database",
     window: 60,
     max: 100,
     customRules: {

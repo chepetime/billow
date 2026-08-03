@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@billow/db";
 import { z } from "zod";
 import { requireApiIdentity } from "@/lib/api/identity";
+import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { decryptVaultPayload, encryptVaultPayload, VaultCryptoError } from "@/lib/vault-crypto";
@@ -66,11 +67,26 @@ async function identityFor(request: Request) {
   return identity;
 }
 
+/**
+ * The vault derives its key with scrypt on every read and every write, at
+ * N=32768 with a 64 MB memory bound. Against a 128 MB old-space cap that is
+ * two concurrent requests from exhausting the heap, so this throttle protects
+ * the process at least as much as it slows a guesser.
+ */
+async function overVaultLimit(userId: string) {
+  const limit = await consumeRateLimit(`vault:${userId}`, 20, 60);
+  if (limit.allowed) return null;
+  return error(`Too many vault requests. Try again in ${limit.retryAfter} seconds.`, 429);
+}
+
 export async function GET(request: Request) {
   const identity = await identityFor(request);
   if (identity instanceof NextResponse) return identity;
   const key = vaultKey(request);
   if (!key) return error("Enter your vault key to unlock this entry.", 401);
+
+  const throttled = await overVaultLimit(identity.userId);
+  if (throttled) return throttled;
 
   const entry = await getPrisma().vaultEntry.findUnique({ where: { userId: identity.userId } });
   if (!entry) return error("No vault entry exists yet.", 404);
@@ -91,6 +107,9 @@ export async function POST(request: Request) {
   if (identity instanceof NextResponse) return identity;
   const key = vaultKey(request);
   if (!key) return error("Enter a vault key before saving.", 400);
+
+  const throttled = await overVaultLimit(identity.userId);
+  if (throttled) return throttled;
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Enter a vault note up to 4,096 characters.", 400);
