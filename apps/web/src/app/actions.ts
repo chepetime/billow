@@ -1,10 +1,16 @@
 "use server";
 
 import { requireSession } from "@billow/auth";
-import { getPrisma } from "@billow/db";
 import { revalidatePath } from "next/cache";
 import { parseInvoiceStatus } from "@/lib/invoice-status";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
+
+// Every action here takes its client from `getWorkspacePrisma()`, including
+// the ones writing models that hold no encrypted column. One way in is what
+// makes "is this write sealed?" answerable by looking at the file, and the
+// mixed version of this file is what shipped plaintext account numbers:
+// onboarding sealed them and `createBankAccount`, two functions below it,
+// did not.
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -165,7 +171,7 @@ export async function createWorkspaceFromOnboarding(formData: FormData) {
 }
 
 export async function createBankAccount(formData: FormData) {
-  const prisma = getPrisma();
+  const { prisma } = await getWorkspacePrisma();
   const session = await requireSession();
   const userId = session.user.id;
   const userProfileId = readInt(formData, "userProfileId");
@@ -212,8 +218,9 @@ export async function createBankAccount(formData: FormData) {
 }
 
 export async function createClientCompany(formData: FormData) {
+  const { prisma } = await getWorkspacePrisma();
   const session = await requireSession();
-  await getPrisma().clientCompany.create({
+  await prisma.clientCompany.create({
     data: {
       userId: session.user.id,
       name: readString(formData, "name"),
@@ -232,7 +239,7 @@ export async function createClientCompany(formData: FormData) {
 }
 
 export async function createInvoice(formData: FormData) {
-  const prisma = getPrisma();
+  const { prisma } = await getWorkspacePrisma();
   const session = await requireSession();
   const userId = session.user.id;
   const invoiceNumber = readInt(formData, "invoiceNumber");

@@ -1,4 +1,4 @@
-import { getPrisma } from "@billow/db";
+import { type ExtendedPrismaClient, getPrisma } from "@billow/db";
 import type { Prisma } from "@billow/db/client";
 import { z } from "zod";
 
@@ -376,6 +376,22 @@ export function parseBackupPayload(payload: unknown) {
   return backupPayloadSchema.safeParse(payload);
 }
 
+/** Only the transaction entry point is needed to write a whole restore. */
+type ImportClient = Pick<ExtendedPrismaClient, "$transaction">;
+
+/**
+ * The encrypted-aware client for the importing session.
+ *
+ * Imported lazily rather than at the top of the file so this module keeps no
+ * load-time dependency on the auth stack and its schema half stays unit
+ * testable — the same reason `server-only` is absent (see the note at the top).
+ */
+async function workspaceClient(): Promise<ImportClient> {
+  const { getWorkspacePrisma } = await import("./workspace-prisma");
+  const { prisma } = await getWorkspacePrisma();
+  return prisma;
+}
+
 /**
  * Imports a validated payload into the given user's account. Every owned row
  * gets `userId` set to `userId` regardless of what (if anything) was in the
@@ -384,12 +400,17 @@ export function parseBackupPayload(payload: unknown) {
  * relations survive without colliding with (or trusting) ids already in the
  * database. Bank accounts or invoices that reference a profile/bank/client
  * missing from the payload are skipped rather than failing the whole import.
+ *
+ * Writes through the encrypted client, not `getPrisma()`. A restore recreates
+ * every bank account a user owns in one transaction, so getting this wrong was
+ * the largest single plaintext write in the app — and the most silent, because
+ * the restored rows read back correctly either way.
  */
 export async function importWorkspace(
   userId: string,
   data: BackupData,
 ): Promise<ImportSummary> {
-  const prisma = getPrisma();
+  const prisma = await workspaceClient();
 
   return prisma.$transaction(async (tx) => {
     const profileIdMap = new Map<number, number>();
