@@ -1,0 +1,61 @@
+name: Artifact round-trip check
+
+# Temporary. Proves actions/upload-artifact@v7 and actions/download-artifact@v8
+# still carry publish.yml's digest handoff, which encodes each digest as an
+# empty file's NAME and relies on `pattern` + `merge-multiple` to flatten two
+# artifacts into one directory.
+#
+# publish.yml only runs during a release, so nothing else exercises this pair
+# without publishing an image. Delete once it has passed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Fake a digest exactly as publish.yml does
+        run: |
+          mkdir -p /tmp/digests
+          digest="sha256:$(echo -n "${{ matrix.arch }}" | sha256sum | cut -d' ' -f1)"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  consume:
+    needs: produce
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Assert two flat digest files survived the round trip
+        working-directory: /tmp/digests
+        run: |
+          echo "--- contents ---"; ls -la
+          count=$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')
+          echo "flat files: $count"
+          [ "$count" -eq 2 ] || { echo "::error::expected 2 flat files, got $count — merge-multiple no longer flattens"; exit 1; }
+          for f in *; do
+            case "$f" in
+              *[!0-9a-f]*) echo "::error::'$f' is not a bare hex digest — name was altered in transit"; exit 1 ;;
+            esac
+          done
+          echo "would build: $(printf 'image@sha256:%s ' *)"
+          echo "round trip intact"
