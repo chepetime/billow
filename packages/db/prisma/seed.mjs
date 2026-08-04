@@ -14,8 +14,8 @@ const billowMetadata = {
   appId: "billow",
   name: "Billow",
   tagline: "A self-hosted app with the boring parts already built.",
-  version: "0.1.6",
-  dockerImage: "ghcr.io/chepetime/billow:v0.1.6",
+  version: "0.1.0",
+  dockerImage: "ghcr.io/chepetime/billow:v0.1.0",
   repositoryUrl: "https://github.com/getumbrel/umbrel-community-app-store",
   supportUrl: "https://github.com/getumbrel/umbrel-community-app-store/issues",
 };
