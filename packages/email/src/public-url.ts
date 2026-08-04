@@ -12,12 +12,33 @@
  *   1. An operator-configured public URL, when they want every link to point
  *      at one canonical hostname regardless of where the request arrived.
  *   2. The origin the triggering request was actually served on — the same
- *      forwarded headers `resolveTrustedOrigins` uses, so a user who asked
- *      for a reset from a Tailscale hostname gets a Tailscale link back.
+ *      forwarded headers `resolveTrustedOrigins` uses — but only once it has
+ *      been checked against `trustedOrigins` (BILLOW_TRUSTED_ORIGINS), when
+ *      the operator has set one. Without tier 1 configured, `Host` and
+ *      `X-Forwarded-Host` are attacker-controlled on any request the attacker
+ *      sends themselves (no cookie or same-origin restriction applies — the
+ *      attacker is the client, not a victim's browser), so a raw header value
+ *      can turn a password-reset email into a link that hands the reset token
+ *      to a domain the attacker owns. An allowlist closes that for any
+ *      operator who has pinned either a public URL or trusted origins.
  *
- * If neither yields a usable origin the caller must not send: a reset email
- * with an unreachable link is worse than no email, because the token is spent
- * and the user believes recovery is in progress.
+ * RESIDUAL RISK: an install with neither configured — the out-of-the-box LAN
+ * default — still trusts the header-derived origin outright. There is no way
+ * to distinguish a genuine reverse-proxy header from a forged one using
+ * headers alone, and refusing to send always would break password reset on
+ * every install that has not pinned a domain, which is most of them. This is
+ * the documented tradeoff, not an oversight: see "Password-reset email links
+ * and header trust" in apps/docs/content/docs/architecture.mdx.
+ *
+ * BETTER_AUTH_URL was considered as an additional pin but rejected: it is not
+ * set in the shipped Umbrel deployment (only BETTER_AUTH_SECRET is), so
+ * wiring it in would not change behavior for the installs that matter and
+ * would just be a second, less-visible way to configure the same thing the
+ * public-URL field already does.
+ *
+ * If none of the above yields a usable origin the caller must not send: a
+ * reset email with an unreachable link is worse than no email, because the
+ * token is spent and the user believes recovery is in progress.
  */
 
 /** Hosts that are never reachable from a mail client. */
@@ -66,16 +87,52 @@ export function originFromHeaders(headers: Headers): string | null {
   return `${proto}://${host}`;
 }
 
+/**
+ * Parses BILLOW_TRUSTED_ORIGINS-shaped input (comma-separated origins) into a
+ * set of normalized origins suitable for an exact match against
+ * `originFromHeaders`'s output. An entry that fails to parse is dropped
+ * rather than rejected outright — one typo in the list should not turn an
+ * allowlist into a total outage.
+ */
+export function parseTrustedOriginAllowlist(
+  raw: string | undefined,
+): Set<string> {
+  const origins = new Set<string>();
+  for (const entry of (raw ?? "").split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    try {
+      origins.add(new URL(trimmed).origin);
+    } catch {
+      // Dropped: not a parseable origin.
+    }
+  }
+  return origins;
+}
+
 export function resolveEmailOrigin(
   configuredPublicUrl: string | null,
   requestHeaders: Headers | null,
+  trustedOrigins?: string,
 ): string | null {
   if (configuredPublicUrl) {
     const normalized = normalizePublicUrl(configuredPublicUrl);
     if (normalized) return normalized;
   }
 
-  return requestHeaders ? originFromHeaders(requestHeaders) : null;
+  if (!requestHeaders) return null;
+  const fromHeaders = originFromHeaders(requestHeaders);
+  if (!fromHeaders) return null;
+
+  // No public URL configured. Without an allowlist there is nothing left to
+  // check the header-derived origin against — see the RESIDUAL RISK note
+  // above. With one, a request whose forwarded host does not match it is
+  // rejected outright rather than trusted, closing the gap for any operator
+  // who has pinned BILLOW_TRUSTED_ORIGINS.
+  const allowlist = parseTrustedOriginAllowlist(trustedOrigins);
+  if (allowlist.size > 0 && !allowlist.has(fromHeaders)) return null;
+
+  return fromHeaders;
 }
 
 /**

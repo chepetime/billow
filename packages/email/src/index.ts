@@ -24,6 +24,7 @@ export {
 export {
   normalizePublicUrl,
   originFromHeaders,
+  parseTrustedOriginAllowlist,
   resolveEmailOrigin,
   rewriteOrigin,
   rewriteResetLink,

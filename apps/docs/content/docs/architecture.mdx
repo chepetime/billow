@@ -62,6 +62,38 @@ trade for a single-user app behind network auth, and should be tightened once
 the app is reached over a stable HTTPS hostname.
 </Callout>
 
+### Password-reset email links and header trust
+
+The same "no pinned domain" tradeoff shows up in password-reset emails.
+`packages/email/src/public-url.ts` builds the link's origin from the request's
+`Host`/`X-Forwarded-Host` headers when no public URL is configured — the same
+headers `trustedOrigins` above reads. Unlike the CSRF case, no browser
+same-origin rule protects this: whoever sends the password-reset request
+controls those headers on their own request, so an unauthenticated attacker
+who submits a reset request for someone else's address with a forged
+`X-Forwarded-Host` can make the emailed link point at a domain they control,
+handing them the token when the victim clicks it.
+
+Two settings close this:
+
+- **Settings → Administration → Email → Public URL** (`emailSettings.publicUrl`)
+  pins one canonical origin; once set, request headers are never consulted.
+- **`BILLOW_TRUSTED_ORIGINS`** (the same env var `trustedOrigins` reads) is
+  checked as an allowlist when no public URL is set: a header-derived origin
+  outside it is rejected rather than trusted, and the app refuses to send
+  rather than mail out a link to an unverified host.
+
+<Callout type="warn">
+An install with **neither** set — the out-of-the-box LAN default — still
+trusts the header-derived origin outright, because the app cannot otherwise
+tell a genuine reverse-proxy header from a forged one, and refusing to send
+always would break password reset on most installs. In practice this window
+is narrow: password-reset email only sends once an administrator has
+configured a provider on that same Settings page, one field away from also
+setting the Public URL. Operators who expose the app directly (not solely
+through Umbrel's `app_proxy`) should set one of the two above.
+</Callout>
+
 ## Data access
 
 `@billow/db` owns Prisma end to end and exports `getPrisma()`, a cached client

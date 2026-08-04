@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizePublicUrl,
   originFromHeaders,
+  parseTrustedOriginAllowlist,
   resolveEmailOrigin,
   rewriteOrigin,
   rewriteResetLink,
@@ -113,6 +114,81 @@ describe("resolveEmailOrigin", () => {
     // token and leaves the user believing recovery is underway.
     expect(resolveEmailOrigin(null, headers({ host: "localhost" }))).toBeNull();
     expect(resolveEmailOrigin(null, null)).toBeNull();
+  });
+
+  it("still produces a usable link with nothing configured (LAN default)", () => {
+    // No public URL, no BILLOW_TRUSTED_ORIGINS — the out-of-the-box install.
+    // This is the documented residual risk: it must keep working.
+    expect(
+      resolveEmailOrigin(null, headers({ host: "umbrel.local:46247" })),
+    ).toBe("http://umbrel.local:46247");
+  });
+
+  describe("with a trusted-origin allowlist configured", () => {
+    const trusted = "https://billow.example, https://billow.ts.net";
+
+    it("accepts a forwarded host that is on the allowlist", () => {
+      expect(
+        resolveEmailOrigin(
+          null,
+          headers({ host: "billow.example", "x-forwarded-proto": "https" }),
+          trusted,
+        ),
+      ).toBe("https://billow.example");
+    });
+
+    it("rejects a hostile Host header not on the allowlist", () => {
+      expect(
+        resolveEmailOrigin(null, headers({ host: "attacker.evil" }), trusted),
+      ).toBeNull();
+    });
+
+    it("rejects a hostile X-Forwarded-Host even when Host looks legitimate", () => {
+      // x-forwarded-host wins in originFromHeaders, so this is the header an
+      // attacker sitting in front of the request would actually set.
+      expect(
+        resolveEmailOrigin(
+          null,
+          headers({
+            host: "billow.example",
+            "x-forwarded-host": "attacker.evil",
+          }),
+          trusted,
+        ),
+      ).toBeNull();
+    });
+
+    it("a configured public URL still wins over both the allowlist and the request", () => {
+      expect(
+        resolveEmailOrigin(
+          "https://canonical.example",
+          headers({ host: "attacker.evil" }),
+          trusted,
+        ),
+      ).toBe("https://canonical.example");
+    });
+  });
+});
+
+describe("parseTrustedOriginAllowlist", () => {
+  it("normalizes a comma-separated list to origins", () => {
+    expect(
+      parseTrustedOriginAllowlist(
+        "https://billow.example/ignored-path, http://umbrel.local:46247",
+      ),
+    ).toEqual(new Set(["https://billow.example", "http://umbrel.local:46247"]));
+  });
+
+  it("drops unparseable entries instead of failing the whole list", () => {
+    expect(
+      parseTrustedOriginAllowlist("not a url, https://billow.example"),
+    ).toEqual(new Set(["https://billow.example"]));
+  });
+
+  it("returns an empty set for undefined or blank input", () => {
+    expect(parseTrustedOriginAllowlist(undefined)).toEqual(new Set());
+    expect(parseTrustedOriginAllowlist("")).toEqual(new Set());
+    expect(parseTrustedOriginAllowlist("   ")).toEqual(new Set());
   });
 });
 

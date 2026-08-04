@@ -27,6 +27,14 @@ const RESET_EXPIRY_MINUTES = 60;
  * Sending that link as-is would put a loopback address in the recipient's
  * inbox — a dead link every time. So the origin is replaced with one the
  * recipient can actually reach before anything is sent.
+ *
+ * Absent a configured public URL, that replacement origin comes from the
+ * triggering request's `Host`/`X-Forwarded-Host` headers — values the
+ * request's own sender controls, not just a proxy. BILLOW_TRUSTED_ORIGINS
+ * (the same env var `trustedOrigins` in packages/auth/src/auth.ts uses for
+ * its CSRF check) is passed through so a forged header can be rejected
+ * instead of trusted; see the RESIDUAL RISK note in
+ * packages/email/src/public-url.ts for the gap that remains when neither is set.
  */
 export async function deliverPasswordResetEmail(
   message: PasswordResetMessage,
@@ -35,6 +43,7 @@ export async function deliverPasswordResetEmail(
   const origin = resolveEmailOrigin(
     configured,
     message.request?.headers ?? null,
+    process.env.BILLOW_TRUSTED_ORIGINS,
   );
 
   if (!origin) {
