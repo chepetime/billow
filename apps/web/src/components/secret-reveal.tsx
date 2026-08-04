@@ -75,9 +75,19 @@ export function SecretReveal({
         const fields: SaveRequestField[] = [{ autocomplete: autoComplete, value: secret }];
         if (username) fields.unshift({ autocomplete: "username", value: username });
 
+        // Tie the saved item to this installation's own origin. It has to be
+        // read at runtime: every install lives somewhere different —
+        // umbrel.local on one, a Tailscale name or a tunnel on another — so
+        // there is no URL that could be baked in, and an item saved without
+        // one is a loose secret the manager cannot offer to fill anywhere.
+        //
+        // 1Password's own docs say it derives the URL from the page, but the
+        // save request accepts `urls` explicitly, and being explicit costs
+        // nothing and does not depend on that behaviour holding.
         const encoded = encodeOPSaveRequest({
           title,
           fields,
+          urls: [window.location.origin],
           ...(notes ? { notes } : {}),
         } as never);
         if (!encoded) return;
