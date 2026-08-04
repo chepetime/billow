@@ -14,13 +14,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** See the matching helper in ../route.ts: API-key callers skip the same-origin check. */
-function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(
-    request.headers.get("x-api-key") || request.headers.get("authorization"),
-  );
-}
-
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
@@ -73,11 +66,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   // Resolve credentials first. Rejecting an unauthenticated caller with 403
   // would tell them they are forbidden when what they actually need is to
   // authenticate, so the origin check comes second and only guards the
-  // cookie/session path.
+  // cookie/session path — see the matching note in ../route.ts.
   const identity = await requireApiIdentity(request.headers);
   if (identity instanceof NextResponse) return identity;
 
-  if (!isCredentialedByApiKey(request) && !isSameOriginRequest(request)) {
+  if (identity.via === "session" && !isSameOriginRequest(request)) {
     return error("Invalid request origin.", 403);
   }
 

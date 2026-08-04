@@ -11,17 +11,6 @@ import { createUpload, listUploads, UploadRejectedError } from "@/lib/uploads";
 export const dynamic = "force-dynamic";
 
 /**
- * A request carrying its own API key isn't a browser form submission a
- * hostile page could forge using the victim's cookies, so the same-origin
- * check below only guards the cookie/session path.
- */
-function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(
-    request.headers.get("x-api-key") || request.headers.get("authorization"),
-  );
-}
-
-/**
  * POST /api/v1/uploads
  *
  * Multipart form upload under a "file" field. Authenticate with a personal
@@ -32,11 +21,13 @@ export async function POST(request: Request) {
   // Resolve credentials first. Rejecting an unauthenticated caller with 403
   // would tell them they are forbidden when what they actually need is to
   // authenticate, so the origin check comes second and only guards the
-  // cookie/session path.
+  // cookie/session path: a request that carried its own API key isn't a
+  // browser form submission a hostile page could forge with the victim's
+  // cookies.
   const identity = await requireApiIdentity(request.headers);
   if (identity instanceof NextResponse) return identity;
 
-  if (!isCredentialedByApiKey(request) && !isSameOriginRequest(request)) {
+  if (identity.via === "session" && !isSameOriginRequest(request)) {
     return error("Invalid request origin.", 403);
   }
 

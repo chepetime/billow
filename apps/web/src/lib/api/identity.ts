@@ -3,7 +3,17 @@ import "server-only";
 import { auth } from "@billow/auth";
 import { error } from "@/lib/api/respond";
 
-export type ApiIdentity = { userId: string };
+/**
+ * `via` records which credential actually authenticated the request.
+ *
+ * Routes that skip their same-origin (CSRF) check for API-key callers must
+ * decide that from this field and nothing else. Reading the headers a second
+ * time to guess at the credential type is how the two answers drift: a header
+ * this function ignores — `Authorization: Basic …` — still looks like an API
+ * key to a bare presence check, so a cookie-authenticated request would be
+ * waved past the guard that exists precisely to stop it.
+ */
+export type ApiIdentity = { userId: string; via: "apiKey" | "session" };
 
 /** Resolves an API key or browser session to the calling account. */
 export async function requireApiIdentity(
@@ -22,7 +32,7 @@ export async function requireApiIdentity(
       return error(String(result.error?.message ?? "Invalid API key."), 401);
     }
 
-    return { userId: result.key.referenceId };
+    return { userId: result.key.referenceId, via: "apiKey" };
   }
 
   const session = await auth.api.getSession({ headers: requestHeaders });
@@ -33,5 +43,5 @@ export async function requireApiIdentity(
     );
   }
 
-  return { userId: session.user.id };
+  return { userId: session.user.id, via: "session" };
 }

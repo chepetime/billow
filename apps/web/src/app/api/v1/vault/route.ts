@@ -16,12 +16,6 @@ export const dynamic = "force-dynamic";
 const payloadSchema = z.object({ secret: z.string().min(1).max(4096) });
 const noStore = { "Cache-Control": "no-store" };
 
-function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(
-    request.headers.get("x-api-key") || request.headers.get("authorization"),
-  );
-}
-
 function vaultKey(request: Request): string | null {
   // This header is intentionally never logged or copied into an error.
   //
@@ -63,7 +57,7 @@ async function identityFor(request: Request) {
   // preflight that this app never answers.
   if (
     MUTATING_METHODS.has(request.method) &&
-    !isCredentialedByApiKey(request) &&
+    identity.via === "session" &&
     !isSameOriginRequest(request)
   ) {
     return error("Invalid request origin.", 403);
