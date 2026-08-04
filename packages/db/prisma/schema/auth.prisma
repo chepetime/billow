@@ -2,31 +2,32 @@
 // in step with that package, and audit the two together.
 
 model User {
-  id              String      @id @default(cuid())
-  name            String
-  email           String      @unique
-  emailVerified   Boolean     @default(false)
-  image           String?
-  username        String?     @unique
-  displayUsername String?
-  twoFactorEnabled Boolean    @default(false)
-  role            String?
-  banned          Boolean?    @default(false)
-  banReason       String?
-  banExpires      DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  sessions        Session[]
-  accounts        Account[]
-  twoFactors      TwoFactor[]
-  apiKeys         Apikey[]
-  uploads         Upload[]
-  userProfiles    UserProfile[]
-  clientCompanies ClientCompany[]
-  invoices        Invoice[]
-  vaultEntry      VaultEntry?
-  keyset          UserKeyset?
-  onboarding      UserOnboarding?
+  id                String      @id @default(cuid())
+  name              String
+  email             String      @unique
+  emailVerified     Boolean     @default(false)
+  image             String?
+  username          String?     @unique
+  displayUsername   String?
+  twoFactorEnabled  Boolean     @default(false)
+  role              String?
+  banned            Boolean?    @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  sessions          Session[]
+  accounts          Account[]
+  twoFactors        TwoFactor[]
+  apiKeys           Apikey[]
+  uploads           Upload[]
+  userProfiles      UserProfile[]
+  clientCompanies   ClientCompany[]
+  invoices          Invoice[]
+  vaultEntry        VaultEntry?
+  keyset            UserKeyset?
+  onboarding        UserOnboarding?
+  installationOwner InstallationOwner?
 
   @@map("user")
 }

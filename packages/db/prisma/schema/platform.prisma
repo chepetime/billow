@@ -19,6 +19,32 @@ model RegistrationSettings {
   enabled Boolean @default(false)
 }
 
+/// Serializes the very first admin promotion in Postgres instead of in
+/// application code. The old check was `user.count() === 1` in
+/// packages/auth/src/auth.ts's user-create hook, read and acted on as two
+/// separate steps; two concurrent sign-ups could each read the count before
+/// the other's row committed, so both -- or, on a different interleaving,
+/// neither -- could pass the check.
+///
+/// `id` defaults to a fixed `1`, so this table can only ever hold one row:
+/// the first `INSERT` a registrant's process attempts claims it, and every
+/// concurrent attempt after that fails the primary-key constraint outright.
+/// That is a guarantee Postgres itself enforces (see the unique index behind
+/// any primary key), not a lock a future code path could forget to take.
+///
+/// Cascades with the owning user deliberately: if the sole account is later
+/// deleted, this row disappears with it and the installation reverts to
+/// unclaimed, matching the bootstrap behaviour it replaces (a lone signup
+/// after every prior account is gone becomes the new founding admin, same as
+/// before).
+model InstallationOwner {
+  id     Int    @id @default(1)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("installation_owner")
+}
+
 /// Outbound email configuration, set by an administrator in the UI rather
 /// than the environment, because a self-hosted operator has no way to edit
 /// container env vars without redeploying.

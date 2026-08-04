@@ -2,6 +2,7 @@ import "server-only";
 
 import { apiKey } from "@better-auth/api-key";
 import { getPrisma } from "@billow/db";
+import { Prisma } from "@billow/db/client";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError, createAuthMiddleware } from "better-auth/api";
@@ -74,6 +75,49 @@ async function userIdForSignIn(body: unknown): Promise<string | null> {
   }
 
   return null;
+}
+
+/**
+ * Decides which registrant, out of however many are racing, becomes the
+ * founding admin — and does it in a way Postgres enforces on its own.
+ *
+ * The previous check was `user.count() === 1`, read and acted on as two
+ * separate steps in the create hook below. Two sign-ups arriving together
+ * can each run that count before the other's row has committed: both can
+ * read 1 and both get promoted, or — the interleaving that is actually more
+ * likely under this app's plain (non-transactional) count-then-update, since
+ * a single Node process gives inserts a strict global order — both can read
+ * 2 (each having already seen the other's committed row) and neither gets
+ * promoted, permanently locking an exposed instance with no owner at all.
+ * Either way, "count, then decide" is a race no amount of careful ordering
+ * in this file can close, because the window is between two round trips to
+ * the database, not inside this process.
+ *
+ * `InstallationOwner` (packages/db/prisma/schema/platform.prisma) moves the
+ * decision into a single round trip: its `id` column defaults to a fixed 1,
+ * so the table can only ever hold one row. Every concurrent registrant
+ * attempts the same `INSERT`; Postgres's primary-key index — not this
+ * function, not a lock this function has to remember to take — guarantees
+ * exactly one of those inserts can ever succeed system-wide, across however
+ * many processes are running. Everyone else's insert fails with P2002, and
+ * "did my insert land" is exactly "am I the founder."
+ */
+export async function claimFoundingOwner(
+  prisma: Pick<ReturnType<typeof getPrisma>, "installationOwner">,
+  userId: string,
+): Promise<boolean> {
+  try {
+    await prisma.installationOwner.create({ data: { userId } });
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export const auth = betterAuth({
@@ -396,17 +440,24 @@ export const auth = betterAuth({
           }
         },
         after: async (user) => {
-          // The first account owns the installation and administers it.
-          const prisma0 = getPrisma();
-          if ((await prisma0.user.count()) === 1) {
-            await prisma0.user.update({
+          const prisma = getPrisma();
+
+          // The first account owns the installation and administers it. See
+          // claimFoundingOwner: this used to be a `user.count() === 1` check,
+          // which is a race between two round trips rather than one.
+          if (await claimFoundingOwner(prisma, user.id)) {
+            await prisma.user.update({
               where: { id: user.id },
               data: { role: "admin" },
             });
           }
+
           // A pre-auth installation can contain seeded workspace data. Assign
-          // that unclaimed data to the first account exactly once.
-          const prisma = getPrisma();
+          // that unclaimed data to the first account exactly once. Left as a
+          // count check deliberately: the updateMany calls below only ever
+          // touch rows with userId null, so a second concurrent pass is a
+          // no-op rather than a double-claim, unlike the admin promotion
+          // above.
           const userCount = await prisma.user.count();
           if (userCount !== 1) return;
 
