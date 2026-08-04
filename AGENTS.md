@@ -60,6 +60,18 @@ Do not inline a Node version anywhere else. The composite action and the
 Dockerfile were already out of step once — CI kept building on the old major
 while the image moved on, and nothing said so.
 
+### Node 26 and Prisma
+
+A review flagged Node 26 as unsupported by Prisma and recommended pinning back
+to 24. Checked, and it stays on 26: Prisma 7.9.1 declares
+`engines.node: ^20.19 || ^22.12 || >=24.0`, which admits 26, and a clean
+`CI=true pnpm install --frozen-lockfile` emits no support warning. The review
+seems to have read a message naming the versions Prisma lists explicitly and
+taken 26's absence from that list as exclusion.
+
+Revisit if Prisma narrows `engines`, or if a real failure appears — not on the
+strength of a docs page that enumerates majors one at a time.
+
 ## Pre-push hook
 
 Optional, opt-in:
