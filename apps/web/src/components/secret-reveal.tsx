@@ -106,7 +106,13 @@ export function SecretReveal({
 
   return (
     <div className="space-y-3">
-      <p className="font-mono text-xs break-all" data-testid="revealed-secret">
+      {/* select-all so one click selects the whole value: on an insecure
+          origin manual selection is the last line of defence, and a secret
+          shown once must never depend on a careful drag. */}
+      <p
+        className="select-all font-mono text-xs break-all"
+        data-testid="revealed-secret"
+      >
         {secret}
       </p>
 

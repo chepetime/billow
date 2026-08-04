@@ -27,10 +27,32 @@ export function CopyButton({
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(value);
+      // navigator.clipboard is gated behind a secure context, and Umbrel serves
+      // this app over plain HTTP at umbrel.local — so on a default install the
+      // modern API is simply absent and every copy silently failed. That is the
+      // worst possible place for it: this button is what saves an API key, a
+      // TOTP secret, or a recovery key that is shown exactly once.
+      if (window.isSecureContext && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        // Deprecated, but it is the only thing that works on an insecure
+        // origin, and a deprecated copy beats no copy.
+        const carrier = document.createElement("textarea");
+        carrier.value = value;
+        carrier.setAttribute("readonly", "");
+        carrier.style.position = "fixed";
+        carrier.style.top = "0";
+        carrier.style.opacity = "0";
+        document.body.appendChild(carrier);
+        carrier.select();
+        carrier.setSelectionRange(0, carrier.value.length);
+        const copied = document.execCommand("copy");
+        document.body.removeChild(carrier);
+        if (!copied) throw new Error("execCommand copy was rejected");
+      }
       setCopied(true);
     } catch {
-      notifyError("Could not copy", "Copy it manually instead.");
+      notifyError("Could not copy", "Select the value and copy it manually.");
     }
   }
 
