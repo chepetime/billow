@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { redactSecrets, truncateStack } from "@/lib/error-log";
+import { redactMeta, redactSecrets, truncateStack } from "@/lib/error-log";
 
 describe("redactSecrets", () => {
   it("masks the password in a connection string embedded in text", () => {
@@ -49,6 +49,70 @@ describe("redactSecrets", () => {
     // corrupt the very messages it is meant to keep readable.
     const input = "missing api_key in request; code err_12345";
     expect(redactSecrets(input)).toBe(input);
+  });
+});
+
+describe("redactMeta", () => {
+  it("redacts a sensitive key at the top level", () => {
+    expect(redactMeta({ recipient: "someone@example.com" })).toEqual({
+      recipient: "[redacted]",
+    });
+  });
+
+  it("redacts a sensitive key nested inside an allowlisted one, so nesting can't smuggle it past the check", () => {
+    // uploadId is allowlisted, but its value here is attacker/bug shaped: an
+    // object carrying a key that is not. The outer key being trusted must not
+    // exempt what's inside it.
+    expect(
+      redactMeta({
+        uploadId: { id: "upload-1", recipient: "someone@example.com" },
+      }),
+    ).toEqual({
+      uploadId: { id: "[redacted]", recipient: "[redacted]" },
+    });
+  });
+
+  it("redacts a sensitive key nested inside an array under an allowlisted key", () => {
+    expect(
+      redactMeta({
+        uploadId: [
+          { recipient: "a@example.com" },
+          { recipient: "b@example.com" },
+        ],
+      }),
+    ).toEqual({
+      uploadId: [{ recipient: "[redacted]" }, { recipient: "[redacted]" }],
+    });
+  });
+
+  it("blanks a whole non-allowlisted branch, array or not, rather than recursing into it", () => {
+    // "results" is not an allowlisted key, so its value is dropped outright —
+    // there is no point recursing into a subtree that is already gone.
+    expect(redactMeta({ results: [{ recipient: "a@example.com" }] })).toEqual({
+      results: "[redacted]",
+    });
+  });
+
+  it("keeps ordinary allowlisted diagnostic metadata intact", () => {
+    expect(redactMeta({ uploadId: "upload-123", index: 4 })).toEqual({
+      uploadId: "upload-123",
+      index: 4,
+    });
+  });
+
+  it("still scrubs a credential-shaped string under an allowlisted key", () => {
+    expect(redactMeta({ uploadId: "re_A1b2C3d4E5f6G7h8J9k0Lm" })).toEqual({
+      uploadId: "re_••••",
+    });
+  });
+
+  it("preserves shape for non-allowlisted keys instead of dropping them", () => {
+    // The key survives so the record still shows *that* something was
+    // reported, even though the value is gone.
+    expect(redactMeta({ recipient: "a@example.com", index: 2 })).toEqual({
+      recipient: "[redacted]",
+      index: 2,
+    });
   });
 });
 

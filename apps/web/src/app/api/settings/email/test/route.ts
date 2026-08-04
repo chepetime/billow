@@ -53,10 +53,11 @@ export async function POST(request: Request) {
   if (!result.ok) {
     // Worth recording: a failed test is the operator actively debugging, and
     // the diagnostics page is where they will look next. `result.error` is
-    // provider text, which never contains the API key.
-    await recordError("settings.email.test", new Error(result.error), {
-      recipient,
-    });
+    // provider text, which never contains the API key. No recipient in meta:
+    // this table is readable by any admin on the diagnostics page, and it's
+    // always the caller's own session email — not something this record
+    // needs to repeat.
+    await recordError("settings.email.test", new Error(result.error));
     // A failed test withdraws any earlier verification, so features that
     // depend on email hide themselves again rather than promising delivery
     // the administrator has just watched fail.

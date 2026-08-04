@@ -56,8 +56,11 @@ export async function GET() {
         try {
           bytes = await readObject(record.storageKey);
         } catch (readError) {
+          // `index` (not `record.storageKey`): the manifest and archive share
+          // ordering, so this is enough to identify which entry failed
+          // without putting a storage path in a table any admin can read.
           await recordError("admin.backup.export.missingFile", readError, {
-            storageKey: record.storageKey,
+            index,
           });
           continue;
         }

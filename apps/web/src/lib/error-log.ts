@@ -55,6 +55,65 @@ export function truncateStack(
     : stack;
 }
 
+// `meta` is free-form: every call site decides what's useful to attach to an
+// error, and nothing stops a future (or existing) call from putting an email
+// address, a token, or a storage path in it — which is exactly what happened
+// (see the email test route). Unlike `message`/`stack`, which are always
+// prose that a pattern can scan, `meta` is structured, so the only reliable
+// boundary is per-key: allow the small set of keys known to hold a plain,
+// non-identifying diagnostic value, and blank everything else. This is an
+// allowlist rather than a denylist of "known-bad" names (recipient, token,
+// email, ...) on purpose — a denylist only stops the leaks someone already
+// thought of, and this table is one unreviewed call site away from a new one.
+// Losing a not-yet-imagined diagnostic key by default is the safer failure.
+const META_KEY_ALLOWLIST = new Set([
+  // Upload row id: an opaque identifier used to correlate a failure with a
+  // specific upload. It does not name a person or a place, and it grants no
+  // access by itself — the download/delete routes re-check ownership before
+  // ever using it. Not to be confused with a storage key (the physical
+  // object path), which stays off this list deliberately.
+  "uploadId",
+  // Position of an entry within an export/import archive, used to point at
+  // which file in a backup failed without naming the file.
+  "index",
+]);
+
+const META_REDACTED_VALUE = "[redacted]";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Recursively redact a `meta` value before persistence. Every string —
+ * including ones under an allowlisted key — still passes through
+ * `redactSecrets`, so a credential-shaped value can't ride through just
+ * because its key looked safe. And because every level is walked and
+ * checked independently, nesting a sensitive key underneath an allowlisted
+ * one (`{ uploadId: { recipient: "…" } }`) does not exempt it: the outer key
+ * being allowed only means its value gets recursed into, not trusted whole.
+ */
+function redactMetaValue(value: unknown): unknown {
+  if (typeof value === "string") return redactSecrets(value);
+  if (Array.isArray(value)) return value.map(redactMetaValue);
+  if (isPlainObject(value)) {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      redacted[key] = META_KEY_ALLOWLIST.has(key)
+        ? redactMetaValue(nested)
+        : META_REDACTED_VALUE;
+    }
+    return redacted;
+  }
+  // Numbers, booleans, and null carry no identity on their own.
+  return value;
+}
+
+/** Redact a `meta` payload before it is persisted. Exported for testing. */
+export function redactMeta(meta: Prisma.InputJsonValue): Prisma.InputJsonValue {
+  return redactMetaValue(meta) as Prisma.InputJsonValue;
+}
+
 // Pruning does two extra queries (a delete-by-age and a count-then-delete
 // overflow), so running it on every write would double the query cost of
 // every single error just to enforce a limit that only matters once the
@@ -108,7 +167,7 @@ export async function recordError(
         context,
         message,
         stack,
-        ...(meta === undefined ? {} : { meta }),
+        ...(meta === undefined ? {} : { meta: redactMeta(meta) }),
       },
     });
 
