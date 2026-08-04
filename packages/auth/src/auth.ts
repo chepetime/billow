@@ -11,6 +11,7 @@ import { getPrisma } from "@billow/db";
 import { getAuthEnv } from "./auth-env";
 import {
   claimParkedDataKey,
+  dataKeyFromSessionKey,
   dataKeyCookies,
   enrollUser,
   openSessionDataKey,
@@ -182,7 +183,16 @@ export const auth = betterAuth({
         path === "/sign-in/username";
       const verifiesSecondFactor = path?.startsWith("/two-factor/verify") ?? false;
       const changesPassword = path === "/change-password";
-      if (!entersPassword && !verifiesSecondFactor && !changesPassword) return;
+      // Enabling or disabling two-factor rotates the session, and both take the
+      // account password — so they can and must re-open the data key for the
+      // session they leave behind. Missing them meant a toggle produced a
+      // session with no wrap, which the restore gate read as a lockout and
+      // "fixed" by rotating the user's recovery key.
+      const togglesSecondFactor =
+        path === "/two-factor/enable" || path === "/two-factor/disable";
+      if (!entersPassword && !verifiesSecondFactor && !changesPassword && !togglesSecondFactor) {
+        return;
+      }
 
       const newSession = ctx.context.newSession;
 
@@ -216,13 +226,34 @@ export const auth = betterAuth({
           // wherever that step parked it.
           if (!newSession) return;
           const pendingKey = readCookie(ctx.headers, dataKeyCookies.pendingName);
-          if (!pendingKey) return;
 
-          const dataKey = await claimParkedDataKey(newSession.user.id, pendingKey);
-          ctx.setCookie(dataKeyCookies.pendingName, "", {
-            ...dataKeyCookies.pendingOptions,
-            maxAge: 0,
-          });
+          // No parked key means this is enrolment, not sign-in: the user was
+          // already signed in and is turning two-factor on. Their current
+          // session still holds a usable data key, so carry it across to the
+          // session this verification produces rather than leaving them unable
+          // to decrypt until they next sign in.
+          let dataKey = pendingKey
+            ? await claimParkedDataKey(newSession.user.id, pendingKey)
+            : null;
+
+          if (!dataKey) {
+            const existingKey = readCookie(ctx.headers, dataKeyCookies.name);
+            const previous = ctx.context.session;
+            if (existingKey && previous) {
+              dataKey = await dataKeyFromSessionKey(
+                newSession.user.id,
+                previous.session.id,
+                existingKey,
+              );
+            }
+          }
+
+          if (pendingKey) {
+            ctx.setCookie(dataKeyCookies.pendingName, "", {
+              ...dataKeyCookies.pendingOptions,
+              maxAge: 0,
+            });
+          }
           if (!dataKey) return;
 
           const sessionKey = await openSessionDataKey(
@@ -236,6 +267,23 @@ export const auth = betterAuth({
 
         const password = typeof ctx.body?.password === "string" ? ctx.body.password : null;
         if (!password) return;
+
+        if (togglesSecondFactor) {
+          const session = ctx.context.session ?? newSession;
+          if (!session) return;
+
+          const dataKey = await unlockDataKey(session.user.id, password);
+          if (!dataKey) return;
+
+          const target = newSession ?? session;
+          const sessionKey = await openSessionDataKey(
+            session.user.id,
+            target.session.id,
+            dataKey,
+          );
+          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          return;
+        }
 
         if (path === "/sign-up/email") {
           if (!newSession) return;

@@ -54,6 +54,39 @@ function pendingIdentifier(userId: string) {
   return `data-key-pending:${userId}`;
 }
 
+function orphanIdentifier(userId: string) {
+  return `keyset-orphaned:${userId}`;
+}
+
+// A year. This is a latch, not a timer: it is set when sign-in proves the
+// keyset cannot be opened and cleared when something proves otherwise.
+const ORPHAN_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Records that sign-in could not open the keyset with the account password.
+ *
+ * This is the *positive* signal that an account is locked out of its own data.
+ * The absence of a session wrap is not — a session created by any endpoint the
+ * data-key hook does not cover has no wrap either, and reading that as a
+ * lockout sent people to hand over their recovery key after merely toggling
+ * two-factor, which then rotated the key they had just saved.
+ */
+async function markKeysetOrphaned(userId: string): Promise<void> {
+  const prisma = getPrisma();
+  const identifier = orphanIdentifier(userId);
+  const existing = await prisma.verification.findFirst({ where: { identifier } });
+  if (existing) return;
+
+  await prisma.verification.create({
+    data: { identifier, value: "1", expiresAt: new Date(Date.now() + ORPHAN_TTL_MS) },
+  });
+}
+
+/** Clears the latch once the keyset opens again. */
+async function clearKeysetOrphaned(userId: string): Promise<void> {
+  await getPrisma().verification.deleteMany({ where: { identifier: orphanIdentifier(userId) } });
+}
+
 /** Mints a keyset for a brand-new account. The recovery arm comes later. */
 export async function enrollUser(userId: string, password: string): Promise<Buffer> {
   const { keyset, dataKey } = await createUserKeyset(userId, password);
@@ -88,13 +121,20 @@ export async function unlockDataKey(userId: string, password: string): Promise<B
   }
 
   try {
-    return await unlockWithPassword(userId, stored as UserKeyset, password);
+    const dataKey = await unlockWithPassword(userId, stored as UserKeyset, password);
+    // Opening it is proof the account is not locked out, whatever an earlier
+    // failure may have latched.
+    await clearKeysetOrphaned(userId);
+    return dataKey;
   } catch (error) {
-    // The password already authenticated, so a failure here is a corrupt or
-    // mismatched keyset rather than a wrong guess. Signing in without a data
-    // key is the right outcome: encrypted fields read as unavailable instead
-    // of the whole sign-in failing.
-    if (error instanceof KeyHierarchyError) return null;
+    // The password already authenticated, so a failure here means the keyset is
+    // sealed under a password nobody holds — a reset, or an administrator
+    // setting one directly. Latch it: this is the only moment that fact is
+    // knowable, and the recovery flow needs to know it later.
+    if (error instanceof KeyHierarchyError) {
+      await markKeysetOrphaned(userId);
+      return null;
+    }
     throw error;
   }
 }
@@ -219,6 +259,31 @@ export async function claimParkedDataKey(
 }
 
 /**
+ * The data key for a session, given the cookie value explicitly.
+ *
+ * Separate from `getDataKey` because BetterAuth hooks cannot read cookies
+ * through `next/headers` — they only have the request they were handed.
+ */
+export async function dataKeyFromSessionKey(
+  userId: string,
+  sessionId: string,
+  sessionKey: string,
+): Promise<Buffer | null> {
+  const session = await getPrisma().session.findUnique({
+    where: { id: sessionId },
+    select: { dataKeyWrappedBySessionKey: true },
+  });
+  if (!session?.dataKeyWrappedBySessionKey) return null;
+
+  try {
+    return await resumeSession(userId, session.dataKeyWrappedBySessionKey, sessionKey);
+  } catch (error) {
+    if (error instanceof KeyHierarchyError) return null;
+    throw error;
+  }
+}
+
+/**
  * The data key for the signed-in request, or null when there is none to be
  * had — no cookie, a session predating the keyset, or an API-key caller, which
  * has no cookie by definition and so cannot decrypt.
@@ -259,11 +324,15 @@ export type RecoveryKeyState = {
   /** Whether this request can actually reach the data key right now. */
   dataKeyAvailable: boolean;
   /**
-   * Whether sign-in managed to wrap a data key for this session. This is the
-   * honest orphan signal: sign-in writes the wrap only when the password
-   * opened the keyset, so its absence means the password no longer does. A
-   * missing *cookie* means something far more ordinary — cleared cookies, a
-   * different browser — and must not be mistaken for a lockout.
+   * Whether sign-in has proven the account password can no longer open the
+   * keyset. This is the orphan signal — a latched fact, not an inference.
+   */
+  keysetOrphaned: boolean;
+  /**
+   * Whether sign-in managed to wrap a data key for this session. Useful for
+   * telling a user their browser simply needs to sign in again; NOT a lockout
+   * signal, because any endpoint the hook does not cover leaves it false.
+   * Reading it as one rotated recovery keys on a two-factor toggle.
    */
   sessionHasDataKeyWrap: boolean;
 };
@@ -288,7 +357,10 @@ export function needsRecoveryKey(state: RecoveryKeyState | null): boolean {
  */
 export function needsAccessRestored(state: RecoveryKeyState | null): boolean {
   if (!state?.hasKeyset || !state.hasRecoveryArm) return false;
-  return !state.sessionHasDataKeyWrap;
+  // Only a proven lockout. A session without a wrap is usually just a session
+  // the hook never saw — signing in again fixes that, and asking for a
+  // recovery key would be both alarming and destructive.
+  return state.keysetOrphaned;
 }
 
 /**
@@ -351,6 +423,8 @@ export async function restoreAccessWithRecoveryKey(
     }),
   ]);
 
+  await clearKeysetOrphaned(userId);
+
   const dataKey = await unlockWithPassword(userId, keyset, password);
   return await openSessionDataKey(userId, sessionId, dataKey);
 }
@@ -360,7 +434,7 @@ export async function getRecoveryKeyState(
   sessionId?: string,
 ): Promise<RecoveryKeyState> {
   const prisma = getPrisma();
-  const [keyset, onboarding, dataKey, session] = await Promise.all([
+  const [keyset, onboarding, dataKey, session, orphaned] = await Promise.all([
     prisma.userKeyset.findUnique({ where: { userId }, select: { recoverySalt: true } }),
     prisma.userOnboarding.findUnique({ where: { userId } }),
     sessionId ? getDataKey(userId, sessionId) : Promise.resolve(null),
@@ -370,6 +444,7 @@ export async function getRecoveryKeyState(
           select: { dataKeyWrappedBySessionKey: true },
         })
       : Promise.resolve(null),
+    prisma.verification.findFirst({ where: { identifier: orphanIdentifier(userId) } }),
   ]);
 
   return {
@@ -379,6 +454,7 @@ export async function getRecoveryKeyState(
     savedAt: onboarding?.recoveryKeySavedAt ?? null,
     dataKeyAvailable: Boolean(dataKey),
     sessionHasDataKeyWrap: Boolean(session?.dataKeyWrappedBySessionKey),
+    keysetOrphaned: Boolean(orphaned),
   };
 }
 
