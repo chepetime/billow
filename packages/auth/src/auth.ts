@@ -186,6 +186,7 @@ export const auth = betterAuth({
 
       const newSession = ctx.context.newSession;
 
+
       try {
         if (changesPassword) {
           // Without this the keyset stays sealed under the old password and
@@ -248,21 +249,39 @@ export const auth = betterAuth({
           return;
         }
 
-        // Sign-in. With two-factor enabled there is no session yet — the
-        // response is a redirect to the second factor — so the key has to be
-        // parked until that step completes.
+        // Sign-in.
         const userId = newSession?.user.id ?? (await userIdForSignIn(ctx.body));
         if (!userId) return;
 
         const dataKey = await unlockDataKey(userId, password);
         if (!dataKey) return;
 
-        if (!newSession) {
-          const pendingKey = await parkDataKeyForTwoFactor(userId, dataKey);
-          ctx.setCookie(dataKeyCookies.pendingName, pendingKey, dataKeyCookies.pendingOptions);
-          return;
-        }
+        // Park unconditionally. `newSession` cannot be used to tell whether a
+        // second factor is pending: BetterAuth populates it either way, and
+        // when 2FA is required the session behind it is discarded before the
+        // response is returned. Keying off it meant the wrap was written to a
+        // session that ceased to exist, nothing was ever parked, and the real
+        // session created by /two-factor/verify-* had no data key — which
+        // signing in again could not fix, because it failed the same way.
+        //
+        // Parking costs one short-lived row and is claimed-and-deleted by the
+        // verify step, so the redundant park on a password-only sign-in simply
+        // expires.
+        const pendingKey = await parkDataKeyForTwoFactor(userId, dataKey);
+        ctx.setCookie(dataKeyCookies.pendingName, pendingKey, dataKeyCookies.pendingOptions);
 
+        if (!newSession) return;
+
+        // Also open this session, which is the real one when no second factor
+        // is required. When one is, BetterAuth discards this session and the
+        // write lands on a row that disappears — harmless, and the park above
+        // is what carries the key to /two-factor/verify-*.
+        //
+        // The park is deliberately not cleaned up here. There is no reliable
+        // signal at this point for which of the two flows is in progress, and
+        // guessing wrong strands the user with no data key and no way to fix
+        // it by signing in again. An unclaimed park is one inert row that
+        // expires in ten minutes; a wrong guess is a lockout.
         const sessionKey = await openSessionDataKey(userId, newSession.session.id, dataKey);
         ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
       } catch (error) {
