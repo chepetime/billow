@@ -7,8 +7,6 @@ import {
   getInvoiceWorkspace,
 } from "@/lib/invoice-workspace";
 
-const RECENT_INVOICE_LIMIT = 8;
-
 function maskAccountNumber(accountNumber: string) {
   const last4 = accountNumber.slice(-4);
   return `•••• ${last4}`;
@@ -105,40 +103,40 @@ export default async function DashboardPage() {
 
           <div className="rounded-lg border bg-card p-5">
             <h2 className="text-sm font-medium">Recent invoices</h2>
-            {workspace.invoices.length === 0 ? (
+            {workspace.recentInvoices.length === 0 ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 No invoices yet.
               </p>
             ) : (
+              // No slice: the query is already bounded to what this list
+              // shows. The stat tiles above cover every invoice, not these.
               <ul className="mt-3 divide-y divide-border">
-                {workspace.invoices
-                  .slice(0, RECENT_INVOICE_LIMIT)
-                  .map((invoice) => (
-                    <li key={invoice.id} className="text-sm">
-                      <Link
-                        href={`/invoices/${invoice.id}`}
-                        className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0 hover:text-foreground"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">
-                            #{invoice.invoiceNumber}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {invoice.clientCompany.name}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {formatInvoiceDate(invoice.invoiceDate)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">
-                            {formatMoney(invoice.total)}
-                          </span>
-                          <InvoiceStatusBadge status={invoice.status} />
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
+                {workspace.recentInvoices.map((invoice) => (
+                  <li key={invoice.id} className="text-sm">
+                    <Link
+                      href={`/invoices/${invoice.id}`}
+                      className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0 hover:text-foreground"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">
+                          #{invoice.invoiceNumber}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {invoice.clientCompany.name}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {formatInvoiceDate(invoice.invoiceDate)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">
+                          {formatMoney(invoice.total)}
+                        </span>
+                        <InvoiceStatusBadge status={invoice.status} />
+                      </div>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
           </div>
