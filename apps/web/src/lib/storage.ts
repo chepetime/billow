@@ -101,6 +101,46 @@ export async function deleteObject(key: string) {
   await fsp.rm(resolveStoragePath(key), { force: true });
 }
 
+/**
+ * Resolve the directory holding one user's objects (see `buildStorageKey`:
+ * keys are `<userId>/<uuid>.<ext>`). Built on `resolveStoragePath`'s
+ * containment guard rather than a second copy of it, plus one addition that
+ * guard doesn't need for its existing single-file callers: a key that
+ * resolves to the root *itself* (an empty or `.` userId) passes containment
+ * — it hasn't escaped — but it must never be handed to a recursive delete,
+ * which would erase every user's files. Only a real, non-root subdirectory
+ * of the storage root is returned.
+ */
+export function resolveUserDirectory(userId: string): string {
+  if (!userId) {
+    throw new Error(
+      "Refusing to resolve a storage directory for an empty user id.",
+    );
+  }
+
+  const root = path.resolve(storageRoot());
+  const target = resolveStoragePath(userId);
+
+  if (target === root) {
+    throw new Error(
+      "Refusing to resolve a user directory that is the storage root.",
+    );
+  }
+
+  return target;
+}
+
+/**
+ * Recursively removes everything under one user's storage directory.
+ * `force: true` makes a missing directory (no uploads ever made) a no-op
+ * rather than an error, matching `deleteObject`'s tolerance for an
+ * already-absent target.
+ */
+export async function deleteUserDirectory(userId: string): Promise<void> {
+  const target = resolveUserDirectory(userId);
+  await fsp.rm(target, { recursive: true, force: true });
+}
+
 export function checksum(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }

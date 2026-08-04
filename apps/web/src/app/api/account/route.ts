@@ -3,6 +3,7 @@ import { getPrisma } from "@billow/db";
 import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
+import { deleteUserDirectory } from "@/lib/storage";
 
 export async function DELETE(request: Request) {
   if (!isSameOriginRequest(request))
@@ -36,6 +37,24 @@ export async function DELETE(request: Request) {
     prisma.userProfile.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
+
+  // The database rows are gone first, files second. A crash or failure
+  // between the two leaves orphaned bytes with no row pointing at them —
+  // recoverable by a future sweep. Doing it in the other order risks the
+  // reverse: files deleted while the account (and its Upload rows) still
+  // exist, which is a data-loss bug the user never asked for and can't
+  // detect. File cleanup is therefore best-effort and must never flip this
+  // response to a failure — the account is deleted either way — but a
+  // failure here is still recorded rather than swallowed, since it means
+  // real bytes were left behind for an account that no longer exists.
+  try {
+    await deleteUserDirectory(userId);
+  } catch (cleanupError) {
+    console.error(
+      `Failed to remove upload directory for deleted user ${userId}`,
+      cleanupError,
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
