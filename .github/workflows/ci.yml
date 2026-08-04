@@ -52,9 +52,17 @@ jobs:
 
       # actionlint catches schema and expression errors; check-workflows.sh
       # catches the folded-scalar case actionlint exits 0 on.
+      #
+      # Pinned. Unpinned, the download script takes the latest release, so a new
+      # actionlint — or a new shellcheck bundled behind it — turns main red with
+      # no commit to explain it. That happened: 1.7.12 began reporting two
+      # deliberate shell patterns and broke a build nobody had touched. Bump this
+      # on purpose, not by surprise.
       - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
         run: |
-          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
           sudo mv actionlint /usr/local/bin/
 
       - name: Check workflow files

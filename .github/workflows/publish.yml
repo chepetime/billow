@@ -161,6 +161,10 @@ jobs:
         working-directory: /tmp/digests
         run: |
           VERSION="${{ needs.build.outputs.version }}"
+          # shellcheck disable=SC2046 # word splitting is the point: each file in
+          # /tmp/digests is one per-architecture digest, and they must arrive as
+          # separate arguments for imagetools to merge them into one manifest
+          # list. Quoting would pass all of them as a single argument.
           docker buildx imagetools create \
             --tag "${IMAGE_NAME}:${VERSION}" \
             --tag "${IMAGE_NAME}:latest" \

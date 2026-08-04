@@ -51,6 +51,9 @@ jobs:
           # them behind at the previous version while everything else moved.
           # config/* and packages/e2e are excluded on purpose — they are build
           # tooling and tests, not part of the shipped app.
+          # shellcheck disable=SC2016 # the single quotes are deliberate: this is
+          # a JavaScript program, and its ${...} template literals must reach
+          # node intact rather than being expanded by the shell first.
           node -e '
             const fs = require("fs");
             const path = require("path");

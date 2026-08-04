@@ -46,6 +46,14 @@ done
 
 if command -v actionlint >/dev/null 2>&1; then
   actionlint || fail=1
+  # actionlint runs shellcheck over every `run:` block, but only if shellcheck
+  # is on PATH — otherwise it silently skips that half and still exits 0. CI's
+  # runners ship shellcheck, so a local pass here is weaker than a CI pass, and
+  # that gap is exactly how two shellcheck findings reached main unnoticed.
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "check-workflows: shellcheck not installed — CI checks more than this run did." >&2
+    echo "check-workflows: install it (brew install shellcheck) to match CI." >&2
+  fi
 else
   echo "check-workflows: actionlint not installed, skipping schema checks" >&2
 fi
