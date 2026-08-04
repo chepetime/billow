@@ -60,6 +60,25 @@ Do not inline a Node version anywhere else. The composite action and the
 Dockerfile were already out of step once — CI kept building on the old major
 while the image moved on, and nothing said so.
 
+## Pre-push hook
+
+Optional, opt-in:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+It runs `scripts/check-versions.sh` and `scripts/check-workflows.sh`. Both also
+run in CI — the hook only moves the failure earlier. `--no-verify` skips it, so
+CI stays the enforcement.
+
+`check-workflows.sh` exists for one failure that nothing else catches: a
+multi-command `run:` written as a plain scalar. YAML folds the continuation
+into a single command, so the first value swallows the rest of the line. That
+shipped a broken release once. The YAML is well-formed, the Actions schema is
+satisfied, the folded result is valid shell, and actionlint exits 0 — verified
+against the exact file that broke.
+
 ## Build Notes
 
 Webpack (`next build --webpack`) is intentional. Turbopack previously hit a

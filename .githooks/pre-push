@@ -1,0 +1,13 @@
+#!/bin/sh
+# Cheap checks that would otherwise only fail in CI — or, worse, only during a
+# release. Install with:
+#
+#     git config core.hooksPath .githooks
+#
+# A hook is a convenience, not a guarantee: it is opt-in, and `--no-verify`
+# skips it. Everything here also runs in CI, which is the enforcement.
+set -eu
+
+echo "pre-push: checking pinned versions and workflow files"
+sh scripts/check-versions.sh
+sh scripts/check-workflows.sh

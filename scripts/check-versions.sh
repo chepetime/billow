@@ -9,7 +9,15 @@ set -eu
 
 fail=0
 
-nvmrc="$(tr -d ' \t\n\r' < .nvmrc)"
+# Strip a leading "v": nvm and fnm happily write "v26.6.0" into .nvmrc, and
+# `node:v26.6.0-alpine` is not a tag that exists. That rewrite happened once
+# and would have failed the build rather than anything earlier.
+nvmrc="$(tr -d ' \t\n\r' < .nvmrc | sed 's/^v//')"
+case "$nvmrc" in
+  ""|*[!0-9.]*)
+    echo "check-versions: .nvmrc must be a plain version usable as a docker tag, got '$(cat .nvmrc)'" >&2
+    exit 1 ;;
+esac
 docker_node="$(sed -n 's/^ARG NODE_VERSION=\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -1)"
 if [ -z "$docker_node" ]; then
   echo "check-versions: no 'ARG NODE_VERSION=' default in Dockerfile" >&2

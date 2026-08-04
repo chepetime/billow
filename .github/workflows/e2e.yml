@@ -68,7 +68,7 @@ jobs:
       # path: migrations on boot, the unprivileged user, and the uploads volume.
       - name: Read pinned Node and pnpm versions
         run: |
-          echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc)" >> "$GITHUB_ENV"
+          echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc | sed 's/^v//')" >> "$GITHUB_ENV"
           echo "PNPM_VERSION=$(node -p "require('./package.json').packageManager")" >> "$GITHUB_ENV"
 
       - name: Build the production image

@@ -50,6 +50,16 @@ jobs:
       - name: Check pinned versions have one source of truth
         run: sh scripts/check-versions.sh
 
+      # actionlint catches schema and expression errors; check-workflows.sh
+      # catches the folded-scalar case actionlint exits 0 on.
+      - name: Install actionlint
+        run: |
+          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Check workflow files
+        run: sh scripts/check-workflows.sh
+
       - name: Generate Prisma client
         run: pnpm run db:generate
 
@@ -142,7 +152,7 @@ jobs:
 
       - name: Read pinned Node and pnpm versions
         run: |
-          echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc)" >> "$GITHUB_ENV"
+          echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc | sed 's/^v//')" >> "$GITHUB_ENV"
           echo "PNPM_VERSION=$(node -p "require('./package.json').packageManager")" >> "$GITHUB_ENV"
 
       - name: Build image
