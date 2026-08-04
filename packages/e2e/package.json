@@ -12,6 +12,6 @@
     "@billow/typescript-config": "workspace:*",
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.2",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
