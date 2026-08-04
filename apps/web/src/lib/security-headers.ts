@@ -65,13 +65,39 @@ const PERMISSIONS_POLICY = [
  * The full production security-header set, in the shape Next.js'
  * `headers()` config expects (`{ key, value }[]`).
  *
- * Deliberately does NOT set `Strict-Transport-Security`. This app is served
- * over plain HTTP at `umbrel.local:46247` by default; HSTS on an HTTP origin
- * is a no-op for that path, and if a user later reaches the same origin over
- * HTTPS through a tunnel, a previously-cached HSTS header would pin the
- * browser to HTTPS-only for this host — which can lock the user out entirely
- * if the tunnel goes away and they fall back to the plain-HTTP local address.
- * HSTS should only be added once this app is served exclusively over HTTPS.
+ * Deliberately does NOT set `Strict-Transport-Security`, even conditionally.
+ * This was reconsidered alongside the data-key cookie's `secure` flag (see
+ * `dataKeyCookieIsSecure` in `packages/auth/src/data-key.ts`), which *is*
+ * made conditional on `x-forwarded-proto === "https"` — a cookie without
+ * `secure` is simply sent again next request, so getting the condition wrong
+ * costs one request's confidentiality at worst. HSTS has no equivalent
+ * escape hatch: once a browser receives it, it refuses plain HTTP to this
+ * host for the full `max-age`, unprompted and un-skippable, on every future
+ * visit. A user who reaches this same instance over a tunnel today and the
+ * plain-HTTP LAN address tomorrow (the tunnel host being down, a VPN not
+ * connected, `x-forwarded-proto` briefly wrong behind a misconfigured
+ * proxy) would find the app entirely unreachable, with no in-app fix — the
+ * exact lockout this security work must avoid causing. That risk is not
+ * reduced by a short `max-age`; it is only bounded in time.
+ *
+ * There is also no clean way to gate this header on the request the way the
+ * cookie is gated: this array is handed to Next.js' static `headers()`
+ * config (`next.config.ts`), which supports per-request conditions only via
+ * its `has`/`missing` matchers (documented under "Header, Cookie, and Query
+ * Matching" in the Next.js `headers()` config reference) — a routing-layer
+ * mechanism, not something this module's plain array can express on its
+ * own. Wiring that in would mean duplicating this list behind a
+ * `has: [{ type: "header", key: "x-forwarded-proto", value: "https" }]`
+ * rule in `next.config.ts`, which does not change the risk above.
+ *
+ * `x-forwarded-proto` is also attacker-controllable whenever nothing in
+ * front of this app overwrites it (a bare `docker run` with no reverse
+ * proxy) — worth naming even though it does not change the call here: a
+ * forged `https` value could only ever expose the *forging* request to
+ * HSTS's downside, never anyone else's, so it does not add a new class of
+ * risk. It is the permanence and blast radius of HSTS on a single genuine
+ * user's own follow-up requests, not the header's trustworthiness, that
+ * keeps it off. Add it only once this app is served exclusively over HTTPS.
  */
 export const securityHeaders: { key: string; value: string }[] = [
   { key: "X-Content-Type-Options", value: "nosniff" },

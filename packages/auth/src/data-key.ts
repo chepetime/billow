@@ -18,10 +18,19 @@ import { cookies } from "next/headers";
 
 /**
  * The session key. httpOnly so no script can read it, and paired with a wrap
- * on the session row that is inert without it. Deliberately not `secure`:
- * Umbrel serves this app over plain HTTP, and a `secure` cookie would simply
- * never be sent, silently breaking decryption on the default install. That is
- * the same transport limitation that keeps HSTS off and passkeys deferred.
+ * on the session row that is inert without it.
+ *
+ * `secure` is never set unconditionally: Umbrel serves this app over plain
+ * HTTP by default, and a `secure` cookie on a plain-HTTP response is simply
+ * never sent by the browser — silently breaking decryption on the default
+ * install, which is the one failure mode worse than skipping the flag
+ * altogether. `dataKeyCookieOptions`/`pendingDataKeyCookieOptions` below
+ * exist to set it *conditionally*, for the request that actually earned it
+ * (see their doc comment). `dataKeyCookies.options`/`.pendingOptions` — what
+ * every current caller uses — are untouched by that and keep today's
+ * behavior (no `secure`, ever) exactly as-is; nothing here is wired to the
+ * request path yet. That is the same transport limitation that keeps
+ * passkeys deferred.
  */
 export const DATA_KEY_COOKIE = "billow.data_key";
 
@@ -48,6 +57,54 @@ const COOKIE_OPTIONS = {
   path: "/",
   maxAge: SESSION_MAX_AGE_SECONDS,
 } as const;
+
+/**
+ * Whether the data-key cookie should carry `secure` for this request.
+ *
+ * True only when the request itself arrived over HTTPS, evidenced by
+ * `x-forwarded-proto` — the header a terminating reverse proxy (Umbrel's
+ * app_proxy, a Tailscale funnel, a Cloudflare tunnel) is expected to
+ * overwrite with the protocol it actually terminated. This is the same
+ * signal `resolveTrustedOrigins` (./trusted-origins.ts) already trusts for
+ * the same reason: this app has no other way to learn its own transport,
+ * since Next.js sees only the plain-HTTP hop from the proxy.
+ *
+ * `x-forwarded-proto` is attacker-controllable whenever nothing in front of
+ * this app actually overwrites it (a bare `docker run` with no reverse
+ * proxy). That is an accepted risk, not an oversight: a caller who spoofs
+ * `https` only earns a `secure` attribute on the cookie in *its own*
+ * response, over a connection that is not actually TLS — the browser then
+ * refuses to store that one cookie, so the spoofing caller fails to
+ * establish a session. It cannot make a genuine user's cookie insecure, leak
+ * anyone else's session, or downgrade any other request; the failure mode is
+ * a denial of service against the spoofer alone.
+ */
+export function dataKeyCookieIsSecure(headers: Headers): boolean {
+  return headers.get("x-forwarded-proto") === "https";
+}
+
+/**
+ * HTTPS-aware cookie options for the data-key cookie and its two-factor
+ * staging cookie. Not used by any caller yet — every existing `setCookie`
+ * call in this package still passes the static `dataKeyCookies.options` /
+ * `.pendingOptions` below, unconditionally without `secure`, exactly as
+ * before this function existed. Wiring a caller to this instead means
+ * passing it the request's own headers (`ctx.headers` in the better-auth
+ * hook, `request.headers` in a route handler) in place of the static
+ * object.
+ */
+export function dataKeyCookieOptions(headers: Headers) {
+  return { ...COOKIE_OPTIONS, secure: dataKeyCookieIsSecure(headers) };
+}
+
+/** The HTTPS-aware equivalent of `dataKeyCookies.pendingOptions`. */
+export function pendingDataKeyCookieOptions(headers: Headers) {
+  return {
+    ...COOKIE_OPTIONS,
+    secure: dataKeyCookieIsSecure(headers),
+    maxAge: PENDING_TTL_MS / 1000,
+  };
+}
 
 function pendingIdentifier(userId: string) {
   return `data-key-pending:${userId}`;
