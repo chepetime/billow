@@ -34,13 +34,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up workspace
         uses: ./.github/actions/setup
 
       - name: Cache turbo
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo/cache
           key: ${{ runner.os }}-turbo-${{ matrix.task }}-${{ github.sha }}
@@ -58,11 +58,24 @@ jobs:
       # no commit to explain it. That happened: 1.7.12 began reporting two
       # deliberate shell patterns and broke a build nobody had touched. Bump this
       # on purpose, not by surprise.
+      #
+      # The upstream install script used to be piped straight from
+      # raw.githubusercontent.com into bash: pinning the version number closed
+      # the drift above, but the script contents were still fetched live and
+      # unverified on every run. This fetches the release asset directly and
+      # checks it against the sha256 rhysd publishes in that release's
+      # checksums file before anything is executed. ubuntu-latest is always
+      # amd64, so only that one asset is needed — bump ACTIONLINT_SHA256
+      # alongside ACTIONLINT_VERSION from that file if this is ever upgraded.
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
         run: |
-          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar xzf "$archive" actionlint
           sudo mv actionlint /usr/local/bin/
 
       - name: Check workflow files
@@ -99,7 +112,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up workspace
         uses: ./.github/actions/setup
@@ -120,7 +133,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up workspace
         uses: ./.github/actions/setup
@@ -153,10 +166,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Read pinned Node and pnpm versions
         run: |
@@ -164,7 +177,7 @@ jobs:
           echo "PNPM_VERSION=$(node -p "require('./package.json').packageManager")" >> "$GITHUB_ENV"
 
       - name: Build image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           build-args: |
