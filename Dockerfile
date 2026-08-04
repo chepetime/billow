@@ -28,6 +28,20 @@ COPY packages/shadcn/package.json ./packages/shadcn/package.json
 COPY config/tailwind-config/package.json ./config/tailwind-config/package.json
 COPY config/typescript-config/package.json ./config/typescript-config/package.json
 COPY config/vitest-config/package.json ./config/vitest-config/package.json
+# The store mount speeds up *local* rebuilds and nothing else. BuildKit
+# `--mount=type=cache` directories are not exported by either the registry or
+# the gha cache backend, so in CI the store is empty on every run and every
+# package is fetched fresh — the build log says `reused 0` each time. Do not
+# read this line as a CI optimisation.
+#
+# Splitting this into `pnpm fetch` + `pnpm install --offline` would put the
+# store in a real layer, which the cache backends do export, and would survive
+# the version bump every release makes to these manifests. Measured before
+# rejecting it: `pnpm fetch` has no `--filter`, so it pulls the whole workspace
+# lockfile (1070 packages, apps/docs and packages/e2e included) and leaves a
+# 1.3 GB store — a 2.8 GB deps stage. Exporting that per architecture into the
+# 10 GB per-repo gha cache would evict the image-layer cache that saves far
+# more than the ~15s the split would win.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --filter @billow/web... --frozen-lockfile --store-dir /pnpm/store
 

@@ -91,16 +91,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Pushed by digest with no tag: a tag here would have each architecture
-      # overwrite the other. `merge` applies the tags once both digests exist.
-      #
-      # The cache is keyed per architecture because the layers are genuinely
-      # different builds, not two views of one.
       - name: Read pinned Node and pnpm versions
         run: |
           echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc | sed 's/^v//')" >> "$GITHUB_ENV"
           echo "PNPM_VERSION=$(node -p "require('./package.json').packageManager")" >> "$GITHUB_ENV"
 
+      # Pushed by digest with no tag: a tag here would have each architecture
+      # overwrite the other. `merge` applies the tags once both digests exist.
+      #
+      # The cache is keyed per architecture because the layers are genuinely
+      # different builds, not two views of one.
+      #
+      # `cache-to` is the GitHub Actions cache, not GHCR, and that is the whole
+      # point. `type=registry,mode=max` used to spend 111s on `exporting cache
+      # to registry` — 41% of this job — and it ran *after* the image itself had
+      # finished pushing, so the release waited on an export it never reads back
+      # in the same run. The gha backend is co-located with the runner and
+      # exports in a fraction of that. ci.yml's docker job has always used it.
+      #
+      # The registry entry stays in `cache-from` as a fallback: the gha cache is
+      # evicted after 7 days idle and lives under a 10 GB per-repository cap
+      # shared with ci.yml, so a quiet fortnight would otherwise mean building
+      # from zero. Nothing writes `buildcache-*` any more, so that fallback goes
+      # stale over time — it is a floor, not a substitute.
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v7
@@ -111,8 +124,10 @@ jobs:
             PNPM_VERSION=${{ env.PNPM_VERSION }}
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }},mode=max
+          cache-from: |
+            type=gha,scope=${{ matrix.arch }}
+            type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
       # The digest is passed to `merge` as an empty file named after it, which
       # is the documented way to collect these across matrix legs.

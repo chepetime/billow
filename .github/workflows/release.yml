@@ -90,12 +90,53 @@ jobs:
           pnpm install --lockfile-only
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Runs against the bumped tree on purpose: what is verified here is
+      # exactly what the next step commits and tags.
+      #
+      # Two changes that look obvious from a profile are deliberately NOT made.
+      # Both were measured, not guessed:
+      #
+      #  1. No `.turbo/cache` restore, unlike ci.yml. It can never hit. The bump
+      #     above rewrites the `version` field in the root manifest and in every
+      #     workspace manifest, and turbo hashes each package's package.json as
+      #     a task input — bumping all nine changes every task hash in the
+      #     graph, `@billow/web#build` included. A cache saved by CI on the
+      #     parent commit is a guaranteed miss here, so the step would cost time
+      #     and return nothing. Restoring it only pays off if verification moves
+      #     to before the bump, which gives up verifying the tagged tree.
+      #
+      #  2. `test:run` and `build` are not merged into one `turbo run test:run
+      #     build` graph. Nothing in turbo.json orders them, so
+      #     `@billow/db#build` (`prisma generate`) would run concurrently with
+      #     tests that import the generated client — apps/web's
+      #     invoice-status.test.ts does. That trades an intermittent release
+      #     failure for about twenty seconds.
+      #
+      # biome is not a turbo task and only reads files, so lint is the one thing
+      # that can safely overlap. It is backgrounded and its status collected
+      # below rather than left to fire and forget.
       - name: Verify the release candidate
         run: |
           pnpm run db:generate
-          pnpm run lint
-          pnpm run test:run
-          pnpm run build
+
+          pnpm run lint > /tmp/lint.log 2>&1 &
+          lint_pid=$!
+
+          status=0
+          if ! pnpm run test:run; then
+            status=1
+          elif ! pnpm run build; then
+            status=1
+          fi
+
+          if ! wait "$lint_pid"; then
+            status=1
+          fi
+          echo "::group::lint"
+          cat /tmp/lint.log
+          echo "::endgroup::"
+
+          exit "$status"
 
       - name: Commit and tag
         run: |
