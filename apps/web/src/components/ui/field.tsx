@@ -10,6 +10,7 @@ import {
   FieldTitle,
 } from "@billow/shadcn/components/field";
 import { Label } from "@billow/shadcn/components/label";
+import { cloneElement, isValidElement } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -50,12 +51,30 @@ export function Field({
       ? `${htmlFor}-hint`
       : undefined;
 
+  // aria-describedby has to sit on the control itself. A screen reader
+  // announces the description of the *focused* element, so pointing a wrapper
+  // <div> at the error text described nothing to nobody -- every validation
+  // message in the app was silent. Clone it onto the child instead, merging
+  // rather than clobbering any value the caller already set.
+  const described =
+    describedBy && isValidElement<{ "aria-describedby"?: string }>(children)
+      ? cloneElement(children, {
+          "aria-describedby": [children.props["aria-describedby"], describedBy]
+            .filter(Boolean)
+            .join(" "),
+        })
+      : children;
+
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
-      <div aria-describedby={describedBy}>{children}</div>
+      <div>{described}</div>
       {error ? (
-        <p id={`${htmlFor}-error`} className="text-sm text-destructive">
+        <p
+          id={`${htmlFor}-error`}
+          role="alert"
+          className="text-sm text-destructive"
+        >
           {error}
         </p>
       ) : hint ? (
