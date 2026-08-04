@@ -2,6 +2,7 @@ import "server-only";
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { auth } from "./auth";
 import { authRegistry } from "./registry";
@@ -25,7 +26,7 @@ export function setAuthErrorReporter(reporter: AuthErrorReporter): void {
   authRegistry().errorReporter = reporter;
 }
 
-export async function getSession() {
+async function loadSession() {
   try {
     return await auth.api.getSession({ headers: await headers() });
   } catch (error) {
@@ -36,6 +37,20 @@ export async function getSession() {
     return null;
   }
 }
+
+/**
+ * One dashboard render asks for the session four or five times — the app
+ * layout, the recovery-key state, the page, the workspace client, the data
+ * key — and each one was its own round trip for the same row.
+ *
+ * `cache` collapses them into one. The memo lives on the in-flight RSC
+ * request object and is reached only through React's AsyncLocalStorage, so
+ * two concurrent renders never see each other's entry — there is no
+ * module-level store for one to leak through. Outside a render, where route
+ * handlers call this via `getAdminSession`, there is no in-flight request to
+ * hang a memo on and every call goes straight through, uncached.
+ */
+export const getSession = cache(loadSession);
 
 export async function requireSession() {
   const session = await getSession();
