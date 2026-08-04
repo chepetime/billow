@@ -7,6 +7,6 @@
     "./postcss": "./postcss.mjs"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4"
+    "@tailwindcss/postcss": "^4.3.3"
   }
 }

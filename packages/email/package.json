@@ -22,8 +22,8 @@
   },
   "devDependencies": {
     "@billow/vitest-config": "workspace:*",
-    "@types/react": "^19",
-    "typescript": "^5",
+    "@types/react": "^19.2.18",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }
 }

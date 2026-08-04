@@ -24,8 +24,8 @@
     "db:reset": "pnpm --filter @billow/db db:reset"
   },
   "devDependencies": {
-    "portless": "^0.15.4",
-    "turbo": "^2.10.7"
+    "portless": "^0.15.5",
+    "turbo": "^2.10.8"
   },
   "pnpm": {
     "overrides": {

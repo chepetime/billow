@@ -10,22 +10,22 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "fumadocs-core": "^16.12.1",
-    "fumadocs-mdx": "^15.2.0",
-    "fumadocs-ui": "^16.12.1",
-    "next": "16.2.12",
+    "fumadocs-core": "^16.14.0",
+    "fumadocs-mdx": "^15.2.2",
+    "fumadocs-ui": "^16.14.0",
+    "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/mdx": "^2.0.13",
-    "@types/node": "^24",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "tailwindcss": "^4",
-    "typescript": "^5",
-    "@billow/eslint-config": "workspace:*"
+    "@billow/eslint-config": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "eslint": "^9.39.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
   }
 }
