@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-
 import { getAdminSession } from "@billow/auth";
-import { error } from "@/lib/api/respond";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { getPrisma } from "@billow/db";
+import { NextResponse } from "next/server";
+import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 
 export async function PATCH(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
   // Registration policy is installation-wide, so it is an administrator
   // action rather than something any signed-in account may change.
   const { session, admin } = await getAdminSession();

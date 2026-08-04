@@ -37,7 +37,8 @@ describe("redactSecrets", () => {
   });
 
   it("masks provider keys and connection strings in the same text", () => {
-    const input = "using re_A1b2C3d4E5f6G7h8J9k0Lm against postgres://u:pw@h/db";
+    const input =
+      "using re_A1b2C3d4E5f6G7h8J9k0Lm against postgres://u:pw@h/db";
     expect(redactSecrets(input)).toBe(
       "using re_•••• against postgres://u:••••@h/db",
     );

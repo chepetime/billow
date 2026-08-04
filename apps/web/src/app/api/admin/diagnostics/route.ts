@@ -1,9 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-
+import { getAdminSession } from "@billow/auth";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-
-import { getAdminSession } from "@billow/auth";
 import { collectDiagnostics } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +18,8 @@ const MIN_TOKEN_LENGTH = 16;
  */
 function hasValidDebugToken(provided: string | null): boolean {
   const expected = process.env.BILLOW_DEBUG_TOKEN;
-  if (!expected || expected.length < MIN_TOKEN_LENGTH || !provided) return false;
+  if (!expected || expected.length < MIN_TOKEN_LENGTH || !provided)
+    return false;
 
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
@@ -67,7 +66,10 @@ export async function GET() {
     }
 
     if (!admin) {
-      return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Administrator access required." },
+        { status: 403 },
+      );
     }
   }
 

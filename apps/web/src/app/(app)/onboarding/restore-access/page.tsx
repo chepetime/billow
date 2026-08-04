@@ -1,6 +1,9 @@
+import {
+  getRecoveryKeyState,
+  needsAccessRestored,
+  requireSession,
+} from "@billow/auth";
 import { redirect } from "next/navigation";
-
-import { getRecoveryKeyState, needsAccessRestored, requireSession } from "@billow/auth";
 import { RestoreAccessForm } from "./_components/restore-access-form";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +18,9 @@ export default async function RestoreAccessPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Restore your access</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Restore your access
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Your password changed without your old one — a reset, or an
           administrator setting it directly. That changes the password but not

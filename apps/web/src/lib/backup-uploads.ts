@@ -64,7 +64,10 @@ export async function restoreUploads(
     // being trusted. Verifying both the length and the digest means a restore
     // cannot be talked into storing content that differs from what was
     // exported, or into mis-accounting quota by lying about size.
-    if (bytes.byteLength !== upload.size || checksum(bytes) !== upload.checksum) {
+    if (
+      bytes.byteLength !== upload.size ||
+      checksum(bytes) !== upload.checksum
+    ) {
       skipped += 1;
       reasons.push(`${upload.filename}: contents do not match the manifest`);
       continue;

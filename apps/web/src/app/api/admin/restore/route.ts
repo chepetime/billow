@@ -1,13 +1,11 @@
 import { gunzipSync } from "node:zlib";
-
-import { NextResponse } from "next/server";
-
 import { getAdminSession } from "@billow/auth";
-import { error, validationError } from "@/lib/api/respond";
+import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error, validationError } from "@/lib/api/respond";
+import { importWorkspace, parseBackupPayload } from "@/lib/backup";
 import { readTar } from "@/lib/backup-archive";
 import { restoreUploads } from "@/lib/backup-uploads";
-import { importWorkspace, parseBackupPayload } from "@/lib/backup";
 import { recordError } from "@/lib/error-log";
 import { MAX_UPLOADS_PER_USER_BYTES } from "@/lib/uploads";
 
@@ -38,7 +36,8 @@ const MAX_ARCHIVE_BYTES = MAX_UPLOADS_PER_USER_BYTES + 16 * 1024 * 1024;
  * files.
  */
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
 
   const { session, admin } = await getAdminSession();
   if (!session) return error("Authentication required.", 401);

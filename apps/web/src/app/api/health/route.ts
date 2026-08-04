@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { getPrisma } from "@billow/db";
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 

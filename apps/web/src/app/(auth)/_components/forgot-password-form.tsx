@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button, buttonVariants } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
+import { Button, buttonVariants } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Field } from "@/components/ui/field";
 import {
-  forgotPasswordSchema,
   type ForgotPasswordInput,
+  forgotPasswordSchema,
 } from "@/lib/schemas/auth";
 
 export function ForgotPasswordForm() {
@@ -62,7 +61,10 @@ export function ForgotPasswordForm() {
         </p>
         <Link
           href="/login"
-          className={buttonVariants({ variant: "outline", className: "w-full" })}
+          className={buttonVariants({
+            variant: "outline",
+            className: "w-full",
+          })}
         >
           Back to sign in
         </Link>
@@ -87,7 +89,12 @@ export function ForgotPasswordForm() {
         <p className="text-sm text-destructive">{formError}</p>
       ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Sending..." : "Send reset link"}
       </Button>
 

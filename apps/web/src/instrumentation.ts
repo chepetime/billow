@@ -6,7 +6,9 @@
 // place for the very first `getSession()` call.
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { setAuthErrorReporter, setAuthMailer } = await import("@billow/auth");
+    const { setAuthErrorReporter, setAuthMailer } = await import(
+      "@billow/auth"
+    );
     const { recordError } = await import("@/lib/error-log");
     setAuthErrorReporter(recordError);
 

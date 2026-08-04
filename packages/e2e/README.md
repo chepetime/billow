@@ -138,18 +138,18 @@ else in the run.
 
 ## Linting
 
-This package lints on its own terms, not via `@billow/eslint-config/next`:
-it's a plain TypeScript test suite, not a Next.js app or a React component
-library, so the Next/React/JSX/a11y rules that config pulls in don't apply
-to `.spec.ts` files and would just be noise. `eslint.config.mjs` here is
-`typescript-eslint`'s recommended config plus `eslint-plugin-playwright`
-(catches missing `await`s on `expect`/locator calls, stray `.only`, etc).
+Linting is repo-wide and lives in the root `biome.json`; this package has no
+config or `lint` script of its own. Biome is a single binary run once from the
+root, so it covers every workspace by default.
 
-This mirrors an existing repo convention rather than inventing a new one:
-`packages/db`, `packages/auth`, `packages/ui` and `packages/shadcn` have no
-`lint` script at all, so `turbo lint` (and therefore `pnpm run lint`)
-silently skips them — non-Next packages opt out by omission. This package
-opts in instead, because regressions in test code are still regressions.
+That is a change from the ESLint setup it replaced, where `packages/db`,
+`packages/auth`, `packages/ui` and `packages/shadcn` had no `lint` script and
+were therefore skipped entirely. They are linted now.
+
+`biome.json` gives this package a `test` domain override, which covers what
+`eslint-plugin-playwright` used to: `noPlaywrightMissingAwait` for un-awaited
+`expect`/locator calls, plus `noFocusedTests` and `noSkippedTests` for a stray
+`.only` or `.skip` left behind.
 
 ## Adding another browser
 

@@ -12,7 +12,10 @@ export default function ApiDocsPage() {
   return (
     <main className="min-h-svh bg-background text-foreground">
       <div className="border-b px-6 py-3 text-sm">
-        <Link className="text-primary underline-offset-4 hover:underline" href="/api/auth/open-api/generate-schema">
+        <Link
+          className="text-primary underline-offset-4 hover:underline"
+          href="/api/auth/open-api/generate-schema"
+        >
           Better Auth OpenAPI document
         </Link>
       </div>

@@ -46,7 +46,8 @@ function packagesFromLockfile(path = "pnpm-lock.yaml") {
     const match = line.match(/^ {2}(\S+?)@([0-9][^:(]*)(?:\([^)]*\))*:\s*$/);
     if (match) {
       const [, name, version] = match;
-      (found[name] ||= new Set()).add(version);
+      found[name] ??= new Set();
+      found[name].add(version);
     }
   }
 
@@ -67,7 +68,8 @@ async function fetchAdvisories(packages) {
 
   let buffer = Buffer.from(await response.arrayBuffer());
   // Decompress explicitly: some environments do not do it for us.
-  if (buffer[0] === 0x1f && buffer[1] === 0x8b) buffer = zlib.gunzipSync(buffer);
+  if (buffer[0] === 0x1f && buffer[1] === 0x8b)
+    buffer = zlib.gunzipSync(buffer);
   return JSON.parse(buffer.toString("utf8"));
 }
 
@@ -91,13 +93,16 @@ for (const [name, entries] of Object.entries(advisories)) {
   }
 }
 
-console.log(`Checked ${Object.keys(packages).length} packages from the lockfile.\n`);
+console.log(
+  `Checked ${Object.keys(packages).length} packages from the lockfile.\n`,
+);
 
 if (accepted.length) {
   console.log("Acknowledged:");
   for (const row of accepted) {
     console.log(`  ${row.severity.padEnd(8)} ${row.name} ${row.range}`);
-    if (ACKNOWLEDGED[row.name]) console.log(`           ${ACKNOWLEDGED[row.name]}`);
+    if (ACKNOWLEDGED[row.name])
+      console.log(`           ${ACKNOWLEDGED[row.name]}`);
   }
   console.log("");
 }
@@ -105,7 +110,9 @@ if (accepted.length) {
 if (blocking.length) {
   console.error("Unreviewed high or critical advisories:");
   for (const row of blocking) {
-    console.error(`  ${row.severity.padEnd(8)} ${row.name} ${row.range}  ${row.title}`);
+    console.error(
+      `  ${row.severity.padEnd(8)} ${row.name} ${row.range}  ${row.title}`,
+    );
   }
   console.error(
     "\nFix the dependency, or add it to ACKNOWLEDGED in scripts/audit-deps.mjs with the reason it cannot be exploited here.",

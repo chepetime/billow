@@ -1,11 +1,11 @@
-export { EmailLayout, sharedStyles, type EmailLayoutProps } from "./layout";
+export { EmailLayout, type EmailLayoutProps, sharedStyles } from "./layout";
 export {
   PasswordResetEmail,
-  passwordResetText,
   type PasswordResetEmailProps,
+  passwordResetText,
 } from "./password-reset";
 export {
   TestEmail,
-  testEmailText,
   type TestEmailProps,
+  testEmailText,
 } from "./test-message";

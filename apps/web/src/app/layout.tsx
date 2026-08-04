@@ -1,7 +1,7 @@
+import { Toaster } from "@billow/shadcn/components/toast";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
-import { Toaster } from "@billow/shadcn/components/toast";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 

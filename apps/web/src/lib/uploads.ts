@@ -5,11 +5,11 @@ import type { Upload } from "@billow/db/client";
 
 import { formatBytes } from "@/lib/schemas/uploads";
 import {
-  MAX_UPLOAD_BYTES,
   buildStorageKey,
   checksum,
   deleteObject,
   detectType,
+  MAX_UPLOAD_BYTES,
   readObject,
   safeDisplayName,
   writeObject,
@@ -29,7 +29,8 @@ import {
  */
 export const MAX_UPLOADS_PER_USER_BYTES = 100 * 1024 * 1024;
 
-const ACCEPTED_TYPES_MESSAGE = "Accepted file types: PNG, JPEG, GIF, WEBP, PDF.";
+const ACCEPTED_TYPES_MESSAGE =
+  "Accepted file types: PNG, JPEG, GIF, WEBP, PDF.";
 
 /** Thrown for any upload rejection; the API route maps `status` straight to the response. */
 export class UploadRejectedError extends Error {
@@ -89,7 +90,10 @@ export async function createUpload(
 
   const detected = detectType(file.bytes);
   if (!detected) {
-    throw new UploadRejectedError(`Unrecognized file type. ${ACCEPTED_TYPES_MESSAGE}`, 415);
+    throw new UploadRejectedError(
+      `Unrecognized file type. ${ACCEPTED_TYPES_MESSAGE}`,
+      415,
+    );
   }
 
   const used = await usageBytes(userId);
@@ -127,7 +131,10 @@ export async function listUploads(
 ): Promise<{ uploads: Upload[]; usageBytes: number; limitBytes: number }> {
   const prisma = getPrisma();
   const [uploads, used] = await Promise.all([
-    prisma.upload.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    prisma.upload.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    }),
     usageBytes(userId),
   ]);
 
@@ -139,7 +146,10 @@ export async function listUploads(
  * doesn't exist at all and when it belongs to another account — callers
  * must turn null into a 404, never a 403, so existence is never leaked.
  */
-export async function getUploadForUser(userId: string, id: string): Promise<Upload | null> {
+export async function getUploadForUser(
+  userId: string,
+  id: string,
+): Promise<Upload | null> {
   return getPrisma().upload.findFirst({ where: { id, userId } });
 }
 
@@ -157,7 +167,10 @@ export async function readUploadBytes(upload: Upload): Promise<Buffer> {
  * disk that no row references and the quota accounting no longer knows
  * about.
  */
-export async function deleteUpload(userId: string, id: string): Promise<boolean> {
+export async function deleteUpload(
+  userId: string,
+  id: string,
+): Promise<boolean> {
   const upload = await getUploadForUser(userId, id);
   if (!upload) return false;
 

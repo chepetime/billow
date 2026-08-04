@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readTar, writeTar, type TarEntrySource } from "./backup-archive";
+import { readTar, type TarEntrySource, writeTar } from "./backup-archive";
 
 async function collect(entries: TarEntrySource[]): Promise<Buffer> {
   const chunks: Uint8Array[] = [];
@@ -19,7 +19,9 @@ describe("backup archive", () => {
     const manifest = Buffer.from(JSON.stringify({ formatVersion: 2 }), "utf8");
     // Deliberately not block-aligned: 512-byte padding is where a hand-written
     // tar most easily corrupts the *following* entry rather than itself.
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3,
+    ]);
 
     const archive = await collect([
       entry("backup.json", manifest),
@@ -72,7 +74,9 @@ describe("backup archive", () => {
 
   it("refuses an archive larger than the caller allows", async () => {
     const archive = await collect([entry("files/0000", Buffer.alloc(4096, 7))]);
-    expect(() => readTar(archive, 1024)).toThrow(/larger than this installation/);
+    expect(() => readTar(archive, 1024)).toThrow(
+      /larger than this installation/,
+    );
   });
 
   it("refuses a truncated archive rather than returning partial bytes", async () => {
@@ -81,7 +85,9 @@ describe("backup archive", () => {
   });
 
   it("stops at the end-of-archive marker", async () => {
-    const archive = await collect([entry("files/0000", Buffer.from("x", "utf8"))]);
+    const archive = await collect([
+      entry("files/0000", Buffer.from("x", "utf8")),
+    ]);
     // Trailing zeros beyond the marker (as real tar implementations emit) must
     // not be read back as further entries.
     const padded = Buffer.concat([archive, Buffer.alloc(4096)]);

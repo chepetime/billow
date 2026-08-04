@@ -39,7 +39,10 @@ export function redactSecrets(text: string): string {
       CONNECTION_STRING_PATTERN,
       (_match, scheme: string, user: string) => `${scheme}${user}:••••@`,
     )
-    .replace(PROVIDER_KEY_PATTERN, (_match, prefix: string) => `${prefix}_••••`);
+    .replace(
+      PROVIDER_KEY_PATTERN,
+      (_match, prefix: string) => `${prefix}_••••`,
+    );
 }
 
 /** Cap a stack trace's length, marking that it was cut off. */

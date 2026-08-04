@@ -1,9 +1,8 @@
+import { getPrisma } from "@billow/db";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-
 import { requireApiIdentity } from "@/lib/api/identity";
 import { error } from "@/lib/api/respond";
-import { getPrisma } from "@billow/db";
 
 export const dynamic = "force-dynamic";
 

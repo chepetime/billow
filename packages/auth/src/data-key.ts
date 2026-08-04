@@ -1,21 +1,20 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-
 import {
-  KeyHierarchyError,
   beginSession,
   changePassword,
   createUserKeyset,
   issueRecoveryKey,
+  KeyHierarchyError,
   resetPasswordWithRecoveryKey,
   resumeSession,
+  type UserKeyset,
   unlockWithPassword,
   unlockWithRecoveryKey,
-  type UserKeyset,
 } from "@billow/crypto";
 import { getPrisma } from "@billow/db";
 import { backfillEncryptedFields } from "@billow/db/field-encryption";
+import { cookies } from "next/headers";
 
 /**
  * The session key. httpOnly so no script can read it, and paired with a wrap
@@ -74,21 +73,32 @@ const ORPHAN_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 async function markKeysetOrphaned(userId: string): Promise<void> {
   const prisma = getPrisma();
   const identifier = orphanIdentifier(userId);
-  const existing = await prisma.verification.findFirst({ where: { identifier } });
+  const existing = await prisma.verification.findFirst({
+    where: { identifier },
+  });
   if (existing) return;
 
   await prisma.verification.create({
-    data: { identifier, value: "1", expiresAt: new Date(Date.now() + ORPHAN_TTL_MS) },
+    data: {
+      identifier,
+      value: "1",
+      expiresAt: new Date(Date.now() + ORPHAN_TTL_MS),
+    },
   });
 }
 
 /** Clears the latch once the keyset opens again. */
 async function clearKeysetOrphaned(userId: string): Promise<void> {
-  await getPrisma().verification.deleteMany({ where: { identifier: orphanIdentifier(userId) } });
+  await getPrisma().verification.deleteMany({
+    where: { identifier: orphanIdentifier(userId) },
+  });
 }
 
 /** Mints a keyset for a brand-new account. The recovery arm comes later. */
-export async function enrollUser(userId: string, password: string): Promise<Buffer> {
+export async function enrollUser(
+  userId: string,
+  password: string,
+): Promise<Buffer> {
   const { keyset, dataKey } = await createUserKeyset(userId, password);
 
   await getPrisma().userKeyset.create({ data: { userId, ...keyset } });
@@ -101,7 +111,10 @@ export async function enrollUser(userId: string, password: string): Promise<Buff
  * keyset — every account created before this shipped is in that state, and
  * they must keep being able to sign in.
  */
-export async function unlockDataKey(userId: string, password: string): Promise<Buffer | null> {
+export async function unlockDataKey(
+  userId: string,
+  password: string,
+): Promise<Buffer | null> {
   const stored = await getPrisma().userKeyset.findUnique({ where: { userId } });
   if (!stored) {
     // Backfill. An account created before the keyset existed has none, and
@@ -114,14 +127,24 @@ export async function unlockDataKey(userId: string, password: string): Promise<B
     } catch {
       // Two concurrent sign-ins race for the same unique userId. Whichever
       // lost re-reads the winner's row rather than failing the sign-in.
-      const raced = await getPrisma().userKeyset.findUnique({ where: { userId } });
+      const raced = await getPrisma().userKeyset.findUnique({
+        where: { userId },
+      });
       if (!raced) return null;
-      return await unlockWithPassword(userId, raced as UserKeyset, password).catch(() => null);
+      return await unlockWithPassword(
+        userId,
+        raced as UserKeyset,
+        password,
+      ).catch(() => null);
     }
   }
 
   try {
-    const dataKey = await unlockWithPassword(userId, stored as UserKeyset, password);
+    const dataKey = await unlockWithPassword(
+      userId,
+      stored as UserKeyset,
+      password,
+    );
     // Opening it is proof the account is not locked out, whatever an earlier
     // failure may have latched.
     await clearKeysetOrphaned(userId);
@@ -189,7 +212,10 @@ export async function openSessionDataKey(
   sessionId: string,
   dataKey: Buffer,
 ): Promise<string> {
-  const { sessionKey, dataKeyWrappedBySessionKey } = await beginSession(userId, dataKey);
+  const { sessionKey, dataKeyWrappedBySessionKey } = await beginSession(
+    userId,
+    dataKey,
+  );
 
   await getPrisma().session.update({
     where: { id: sessionId },
@@ -219,7 +245,10 @@ export async function parkDataKeyForTwoFactor(
   userId: string,
   dataKey: Buffer,
 ): Promise<string> {
-  const { sessionKey, dataKeyWrappedBySessionKey } = await beginSession(userId, dataKey);
+  const { sessionKey, dataKeyWrappedBySessionKey } = await beginSession(
+    userId,
+    dataKey,
+  );
   const prisma = getPrisma();
   const identifier = pendingIdentifier(userId);
 
@@ -276,7 +305,11 @@ export async function dataKeyFromSessionKey(
   if (!session?.dataKeyWrappedBySessionKey) return null;
 
   try {
-    return await resumeSession(userId, session.dataKeyWrappedBySessionKey, sessionKey);
+    return await resumeSession(
+      userId,
+      session.dataKeyWrappedBySessionKey,
+      sessionKey,
+    );
   } catch (error) {
     if (error instanceof KeyHierarchyError) return null;
     throw error;
@@ -291,7 +324,10 @@ export async function dataKeyFromSessionKey(
  * Null is a normal answer, not an error: callers render encrypted fields as
  * unavailable rather than failing the page.
  */
-export async function getDataKey(userId: string, sessionId: string): Promise<Buffer | null> {
+export async function getDataKey(
+  userId: string,
+  sessionId: string,
+): Promise<Buffer | null> {
   const sessionKey = (await cookies()).get(DATA_KEY_COOKIE)?.value;
   if (!sessionKey) return null;
 
@@ -302,7 +338,11 @@ export async function getDataKey(userId: string, sessionId: string): Promise<Buf
   if (!session?.dataKeyWrappedBySessionKey) return null;
 
   try {
-    return await resumeSession(userId, session.dataKeyWrappedBySessionKey, sessionKey);
+    return await resumeSession(
+      userId,
+      session.dataKeyWrappedBySessionKey,
+      sessionKey,
+    );
   } catch (error) {
     if (error instanceof KeyHierarchyError) return null;
     throw error;
@@ -435,7 +475,10 @@ export async function getRecoveryKeyState(
 ): Promise<RecoveryKeyState> {
   const prisma = getPrisma();
   const [keyset, onboarding, dataKey, session, orphaned] = await Promise.all([
-    prisma.userKeyset.findUnique({ where: { userId }, select: { recoverySalt: true } }),
+    prisma.userKeyset.findUnique({
+      where: { userId },
+      select: { recoverySalt: true },
+    }),
     prisma.userOnboarding.findUnique({ where: { userId } }),
     sessionId ? getDataKey(userId, sessionId) : Promise.resolve(null),
     sessionId
@@ -444,7 +487,9 @@ export async function getRecoveryKeyState(
           select: { dataKeyWrappedBySessionKey: true },
         })
       : Promise.resolve(null),
-    prisma.verification.findFirst({ where: { identifier: orphanIdentifier(userId) } }),
+    prisma.verification.findFirst({
+      where: { identifier: orphanIdentifier(userId) },
+    }),
   ]);
 
   return {
@@ -472,7 +517,11 @@ export async function issueRecoveryKeyFor(
   const stored = await prisma.userKeyset.findUnique({ where: { userId } });
   if (!stored) return null;
 
-  const { keyset, recoveryKey } = await issueRecoveryKey(userId, stored as UserKeyset, dataKey);
+  const { keyset, recoveryKey } = await issueRecoveryKey(
+    userId,
+    stored as UserKeyset,
+    dataKey,
+  );
   const generatedAt = new Date();
 
   await prisma.$transaction([
@@ -520,7 +569,11 @@ export async function confirmRecoveryKeySaved(
 
   await prisma.userOnboarding.upsert({
     where: { userId },
-    create: { userId, recoveryKeyGeneratedAt: new Date(), recoveryKeySavedAt: new Date() },
+    create: {
+      userId,
+      recoveryKeyGeneratedAt: new Date(),
+      recoveryKeySavedAt: new Date(),
+    },
     update: { recoveryKeySavedAt: new Date() },
   });
 

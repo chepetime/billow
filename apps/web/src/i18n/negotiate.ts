@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, LOCALES, isLocale, type Locale } from "./routing";
+import { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from "./routing";
 
 /**
  * Pick the best supported locale from an `Accept-Language` header.

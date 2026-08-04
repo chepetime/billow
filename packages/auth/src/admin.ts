@@ -28,6 +28,7 @@ export async function getAdminSession() {
   const session = await getSession();
   return {
     session,
-    admin: Boolean(session) && isAdmin(session!.user as { role?: string | null }),
+    admin:
+      Boolean(session) && isAdmin(session!.user as { role?: string | null }),
   };
 }

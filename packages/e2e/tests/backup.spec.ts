@@ -27,7 +27,9 @@ test("a backup round-trip restores uploaded files, not just rows", async ({
   await page.goto("/settings/files");
   // The input is sr-only behind a button but is a real file input, as in
   // uploads.spec.ts.
-  await page.locator('input[type="file"]').setInputFiles(validPngFile(filename));
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles(validPngFile(filename));
   await expect(
     page.getByRole("listitem").filter({ hasText: filename }),
   ).toBeVisible();

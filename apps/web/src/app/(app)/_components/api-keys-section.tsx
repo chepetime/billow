@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
-import { notifyError, notifySuccess } from "@/lib/notify";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { SecretReveal } from "@/components/secret-reveal";
-import { createApiKeySchema, type CreateApiKeyInput } from "@/lib/schemas/api-keys";
+import { Field } from "@/components/ui/field";
+import { notifyError, notifySuccess } from "@/lib/notify";
+import {
+  type CreateApiKeyInput,
+  createApiKeySchema,
+} from "@/lib/schemas/api-keys";
 
 export type ApiKeySummary = {
   id: string;
@@ -40,7 +42,9 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
   async function createKey({ name }: CreateApiKeyInput) {
     setCreatedKey(null);
     const resolvedName = name || "Personal key";
-    const { data, error: createError } = await authClient.apiKey.create({ name: resolvedName });
+    const { data, error: createError } = await authClient.apiKey.create({
+      name: resolvedName,
+    });
     if (createError || !data) {
       notifyError("Key not created", createError?.message ?? undefined);
       return;
@@ -53,7 +57,9 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
   }
 
   async function handleRevoke(id: string) {
-    const { error: deleteError } = await authClient.apiKey.delete({ keyId: id });
+    const { error: deleteError } = await authClient.apiKey.delete({
+      keyId: id,
+    });
     if (deleteError) {
       notifyError("Key not revoked", deleteError.message ?? undefined);
       return;
@@ -67,7 +73,9 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
       <div className="space-y-1">
         <h2 className="text-base font-semibold">API keys</h2>
         <p className="text-sm text-muted-foreground">
-          Personal keys let other services call the Billow API on your behalf. Send one as an <code className="font-mono">x-api-key</code> header — try <code className="font-mono">GET /api/v1/me</code>.
+          Personal keys let other services call the Billow API on your behalf.
+          Send one as an <code className="font-mono">x-api-key</code> header —
+          try <code className="font-mono">GET /api/v1/me</code>.
         </p>
       </div>
       {createdKey ? (
@@ -85,13 +93,62 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
           />
         </div>
       ) : null}
-      <form className="flex flex-wrap items-end gap-3" onSubmit={form.handleSubmit(createKey)} noValidate>
-        <Field label="Key name" htmlFor="keyName" error={form.formState.errors.name?.message} className="flex-1">
-          <Input id="keyName" type="text" placeholder="Personal key" aria-invalid={Boolean(form.formState.errors.name)} {...form.register("name")} />
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={form.handleSubmit(createKey)}
+        noValidate
+      >
+        <Field
+          label="Key name"
+          htmlFor="keyName"
+          error={form.formState.errors.name?.message}
+          className="flex-1"
+        >
+          <Input
+            id="keyName"
+            type="text"
+            placeholder="Personal key"
+            aria-invalid={Boolean(form.formState.errors.name)}
+            {...form.register("name")}
+          />
         </Field>
-        <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Creating..." : "Create key"}</Button>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Creating..." : "Create key"}
+        </Button>
       </form>
-      {keys.length > 0 ? <ul className="divide-y rounded-md border">{keys.map((key) => <li key={key.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="space-y-0.5"><p className="text-sm font-medium">{key.name || "Untitled key"}</p><p className="text-xs text-muted-foreground">{key.start ? <span className="font-mono">{key.start}…</span> : null}{" "}created {formatDate(key.createdAt)} · last used {formatDate(key.lastRequest)}</p></div><Button type="button" variant="destructive" size="sm" onClick={() => handleRevoke(key.id)}>Revoke</Button></li>)}</ul> : <p className="text-sm text-muted-foreground">No API keys yet.</p>}
+      {keys.length > 0 ? (
+        <ul className="divide-y rounded-md border">
+          {keys.map((key) => (
+            <li
+              key={key.id}
+              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+            >
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">
+                  {key.name || "Untitled key"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {key.start ? (
+                    <span className="font-mono">{key.start}…</span>
+                  ) : null}{" "}
+                  created {formatDate(key.createdAt)} · last used{" "}
+                  {formatDate(key.lastRequest)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleRevoke(key.id)}
+              >
+                Revoke
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No API keys yet.</p>
+      )}
     </section>
   );
 }

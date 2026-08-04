@@ -1,15 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
-import { signUpSchema, type SignUpInput } from "@/lib/schemas/auth";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Field } from "@/components/ui/field";
+import { type SignUpInput, signUpSchema } from "@/lib/schemas/auth";
 
 export function SignUpForm() {
   const router = useRouter();
@@ -79,7 +78,12 @@ export function SignUpForm() {
         <p className="text-sm text-destructive">{formError}</p>
       ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Creating account..." : "Create account"}
       </Button>
     </form>

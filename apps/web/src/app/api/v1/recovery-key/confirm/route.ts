@@ -1,10 +1,9 @@
+import { confirmRecoveryKeySaved, getSession } from "@billow/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-import { confirmRecoveryKeySaved, getSession } from "@billow/auth";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -17,21 +16,32 @@ const payloadSchema = z.object({ recoveryKey: z.string().min(1).max(128) });
  * wrong, and the flow lets them try again or generate a fresh one.
  */
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
 
   const session = await getSession();
   if (!session) return error("Sign in to confirm your recovery key.", 401);
 
   // scrypt runs below; throttle before spending it.
-  const limit = await consumeRateLimit(`recovery-key:confirm:${session.user.id}`, 10, 300);
+  const limit = await consumeRateLimit(
+    `recovery-key:confirm:${session.user.id}`,
+    10,
+    300,
+  );
   if (!limit.allowed) {
-    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+    return error(
+      `Too many attempts. Try again in ${limit.retryAfter} seconds.`,
+      429,
+    );
   }
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Enter your recovery key.", 400);
 
-  const confirmed = await confirmRecoveryKeySaved(session.user.id, body.data.recoveryKey);
+  const confirmed = await confirmRecoveryKeySaved(
+    session.user.id,
+    body.data.recoveryKey,
+  );
   if (!confirmed) {
     return error("That is not the recovery key for this account.", 400);
   }

@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { InvoiceStatus } from "@billow/db/enums";
+import { describe, expect, it } from "vitest";
 import { parseInvoiceStatus } from "@/lib/invoice-status";
 
 describe("parseInvoiceStatus", () => {

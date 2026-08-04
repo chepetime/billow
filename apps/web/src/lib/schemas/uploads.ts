@@ -3,18 +3,20 @@ import { z } from "zod";
 /** Shape returned for a single upload. Also feeds the OpenAPI document. */
 export const uploadResponseSchema = z.object({
   id: z.string().meta({ description: "Stable upload identifier." }),
-  filename: z
-    .string()
-    .meta({ description: "Display filename supplied by the client, sanitized." }),
+  filename: z.string().meta({
+    description: "Display filename supplied by the client, sanitized.",
+  }),
   contentType: z.string().meta({
     description:
       "MIME type detected from the file's bytes. Never the client's declared Content-Type.",
   }),
   size: z.number().int().nonnegative().meta({ description: "Size in bytes." }),
-  kind: z
+  kind: z.string().meta({
+    description: 'Attachment classification. Always "attachment" today.',
+  }),
+  createdAt: z
     .string()
-    .meta({ description: 'Attachment classification. Always "attachment" today.' }),
-  createdAt: z.string().meta({ description: "When the file was uploaded, as an ISO timestamp." }),
+    .meta({ description: "When the file was uploaded, as an ISO timestamp." }),
 });
 
 export const uploadUsageSchema = z.object({

@@ -54,7 +54,9 @@ await pool.query(
   ],
 );
 
-const existingProfiles = await pool.query(`SELECT COUNT(*)::int AS count FROM "UserProfile"`);
+const existingProfiles = await pool.query(
+  `SELECT COUNT(*)::int AS count FROM "UserProfile"`,
+);
 
 if (existingProfiles.rows[0]?.count === 0) {
   const userProfile = await pool.query(

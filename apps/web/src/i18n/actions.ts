@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 
-import { LOCALE_COOKIE, isLocale } from "./routing";
+import { isLocale, LOCALE_COOKIE } from "./routing";
 
 /**
  * Persist an explicit language choice.

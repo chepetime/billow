@@ -72,7 +72,9 @@ function header(name: string, size: number): Buffer {
 
 function padding(size: number): Buffer {
   const remainder = size % BLOCK_SIZE;
-  return remainder === 0 ? Buffer.alloc(0) : Buffer.alloc(BLOCK_SIZE - remainder);
+  return remainder === 0
+    ? Buffer.alloc(0)
+    : Buffer.alloc(BLOCK_SIZE - remainder);
 }
 
 /**
@@ -131,7 +133,11 @@ export function readTar(buffer: Buffer, maxTotalBytes: number): TarEntry[] {
     if (block.every((byte) => byte === 0)) break;
 
     const name = block.subarray(0, 100).toString("utf8").replace(/\0.*$/, "");
-    const sizeField = block.subarray(124, 136).toString("utf8").replace(/\0.*$/, "").trim();
+    const sizeField = block
+      .subarray(124, 136)
+      .toString("utf8")
+      .replace(/\0.*$/, "")
+      .trim();
     const size = Number.parseInt(sizeField, 8);
 
     if (!Number.isFinite(size) || size < 0) {
@@ -140,7 +146,9 @@ export function readTar(buffer: Buffer, maxTotalBytes: number): TarEntry[] {
 
     total += size;
     if (total > maxTotalBytes) {
-      throw new Error("Backup archive is larger than this installation accepts.");
+      throw new Error(
+        "Backup archive is larger than this installation accepts.",
+      );
     }
 
     const start = offset + BLOCK_SIZE;

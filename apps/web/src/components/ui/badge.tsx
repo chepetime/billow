@@ -1,8 +1,5 @@
 import { InvoiceStatus } from "@billow/db/enums";
-import {
-  Badge,
-  badgeVariants,
-} from "@billow/shadcn/components/badge";
+import { Badge, badgeVariants } from "@billow/shadcn/components/badge";
 
 export { Badge, badgeVariants };
 

@@ -1,12 +1,14 @@
-import { FilesSection } from "@/app/(app)/settings/_components/files-section";
 import { requireSession } from "@billow/auth";
+import { FilesSection } from "@/app/(app)/settings/_components/files-section";
 import { listUploads } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
 export default async function FilesSettingsPage() {
   const session = await requireSession();
-  const { uploads, usageBytes, limitBytes } = await listUploads(session.user.id);
+  const { uploads, usageBytes, limitBytes } = await listUploads(
+    session.user.id,
+  );
 
   return (
     <div className="space-y-8">

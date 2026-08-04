@@ -5,16 +5,18 @@ import { signInSchema, signUpSchema, usernameSchema } from "@/lib/schemas/auth";
 
 describe("signInSchema", () => {
   it("accepts a username or an email as the identifier", () => {
-    expect(signInSchema.safeParse({ identifier: "chepe", password: "x" }).success).toBe(true);
+    expect(
+      signInSchema.safeParse({ identifier: "chepe", password: "x" }).success,
+    ).toBe(true);
     expect(
       signInSchema.safeParse({ identifier: "a@b.co", password: "x" }).success,
     ).toBe(true);
   });
 
   it("rejects an empty identifier", () => {
-    expect(signInSchema.safeParse({ identifier: "", password: "x" }).success).toBe(
-      false,
-    );
+    expect(
+      signInSchema.safeParse({ identifier: "", password: "x" }).success,
+    ).toBe(false);
   });
 });
 
@@ -66,9 +68,9 @@ describe("usernameSchema", () => {
 
 describe("profileSchema", () => {
   it("treats an empty username as valid (unset)", () => {
-    expect(profileSchema.safeParse({ name: "Jose", username: "" }).success).toBe(
-      true,
-    );
+    expect(
+      profileSchema.safeParse({ name: "Jose", username: "" }).success,
+    ).toBe(true);
   });
 
   it("still validates a non-empty username", () => {

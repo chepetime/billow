@@ -1,16 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import {
   KeyRound,
   LockKeyhole,
   Paperclip,
   ShieldCheck,
-  UserRound,
-  UserPlus,
   TriangleAlert,
+  UserPlus,
+  UserRound,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -80,7 +80,10 @@ export function SettingsSidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         Manage your account and integrations.
       </p>
 
-      <nav aria-label="Settings sections" className="mt-5 grid gap-1 sm:grid-cols-3 lg:grid-cols-1">
+      <nav
+        aria-label="Settings sections"
+        className="mt-5 grid gap-1 sm:grid-cols-3 lg:grid-cols-1"
+      >
         {visible.map(({ href, label, description, icon: Icon }) => {
           const active = pathname === href;
 

@@ -1,14 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { CloudUpload } from "lucide-react";
-
 import { Badge } from "@billow/shadcn/components/badge";
 import { Button, buttonVariants } from "@billow/shadcn/components/button";
 import { Progress } from "@billow/shadcn/components/progress";
-import { formatBytes } from "@/lib/schemas/uploads";
+import { CloudUpload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { notifyError, notifySuccess } from "@/lib/notify";
+import { formatBytes } from "@/lib/schemas/uploads";
 import { cn } from "@/lib/utils";
 
 export type FileSummary = {
@@ -25,8 +24,12 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
 }
 
-async function readErrorMessage(response: Response): Promise<string | undefined> {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+async function readErrorMessage(
+  response: Response,
+): Promise<string | undefined> {
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
   return body?.error;
 }
 
@@ -54,7 +57,10 @@ export function FilesSection({
   const [isUploading, setIsUploading] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const usagePercent = Math.min(100, Math.round((usageBytes / limitBytes) * 100));
+  const usagePercent = Math.min(
+    100,
+    Math.round((usageBytes / limitBytes) * 100),
+  );
 
   async function uploadFile(file: File) {
     setIsUploading(true);
@@ -93,7 +99,9 @@ export function FilesSection({
   async function handleDelete(id: string) {
     setPendingDeleteId(id);
     try {
-      const response = await fetch(`/api/v1/uploads/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/v1/uploads/${id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
         notifyError("Delete failed", await readErrorMessage(response));
         return;
@@ -118,8 +126,8 @@ export function FilesSection({
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Files</h2>
         <p className="text-sm text-muted-foreground">
-          Attach avatars, images and PDFs to your account. Accepted types: PNG, JPEG, GIF, WEBP,
-          PDF.
+          Attach avatars, images and PDFs to your account. Accepted types: PNG,
+          JPEG, GIF, WEBP, PDF.
         </p>
       </div>
 
@@ -133,6 +141,9 @@ export function FilesSection({
         <Progress value={usagePercent} />
       </div>
 
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a
+          pointer-only enhancement; the "Choose a file" button below is the
+          keyboard- and screen-reader-accessible path to the same action. */}
       <div
         className={cn(
           "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors",
@@ -149,7 +160,10 @@ export function FilesSection({
           handleFiles(event.dataTransfer.files);
         }}
       >
-        <CloudUpload aria-hidden="true" className="size-6 text-muted-foreground" />
+        <CloudUpload
+          aria-hidden="true"
+          className="size-6 text-muted-foreground"
+        />
         <p className="text-sm text-muted-foreground">Drag a file here, or</p>
         <Button
           type="button"
@@ -182,7 +196,9 @@ export function FilesSection({
               className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
               <div className="min-w-0 space-y-0.5">
-                <p className="truncate text-sm font-medium">{upload.filename}</p>
+                <p className="truncate text-sm font-medium">
+                  {upload.filename}
+                </p>
                 <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">{upload.contentType}</Badge>
                   <span>{formatBytes(upload.size)}</span>

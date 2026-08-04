@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Field } from "@/components/ui/field";
 import { isEmailIdentifier } from "@/lib/login-identifier";
-import { signInSchema, type SignInInput } from "@/lib/schemas/auth";
+import { type SignInInput, signInSchema } from "@/lib/schemas/auth";
 
 interface SignInFormProps {
   /**
@@ -74,7 +73,11 @@ export function SignInForm({ canResetPassword }: SignInFormProps) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="password" error={errors.password?.message}>
+      <Field
+        label="Password"
+        htmlFor="password"
+        error={errors.password?.message}
+      >
         <Input
           id="password"
           type="password"
@@ -99,7 +102,12 @@ export function SignInForm({ canResetPassword }: SignInFormProps) {
         <p className="text-sm text-destructive">{formError}</p>
       ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Signing in..." : "Sign in"}
       </Button>
 

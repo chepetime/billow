@@ -1,5 +1,3 @@
-import { NextResponse } from "next/server";
-
 import { getAdminSession } from "@billow/auth";
 import {
   getPublicEmailSettings,
@@ -7,8 +5,9 @@ import {
   normalizePublicUrl,
   updateEmailSettings,
 } from "@billow/email";
-import { error } from "@/lib/api/respond";
+import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +65,10 @@ export async function PATCH(request: Request) {
   }
 
   if (body.fromEmail !== undefined) {
-    if (typeof body.fromEmail !== "string" || !isValidEmail(body.fromEmail.trim())) {
+    if (
+      typeof body.fromEmail !== "string" ||
+      !isValidEmail(body.fromEmail.trim())
+    ) {
       return error("A valid sender address is required.", 400);
     }
     update.fromEmail = body.fromEmail.trim();

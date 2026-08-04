@@ -1,5 +1,5 @@
-import { SettingsSidebar } from "@/app/(app)/settings/_components/settings-sidebar";
 import { isAdmin, requireSession } from "@billow/auth";
+import { SettingsSidebar } from "@/app/(app)/settings/_components/settings-sidebar";
 
 export const dynamic = "force-dynamic";
 

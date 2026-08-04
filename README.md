@@ -71,7 +71,7 @@ Useful routes:
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
 `master`. It installs dependencies from `pnpm-lock.yaml`, generates the
 Prisma client, validates the Prisma schema, applies migrations against a
-Postgres service, runs ESLint, runs Vitest, and builds the Next.js app.
+Postgres service, runs Biome, runs Vitest, and builds the Next.js app.
 
 ## Deployment
 

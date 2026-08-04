@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { getPrisma } from "@billow/db";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 

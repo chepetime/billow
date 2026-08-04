@@ -74,7 +74,9 @@ test("the reset form validates before spending the token", async ({ page }) => {
 
   // Mismatch is caught client-side too: the API takes one password, so a typo
   // in a field nobody can read back would otherwise be unrecoverable.
-  await page.getByLabel("New password", { exact: true }).fill("a-long-enough-password");
+  await page
+    .getByLabel("New password", { exact: true })
+    .fill("a-long-enough-password");
   await page.getByLabel("Confirm new password").fill("a-different-password");
   await page.getByRole("button", { name: /set new password/i }).click();
   await expect(page.getByText(/do not match/i)).toBeVisible();

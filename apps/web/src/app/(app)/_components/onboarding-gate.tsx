@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const RECOVERY_KEY_PATH = "/onboarding/recovery-key";
 const RESTORE_PATH = "/onboarding/restore-access";

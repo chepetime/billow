@@ -21,7 +21,9 @@ describe("detectType", () => {
   });
 
   it("rejects content that matches no accepted type", () => {
-    expect(detectType(new Uint8Array([0x3c, 0x3f, 0x70, 0x68, 0x70]))).toBeNull();
+    expect(
+      detectType(new Uint8Array([0x3c, 0x3f, 0x70, 0x68, 0x70])),
+    ).toBeNull();
     expect(detectType(new Uint8Array([]))).toBeNull();
   });
 

@@ -2,11 +2,11 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage";
-import { UploadRejectedError, createUpload, listUploads } from "@/lib/uploads";
+import { createUpload, listUploads, UploadRejectedError } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
  * check below only guards the cookie/session path.
  */
 function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(request.headers.get("x-api-key") || request.headers.get("authorization"));
+  return Boolean(
+    request.headers.get("x-api-key") || request.headers.get("authorization"),
+  );
 }
 
 /**
@@ -44,20 +46,29 @@ export async function POST(request: Request) {
   // Length can be absent or wrong for a chunked body — so the real file
   // bytes are checked again inside createUpload once parsed.
   const declaredLength = Number(request.headers.get("content-length") ?? "");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES + 65_536) {
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_UPLOAD_BYTES + 65_536
+  ) {
     return error("File is too large.", 413);
   }
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) {
-    return error('Send the file as multipart form data under the "file" field.', 400);
+    return error(
+      'Send the file as multipart form data under the "file" field.',
+      400,
+    );
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   try {
-    const upload = await createUpload(identity.userId, { name: file.name, bytes });
+    const upload = await createUpload(identity.userId, {
+      name: file.name,
+      bytes,
+    });
     return NextResponse.json(upload, { status: 201 });
   } catch (err) {
     if (err instanceof UploadRejectedError) {
@@ -78,7 +89,9 @@ export async function GET() {
   const identity = await requireApiIdentity(await headers());
   if (identity instanceof NextResponse) return identity;
 
-  const { uploads, usageBytes, limitBytes } = await listUploads(identity.userId);
+  const { uploads, usageBytes, limitBytes } = await listUploads(
+    identity.userId,
+  );
   return NextResponse.json({
     uploads,
     usage: { bytes: usageBytes, limitBytes },

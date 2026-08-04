@@ -2,7 +2,7 @@ import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 
 import { negotiateLocale } from "./negotiate";
-import { LOCALE_COOKIE, isLocale } from "./routing";
+import { isLocale, LOCALE_COOKIE } from "./routing";
 
 /**
  * Resolves the active locale per request.

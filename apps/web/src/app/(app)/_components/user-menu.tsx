@@ -1,10 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { LogOut, Settings } from "lucide-react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
+import { authClient } from "@billow/auth/client";
 import {
   Avatar,
   AvatarFallback,
@@ -20,8 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@billow/shadcn/components/dropdown-menu";
+import { LogOut, Settings } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { authClient } from "@billow/auth/client";
 
 function initials(name: string) {
   return name
@@ -74,7 +73,9 @@ export function UserMenu({
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="block truncate text-sm text-foreground">{name}</span>
+            <span className="block truncate text-sm text-foreground">
+              {name}
+            </span>
             <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
               {email}
             </span>

@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
 import { Textarea } from "@billow/shadcn/components/textarea";
+import { useState, useSyncExternalStore } from "react";
 import { Field } from "@/components/ui/field";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 async function readError(response: Response) {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
   return body?.error ?? "The vault request failed.";
 }
 
@@ -41,7 +42,10 @@ export function VaultSection() {
   );
 
   function requestHeaders() {
-    return { "Content-Type": "application/json", "x-billow-vault-key": vaultKey };
+    return {
+      "Content-Type": "application/json",
+      "x-billow-vault-key": vaultKey,
+    };
   }
 
   async function save() {
@@ -57,7 +61,8 @@ export function VaultSection() {
         headers: requestHeaders(),
         body: JSON.stringify({ secret }),
       });
-      if (!response.ok) return notifyError("Vault not saved", await readError(response));
+      if (!response.ok)
+        return notifyError("Vault not saved", await readError(response));
       setSecret("");
       notifySuccess("Vault entry encrypted and saved");
     } catch {
@@ -75,11 +80,17 @@ export function VaultSection() {
 
     setBusy("unlock");
     try {
-      const response = await fetch("/api/v1/vault", { headers: requestHeaders() });
-      if (!response.ok) return notifyError("Vault remains locked", await readError(response));
+      const response = await fetch("/api/v1/vault", {
+        headers: requestHeaders(),
+      });
+      if (!response.ok)
+        return notifyError("Vault remains locked", await readError(response));
       const payload = (await response.json()) as { secret: string };
       setSecret(payload.secret);
-      notifySuccess("Vault unlocked", "The decrypted note is only in this page's memory.");
+      notifySuccess(
+        "Vault unlocked",
+        "The decrypted note is only in this page's memory.",
+      );
     } catch {
       notifyError("Vault remains locked", "Could not reach the server.");
     } finally {
@@ -91,7 +102,11 @@ export function VaultSection() {
     setBusy("delete");
     try {
       const response = await fetch("/api/v1/vault", { method: "DELETE" });
-      if (!response.ok) return notifyError("Vault entry not deleted", await readError(response));
+      if (!response.ok)
+        return notifyError(
+          "Vault entry not deleted",
+          await readError(response),
+        );
       setSecret("");
       notifySuccess("Vault entry deleted");
     } catch {
@@ -106,20 +121,19 @@ export function VaultSection() {
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Experimental data vault</h2>
         <p className="text-sm leading-6 text-muted-foreground">
-          Save one private note as AES-256-GCM ciphertext. Your vault key is never stored and
-          is required again to read the note — lose it and the note is gone. This is a
-          security test, not a recovery-ready feature.
+          Save one private note as AES-256-GCM ciphertext. Your vault key is
+          never stored and is required again to read the note — lose it and the
+          note is gone. This is a security test, not a recovery-ready feature.
         </p>
       </div>
 
       {insecureTransport ? (
         <p className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm leading-6">
           This page is not on a secure connection, so the vault key is sent
-          across your network in the clear every time you save or unlock.
-          Anyone who can watch that traffic can read it. Encryption at rest
-          still holds — a database dump stays useless on its own — but reach
-          Billow over HTTPS before putting anything you actually care about
-          here.
+          across your network in the clear every time you save or unlock. Anyone
+          who can watch that traffic can read it. Encryption at rest still holds
+          — a database dump stays useless on its own — but reach Billow over
+          HTTPS before putting anything you actually care about here.
         </p>
       ) : null}
 
@@ -144,21 +158,35 @@ export function VaultSection() {
       </Field>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" disabled={busy !== null} onClick={() => void save()}>
+        <Button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => void save()}
+        >
           {busy === "save" ? "Encrypting…" : "Encrypt and save"}
         </Button>
-        <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void unlock()}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => void unlock()}
+        >
           {busy === "unlock" ? "Unlocking…" : "Unlock"}
         </Button>
-        <Button type="button" variant="destructive" disabled={busy !== null} onClick={() => void remove()}>
+        <Button
+          type="button"
+          variant="destructive"
+          disabled={busy !== null}
+          onClick={() => void remove()}
+        >
           {busy === "delete" ? "Deleting…" : "Delete vault entry"}
         </Button>
       </div>
 
       <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm leading-6 text-muted-foreground">
-        A database dump contains ciphertext only. A self-hosted administrator who changes the
-        running app can still capture a vault key while it is entered; this lab does not claim to
-        defend against that threat.
+        A database dump contains ciphertext only. A self-hosted administrator
+        who changes the running app can still capture a vault key while it is
+        entered; this lab does not claim to defend against that threat.
       </p>
     </section>
   );

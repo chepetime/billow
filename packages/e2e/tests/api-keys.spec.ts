@@ -1,4 +1,4 @@
-import { expect, request as apiRequest, test } from "@playwright/test";
+import { request as apiRequest, expect, test } from "@playwright/test";
 
 import { BASE_URL } from "./fixtures/base-url";
 import { readOwnerCredentials, uniqueSuffix } from "./fixtures/users";
@@ -16,11 +16,9 @@ test("a created API key authenticates /api/v1/me as the owning account", async (
   const keyName = `e2e-key-${uniqueSuffix()}`;
 
   await page.goto("/settings/api-keys");
-  await page
-    .context()
-    .grantPermissions(["clipboard-read", "clipboard-write"], {
-      origin: new URL(page.url()).origin,
-    });
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: new URL(page.url()).origin,
+  });
 
   await page.getByLabel("Key name").fill(keyName);
   await page.getByRole("button", { name: "Create key" }).click();

@@ -1,7 +1,13 @@
 import { z } from "zod";
 
-import { accountResponseSchema, errorResponseSchema } from "@/lib/schemas/api-keys";
-import { uploadListResponseSchema, uploadResponseSchema } from "@/lib/schemas/uploads";
+import {
+  accountResponseSchema,
+  errorResponseSchema,
+} from "@/lib/schemas/api-keys";
+import {
+  uploadListResponseSchema,
+  uploadResponseSchema,
+} from "@/lib/schemas/uploads";
 
 const accountSchema = z.toJSONSchema(accountResponseSchema);
 const errorSchema = z.toJSONSchema(errorResponseSchema);
@@ -74,7 +80,8 @@ export const openApiDocument = {
             content: { "application/json": { schema: errorSchema } },
           },
           "403": {
-            description: "A cookie-authenticated request did not originate from this app.",
+            description:
+              "A cookie-authenticated request did not originate from this app.",
             content: { "application/json": { schema: errorSchema } },
           },
           "409": {
@@ -94,7 +101,8 @@ export const openApiDocument = {
       get: {
         operationId: "listUploads",
         summary: "List uploaded files",
-        description: "Lists the authenticated account's files and current storage usage.",
+        description:
+          "Lists the authenticated account's files and current storage usage.",
         security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
         responses: {
           "200": {
@@ -125,7 +133,8 @@ export const openApiDocument = {
         ],
         responses: {
           "200": {
-            description: "The file's raw bytes, with the detected content type.",
+            description:
+              "The file's raw bytes, with the detected content type.",
           },
           "401": {
             description: "No valid credentials were supplied.",
@@ -140,7 +149,8 @@ export const openApiDocument = {
       delete: {
         operationId: "deleteUpload",
         summary: "Delete a file",
-        description: "Deletes a previously uploaded file, scoped to the authenticated account.",
+        description:
+          "Deletes a previously uploaded file, scoped to the authenticated account.",
         security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
         parameters: [
           {
@@ -159,7 +169,8 @@ export const openApiDocument = {
             content: { "application/json": { schema: errorSchema } },
           },
           "403": {
-            description: "A cookie-authenticated request did not originate from this app.",
+            description:
+              "A cookie-authenticated request did not originate from this app.",
             content: { "application/json": { schema: errorSchema } },
           },
           "404": {

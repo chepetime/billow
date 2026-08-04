@@ -5,9 +5,6 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "generated/prisma/**"]
     },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
     "test:run": {
       "dependsOn": ["^test:run"]
     },

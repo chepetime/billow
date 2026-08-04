@@ -1,8 +1,8 @@
 import {
-  expect,
-  test as setup,
   type APIRequestContext,
+  expect,
   type Page,
+  test as setup,
 } from "@playwright/test";
 
 import {
@@ -30,21 +30,21 @@ const ownerName = "Billow E2E Owner";
 const ownerEmail = uniqueEmail("owner");
 const ownerPassword = `Billow-e2e-owner-${uniqueSuffix()}!`;
 
-setup("register the owner account and confirm registration then closes", async ({
-  page,
-  request,
-}) => {
-  await landingPageOffersRegistration(page);
-  await registerLandsOnDashboard(page);
-  await secondSignUpIsRejected(request);
+setup(
+  "register the owner account and confirm registration then closes",
+  async ({ page, request }) => {
+    await landingPageOffersRegistration(page);
+    await registerLandsOnDashboard(page);
+    await secondSignUpIsRejected(request);
 
-  await page.context().storageState({ path: OWNER_STORAGE_STATE_PATH });
-  await saveOwnerCredentials({
-    name: ownerName,
-    email: ownerEmail,
-    password: ownerPassword,
-  });
-});
+    await page.context().storageState({ path: OWNER_STORAGE_STATE_PATH });
+    await saveOwnerCredentials({
+      name: ownerName,
+      email: ownerEmail,
+      password: ownerPassword,
+    });
+  },
+);
 
 async function landingPageOffersRegistration(page: Page) {
   await page.goto("/");

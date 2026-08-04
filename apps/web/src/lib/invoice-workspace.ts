@@ -1,7 +1,7 @@
 import "server-only";
 
-import { recordError } from "@/lib/error-log";
 import { getPrisma } from "@billow/db";
+import { recordError } from "@/lib/error-log";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -157,8 +157,14 @@ export async function getInvoiceWorkspace(userId: string) {
           (sum, invoice) => sum + invoice.total,
           0,
         ),
-        openTotal: openInvoices.reduce((sum, invoice) => sum + invoice.total, 0),
-        paidTotal: paidInvoices.reduce((sum, invoice) => sum + invoice.total, 0),
+        openTotal: openInvoices.reduce(
+          (sum, invoice) => sum + invoice.total,
+          0,
+        ),
+        paidTotal: paidInvoices.reduce(
+          (sum, invoice) => sum + invoice.total,
+          0,
+        ),
       },
       error: null as string | null,
     };

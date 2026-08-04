@@ -1,5 +1,4 @@
 export {
-  KeyHierarchyError,
   beginSession,
   changePassword,
   createUserKeyset,
@@ -7,10 +6,11 @@ export {
   encryptField,
   isEncryptedField,
   issueRecoveryKey,
+  KeyHierarchyError,
   normalizeRecoveryKey,
   resetPasswordWithRecoveryKey,
   resumeSession,
+  type UserKeyset,
   unlockWithPassword,
   unlockWithRecoveryKey,
-  type UserKeyset,
 } from "./key-hierarchy";

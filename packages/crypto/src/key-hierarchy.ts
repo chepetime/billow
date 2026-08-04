@@ -134,11 +134,17 @@ function unwrap(stored: string, keyEncryptionKey: Buffer, aad: Buffer): Buffer {
   const parts = stored.split(".");
   if (parts.length !== 4 || parts[0] !== VERSION) throw new KeyHierarchyError();
 
-  const [, ivPart, tagPart, wrappedPart] = parts as [string, string, string, string];
+  const [, ivPart, tagPart, wrappedPart] = parts as [
+    string,
+    string,
+    string,
+    string,
+  ];
   const iv = Buffer.from(ivPart, "base64url");
   const tag = Buffer.from(tagPart, "base64url");
   const wrapped = Buffer.from(wrappedPart, "base64url");
-  if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) throw new KeyHierarchyError();
+  if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES)
+    throw new KeyHierarchyError();
 
   try {
     const decipher = createDecipheriv(ALGORITHM, keyEncryptionKey, iv);
@@ -174,7 +180,11 @@ export async function createUserKeyset(
     dataKey,
     keyset: {
       passwordSalt: passwordSalt.toString("base64url"),
-      dataKeyWrappedByPassword: wrap(dataKey, passwordKek, context(userId, "password")),
+      dataKeyWrappedByPassword: wrap(
+        dataKey,
+        passwordKek,
+        context(userId, "password"),
+      ),
       recoverySalt: null,
       dataKeyWrappedByRecoveryKey: null,
     },
@@ -211,7 +221,11 @@ export async function issueRecoveryKey(
     keyset: {
       ...keyset,
       recoverySalt: recoverySalt.toString("base64url"),
-      dataKeyWrappedByRecoveryKey: wrap(dataKey, recoveryKek, context(userId, "recovery")),
+      dataKeyWrappedByRecoveryKey: wrap(
+        dataKey,
+        recoveryKek,
+        context(userId, "recovery"),
+      ),
     },
   };
 }
@@ -225,7 +239,11 @@ export async function unlockWithPassword(
   if (salt.length !== SALT_BYTES) throw new KeyHierarchyError();
 
   const passwordKek = await deriveKeyEncryptionKey(password, salt);
-  return unwrap(keyset.dataKeyWrappedByPassword, passwordKek, context(userId, "password"));
+  return unwrap(
+    keyset.dataKeyWrappedByPassword,
+    passwordKek,
+    context(userId, "password"),
+  );
 }
 
 /**
@@ -250,7 +268,11 @@ export async function beginSession(
 
   return {
     sessionKey: sessionKey.toString("base64url"),
-    dataKeyWrappedBySessionKey: wrap(dataKey, sessionKey, context(userId, "session")),
+    dataKeyWrappedBySessionKey: wrap(
+      dataKey,
+      sessionKey,
+      context(userId, "session"),
+    ),
   };
 }
 
@@ -282,7 +304,11 @@ async function rewrapUnderPassword(
   return {
     ...keyset,
     passwordSalt: passwordSalt.toString("base64url"),
-    dataKeyWrappedByPassword: wrap(dataKey, passwordKek, context(userId, "password")),
+    dataKeyWrappedByPassword: wrap(
+      dataKey,
+      passwordKek,
+      context(userId, "password"),
+    ),
   };
 }
 
@@ -319,13 +345,21 @@ export async function unlockWithRecoveryKey(
   // An account that never finished onboarding has no recovery arm. It fails
   // with the same error as a wrong key: whether a given account can be
   // recovered at all is not worth confirming to whoever is guessing.
-  if (!keyset.recoverySalt || !keyset.dataKeyWrappedByRecoveryKey) throw new KeyHierarchyError();
+  if (!keyset.recoverySalt || !keyset.dataKeyWrappedByRecoveryKey)
+    throw new KeyHierarchyError();
 
   const salt = Buffer.from(keyset.recoverySalt, "base64url");
   if (salt.length !== SALT_BYTES) throw new KeyHierarchyError();
 
-  const recoveryKek = await deriveKeyEncryptionKey(normalizeRecoveryKey(recoveryKey), salt);
-  return unwrap(keyset.dataKeyWrappedByRecoveryKey, recoveryKek, context(userId, "recovery"));
+  const recoveryKek = await deriveKeyEncryptionKey(
+    normalizeRecoveryKey(recoveryKey),
+    salt,
+  );
+  return unwrap(
+    keyset.dataKeyWrappedByRecoveryKey,
+    recoveryKek,
+    context(userId, "recovery"),
+  );
 }
 
 const FIELD_PREFIX = "encv1";
@@ -344,13 +378,20 @@ const FIELD_PREFIX = "encv1";
  * A fresh IV per write means two rows holding the same value do not look
  * alike, so the column leaks nothing to frequency analysis.
  */
-export function encryptField(dataKey: Buffer, context: string, plaintext: string): string {
+export function encryptField(
+  dataKey: Buffer,
+  context: string,
+  plaintext: string,
+): string {
   if (dataKey.length !== KEY_BYTES) throw new KeyHierarchyError();
 
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, dataKey, iv);
   cipher.setAAD(Buffer.from(`billow:field:${VERSION}:${context}`, "utf8"));
-  const sealed = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const sealed = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
 
   return [
     FIELD_PREFIX,
@@ -376,14 +417,27 @@ export function isEncryptedField(stored: unknown): stored is string {
   );
 }
 
-export function decryptField(dataKey: Buffer, context: string, stored: string): string {
+export function decryptField(
+  dataKey: Buffer,
+  context: string,
+  stored: string,
+): string {
   if (!isEncryptedField(stored)) throw new KeyHierarchyError();
   if (dataKey.length !== KEY_BYTES) throw new KeyHierarchyError();
 
-  const [, ivPart, tagPart, sealedPart] = stored.split(".") as [string, string, string, string];
+  const [, ivPart, tagPart, sealedPart] = stored.split(".") as [
+    string,
+    string,
+    string,
+    string,
+  ];
 
   try {
-    const decipher = createDecipheriv(ALGORITHM, dataKey, Buffer.from(ivPart, "base64url"));
+    const decipher = createDecipheriv(
+      ALGORITHM,
+      dataKey,
+      Buffer.from(ivPart, "base64url"),
+    );
     decipher.setAAD(Buffer.from(`billow:field:${VERSION}:${context}`, "utf8"));
     decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
     return Buffer.concat([

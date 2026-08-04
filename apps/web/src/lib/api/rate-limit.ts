@@ -32,7 +32,9 @@ export async function consumeRateLimit(
     const existing = await prisma.rateLimit.findUnique({ where: { key } });
 
     if (!existing) {
-      await prisma.rateLimit.create({ data: { key, count: 1, lastRequest: BigInt(now) } });
+      await prisma.rateLimit.create({
+        data: { key, count: 1, lastRequest: BigInt(now) },
+      });
       return { allowed: true, retryAfter: 0 };
     }
 
@@ -48,7 +50,10 @@ export async function consumeRateLimit(
     }
 
     if (existing.count >= max) {
-      return { allowed: false, retryAfter: Math.ceil((lastRequest + windowMs - now) / 1000) };
+      return {
+        allowed: false,
+        retryAfter: Math.ceil((lastRequest + windowMs - now) / 1000),
+      };
     }
 
     await prisma.rateLimit.update({

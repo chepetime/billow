@@ -1,15 +1,14 @@
 "use client";
 
-import { useTransition } from "react";
+import { Button } from "@billow/shadcn/components/button";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-
-import { Button } from "@billow/shadcn/components/button";
+import { useTransition } from "react";
 import { setLocale } from "@/i18n/actions";
 import {
   DEFAULT_LOCALE,
-  LOCALES,
   LOCALE_LABELS,
+  LOCALES,
   type Locale,
 } from "@/i18n/routing";
 

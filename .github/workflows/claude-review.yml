@@ -71,7 +71,7 @@ jobs:
                whether plugin-owned tables match the plugin's field list exactly.
             3. Server/client component boundaries and accidental secret exposure.
             4. Repo conventions: zod schemas as the single source of truth,
-               shared UI primitives, no `any`, no eslint-disable to paper over
+               shared UI primitives, no `any`, no biome-ignore to paper over
                type errors.
 
             Be concise. Only raise issues you are confident about, and say so

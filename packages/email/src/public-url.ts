@@ -108,7 +108,10 @@ export function rewriteResetLink(url: string, origin: string): string | null {
     try {
       // Resolves a relative callback against the reachable origin, and leaves
       // an already-absolute one alone.
-      parsed.searchParams.set("callbackURL", new URL(callback, origin).toString());
+      parsed.searchParams.set(
+        "callbackURL",
+        new URL(callback, origin).toString(),
+      );
     } catch {
       return null;
     }

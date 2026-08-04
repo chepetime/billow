@@ -6,17 +6,12 @@
   "scripts": {
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui",
-    "lint": "eslint ."
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@billow/typescript-config": "workspace:*",
-    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.2",
-    "eslint": "^9.39.5",
-    "eslint-plugin-playwright": "^2.11.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.66.0"
+    "typescript": "^5.9.3"
   }
 }

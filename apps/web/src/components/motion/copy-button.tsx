@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, Copy } from "lucide-react";
-
 import { Button } from "@billow/shadcn/components/button";
+import { Check, Copy } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useState } from "react";
 import { notifyError } from "@/lib/notify";
 
 export function CopyButton({

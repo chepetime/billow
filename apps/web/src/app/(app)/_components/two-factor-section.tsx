@@ -1,19 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import QRCode from "qrcode";
-import { useForm } from "react-hook-form";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
-import { notifyError, notifySuccess } from "@/lib/notify";
-import { twoFactorPasswordSchema, type TwoFactorPasswordInput } from "@/lib/schemas/account";
-import { twoFactorCodeSchema, type TwoFactorCodeInput } from "@/lib/schemas/auth";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import QRCode from "qrcode";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { SecretReveal } from "@/components/secret-reveal";
+import { Field } from "@/components/ui/field";
+import { notifyError, notifySuccess } from "@/lib/notify";
+import {
+  type TwoFactorPasswordInput,
+  twoFactorPasswordSchema,
+} from "@/lib/schemas/account";
+import {
+  type TwoFactorCodeInput,
+  twoFactorCodeSchema,
+} from "@/lib/schemas/auth";
 
 type Stage = "idle" | "enrolling";
 
@@ -55,12 +60,16 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function enable({ password }: TwoFactorPasswordInput) {
-    const { data, error: enableError } = await authClient.twoFactor.enable({ password });
+    const { data, error: enableError } = await authClient.twoFactor.enable({
+      password,
+    });
     if (enableError || !data) {
       notifyError("Two-factor setup failed", enableError?.message ?? undefined);
       return;
     }
-    setQrDataUrl(await QRCode.toDataURL(data.totpURI, { margin: 1, width: 220 }));
+    setQrDataUrl(
+      await QRCode.toDataURL(data.totpURI, { margin: 1, width: 220 }),
+    );
     setTotpUri(data.totpURI);
     setBackupCodes(data.backupCodes ?? []);
     passwordForm.reset();
@@ -68,20 +77,30 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function verify({ code }: TwoFactorCodeInput) {
-    const { error: verifyError } = await authClient.twoFactor.verifyTotp({ code });
+    const { error: verifyError } = await authClient.twoFactor.verifyTotp({
+      code,
+    });
     if (verifyError) {
       notifyError("That code did not work", verifyError.message ?? undefined);
       return;
     }
     reset();
-    notifySuccess("Two-factor authentication is on", "Keep your backup codes somewhere safe.");
+    notifySuccess(
+      "Two-factor authentication is on",
+      "Keep your backup codes somewhere safe.",
+    );
     router.refresh();
   }
 
   async function disable({ password }: TwoFactorPasswordInput) {
-    const { error: disableError } = await authClient.twoFactor.disable({ password });
+    const { error: disableError } = await authClient.twoFactor.disable({
+      password,
+    });
     if (disableError) {
-      notifyError("Could not turn off two-factor", disableError.message ?? undefined);
+      notifyError(
+        "Could not turn off two-factor",
+        disableError.message ?? undefined,
+      );
       return;
     }
     reset();
@@ -93,35 +112,114 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
     <section className="space-y-4 rounded-lg border bg-card p-6">
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Two-factor authentication</h2>
-        <p className="text-sm text-muted-foreground">{enabled ? "You'll be asked for a code from your authenticator app when signing in." : "Add a second step at sign-in using an authenticator app."}</p>
+        <p className="text-sm text-muted-foreground">
+          {enabled
+            ? "You'll be asked for a code from your authenticator app when signing in."
+            : "Add a second step at sign-in using an authenticator app."}
+        </p>
       </div>
       {stage === "enrolling" ? (
         <div className="space-y-4">
-          <div className="space-y-2"><p className="text-sm">Scan this with your authenticator app, then enter the 6-digit code to confirm.</p>{qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- inline QR data URI needs no image optimization
-            <img src={qrDataUrl} alt="Two-factor QR code" className="rounded-md border bg-white p-2" width={220} height={220} />
+          <div className="space-y-2">
+            <p className="text-sm">
+              Scan this with your authenticator app, then enter the 6-digit code
+              to confirm.
+            </p>
+            {qrDataUrl ? (
+              // biome-ignore lint/performance/noImgElement: inline QR data URI needs no image optimization
+              <img
+                src={qrDataUrl}
+                alt="Two-factor QR code"
+                className="rounded-md border bg-white p-2"
+                width={220}
+                height={220}
+              />
+            ) : null}
+            {totpUri ? (
+              <SecretReveal
+                title="Billow"
+                secret={setupKeyFrom(totpUri) ?? totpUri}
+                label="Setup key"
+                autoComplete="one-time-code"
+                onePasswordType="login"
+                otpauthUri={totpUri}
+                notes="Two-factor setup key for Billow. Scan the QR code instead if your authenticator supports it."
+              />
+            ) : null}
+          </div>
+          {backupCodes.length > 0 ? (
+            <div className="space-y-2 rounded-md border bg-muted/40 p-4">
+              <p className="text-sm font-medium">
+                Save your backup codes — they won&apos;t be shown again.
+              </p>
+              <ul className="grid grid-cols-2 gap-1 font-mono text-xs">
+                {backupCodes.map((backupCode) => (
+                  <li key={backupCode}>{backupCode}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
-          {totpUri ? (
-            <SecretReveal
-              title="Billow"
-              secret={setupKeyFrom(totpUri) ?? totpUri}
-              label="Setup key"
-              autoComplete="one-time-code"
-              onePasswordType="login"
-              otpauthUri={totpUri}
-              notes="Two-factor setup key for Billow. Scan the QR code instead if your authenticator supports it."
-            />
-          ) : null}</div>
-          {backupCodes.length > 0 ? <div className="space-y-2 rounded-md border bg-muted/40 p-4"><p className="text-sm font-medium">Save your backup codes — they won&apos;t be shown again.</p><ul className="grid grid-cols-2 gap-1 font-mono text-xs">{backupCodes.map((backupCode) => <li key={backupCode}>{backupCode}</li>)}</ul></div> : null}
-          <form className="space-y-4" onSubmit={codeForm.handleSubmit(verify)} noValidate>
-            <Field label="Authentication code" htmlFor="totpCode" error={codeForm.formState.errors.code?.message}><Input id="totpCode" type="text" inputMode="numeric" autoComplete="one-time-code" aria-invalid={Boolean(codeForm.formState.errors.code)} {...codeForm.register("code")} /></Field>
-            <div className="flex gap-2"><Button type="submit" disabled={codeForm.formState.isSubmitting}>{codeForm.formState.isSubmitting ? "Verifying..." : "Confirm and turn on"}</Button><Button type="button" variant="outline" onClick={reset}>Cancel</Button></div>
+          <form
+            className="space-y-4"
+            onSubmit={codeForm.handleSubmit(verify)}
+            noValidate
+          >
+            <Field
+              label="Authentication code"
+              htmlFor="totpCode"
+              error={codeForm.formState.errors.code?.message}
+            >
+              <Input
+                id="totpCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-invalid={Boolean(codeForm.formState.errors.code)}
+                {...codeForm.register("code")}
+              />
+            </Field>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={codeForm.formState.isSubmitting}>
+                {codeForm.formState.isSubmitting
+                  ? "Verifying..."
+                  : "Confirm and turn on"}
+              </Button>
+              <Button type="button" variant="outline" onClick={reset}>
+                Cancel
+              </Button>
+            </div>
           </form>
         </div>
       ) : (
-        <form className="space-y-4" onSubmit={passwordForm.handleSubmit(enabled ? disable : enable)} noValidate>
-          <Field label="Confirm your password" htmlFor="twoFactorPassword" error={passwordForm.formState.errors.password?.message}><Input id="twoFactorPassword" type="password" autoComplete="current-password" aria-invalid={Boolean(passwordForm.formState.errors.password)} {...passwordForm.register("password")} /></Field>
-          <Button type="submit" variant={enabled ? "destructive" : "default"} disabled={passwordForm.formState.isSubmitting}>{passwordForm.formState.isSubmitting ? "Working..." : enabled ? "Turn off two-factor" : "Set up two-factor"}</Button>
+        <form
+          className="space-y-4"
+          onSubmit={passwordForm.handleSubmit(enabled ? disable : enable)}
+          noValidate
+        >
+          <Field
+            label="Confirm your password"
+            htmlFor="twoFactorPassword"
+            error={passwordForm.formState.errors.password?.message}
+          >
+            <Input
+              id="twoFactorPassword"
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={Boolean(passwordForm.formState.errors.password)}
+              {...passwordForm.register("password")}
+            />
+          </Field>
+          <Button
+            type="submit"
+            variant={enabled ? "destructive" : "default"}
+            disabled={passwordForm.formState.isSubmitting}
+          >
+            {passwordForm.formState.isSubmitting
+              ? "Working..."
+              : enabled
+                ? "Turn off two-factor"
+                : "Set up two-factor"}
+          </Button>
         </form>
       )}
     </section>

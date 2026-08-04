@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import type { PublicEmailSettings } from "@billow/email";
 
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
 import { Label } from "@billow/shadcn/components/label";
+import { useState } from "react";
 import { notifyError, notifySuccess } from "@/lib/notify";
-import type { PublicEmailSettings } from "@billow/email";
 
 interface EmailSectionProps {
   settings: PublicEmailSettings;

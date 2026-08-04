@@ -1,18 +1,17 @@
 import "server-only";
 
-import { betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin, openAPI, twoFactor, username } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
-
 import { getPrisma } from "@billow/db";
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { admin, openAPI, twoFactor, username } from "better-auth/plugins";
 
 import { getAuthEnv } from "./auth-env";
 import {
   claimParkedDataKey,
-  dataKeyFromSessionKey,
   dataKeyCookies,
+  dataKeyFromSessionKey,
   enrollUser,
   openSessionDataKey,
   parkDataKeyForTwoFactor,
@@ -53,7 +52,9 @@ function readCookie(headers: Headers | undefined, name: string): string | null {
  * this point, so this is a lookup rather than a check.
  */
 async function userIdForSignIn(body: unknown): Promise<string | null> {
-  const credentials = body as { email?: unknown; username?: unknown } | undefined;
+  const credentials = body as
+    | { email?: unknown; username?: unknown }
+    | undefined;
   const prisma = getPrisma();
 
   if (typeof credentials?.email === "string") {
@@ -181,7 +182,8 @@ export const auth = betterAuth({
         path === "/sign-up/email" ||
         path === "/sign-in/email" ||
         path === "/sign-in/username";
-      const verifiesSecondFactor = path?.startsWith("/two-factor/verify") ?? false;
+      const verifiesSecondFactor =
+        path?.startsWith("/two-factor/verify") ?? false;
       const changesPassword = path === "/change-password";
       // Enabling or disabling two-factor rotates the session, and both take the
       // account password — so they can and must re-open the data key for the
@@ -190,12 +192,16 @@ export const auth = betterAuth({
       // "fixed" by rotating the user's recovery key.
       const togglesSecondFactor =
         path === "/two-factor/enable" || path === "/two-factor/disable";
-      if (!entersPassword && !verifiesSecondFactor && !changesPassword && !togglesSecondFactor) {
+      if (
+        !entersPassword &&
+        !verifiesSecondFactor &&
+        !changesPassword &&
+        !togglesSecondFactor
+      ) {
         return;
       }
 
       const newSession = ctx.context.newSession;
-
 
       try {
         if (changesPassword) {
@@ -204,9 +210,18 @@ export const auth = betterAuth({
           const session = ctx.context.session ?? newSession;
           const current = ctx.body?.currentPassword;
           const next = ctx.body?.newPassword;
-          if (!session || typeof current !== "string" || typeof next !== "string") return;
+          if (
+            !session ||
+            typeof current !== "string" ||
+            typeof next !== "string"
+          )
+            return;
 
-          const dataKey = await rewrapForNewPassword(session.user.id, current, next);
+          const dataKey = await rewrapForNewPassword(
+            session.user.id,
+            current,
+            next,
+          );
           if (!dataKey) return;
 
           // `revokeOtherSessions` may have replaced the session this request
@@ -217,7 +232,11 @@ export const auth = betterAuth({
             target.session.id,
             dataKey,
           );
-          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          ctx.setCookie(
+            dataKeyCookies.name,
+            sessionKey,
+            dataKeyCookies.options,
+          );
           return;
         }
 
@@ -225,7 +244,10 @@ export const auth = betterAuth({
           // The password was consumed at the sign-in step, so the data key is
           // wherever that step parked it.
           if (!newSession) return;
-          const pendingKey = readCookie(ctx.headers, dataKeyCookies.pendingName);
+          const pendingKey = readCookie(
+            ctx.headers,
+            dataKeyCookies.pendingName,
+          );
 
           // No parked key means this is enrolment, not sign-in: the user was
           // already signed in and is turning two-factor on. Their current
@@ -261,11 +283,16 @@ export const auth = betterAuth({
             newSession.session.id,
             dataKey,
           );
-          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          ctx.setCookie(
+            dataKeyCookies.name,
+            sessionKey,
+            dataKeyCookies.options,
+          );
           return;
         }
 
-        const password = typeof ctx.body?.password === "string" ? ctx.body.password : null;
+        const password =
+          typeof ctx.body?.password === "string" ? ctx.body.password : null;
         if (!password) return;
 
         if (togglesSecondFactor) {
@@ -281,7 +308,11 @@ export const auth = betterAuth({
             target.session.id,
             dataKey,
           );
-          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          ctx.setCookie(
+            dataKeyCookies.name,
+            sessionKey,
+            dataKeyCookies.options,
+          );
           return;
         }
 
@@ -293,7 +324,11 @@ export const auth = betterAuth({
             newSession.session.id,
             dataKey,
           );
-          ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
+          ctx.setCookie(
+            dataKeyCookies.name,
+            sessionKey,
+            dataKeyCookies.options,
+          );
           return;
         }
 
@@ -316,7 +351,11 @@ export const auth = betterAuth({
         // verify step, so the redundant park on a password-only sign-in simply
         // expires.
         const pendingKey = await parkDataKeyForTwoFactor(userId, dataKey);
-        ctx.setCookie(dataKeyCookies.pendingName, pendingKey, dataKeyCookies.pendingOptions);
+        ctx.setCookie(
+          dataKeyCookies.pendingName,
+          pendingKey,
+          dataKeyCookies.pendingOptions,
+        );
 
         if (!newSession) return;
 
@@ -330,7 +369,11 @@ export const auth = betterAuth({
         // guessing wrong strands the user with no data key and no way to fix
         // it by signing in again. An unclaimed park is one inert row that
         // expires in ten minutes; a wrong guess is a lockout.
-        const sessionKey = await openSessionDataKey(userId, newSession.session.id, dataKey);
+        const sessionKey = await openSessionDataKey(
+          userId,
+          newSession.session.id,
+          dataKey,
+        );
         ctx.setCookie(dataKeyCookies.name, sessionKey, dataKeyCookies.options);
       } catch (error) {
         console.error("[auth] data key hook failed:", error);

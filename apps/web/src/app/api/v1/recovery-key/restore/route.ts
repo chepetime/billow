@@ -1,11 +1,15 @@
+import {
+  auth,
+  dataKeyCookies,
+  getSession,
+  restoreAccessWithRecoveryKey,
+} from "@billow/auth";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-import { auth, dataKeyCookies, getSession, restoreAccessWithRecoveryKey } from "@billow/auth";
-import { headers } from "next/headers";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +28,23 @@ const payloadSchema = z.object({
  * right halves the work of guessing the other.
  */
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
 
   const session = await getSession();
   if (!session) return error("Sign in to restore access.", 401);
 
   // scrypt runs below; throttle before spending it.
-  const limit = await consumeRateLimit(`recovery-key:restore:${session.user.id}`, 5, 300);
+  const limit = await consumeRateLimit(
+    `recovery-key:restore:${session.user.id}`,
+    5,
+    300,
+  );
   if (!limit.allowed) {
-    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+    return error(
+      `Too many attempts. Try again in ${limit.retryAfter} seconds.`,
+      429,
+    );
   }
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
@@ -44,7 +56,10 @@ export async function POST(request: Request) {
   const requestHeaders = await headers();
   const verifyPassword = async (password: string) => {
     try {
-      await auth.api.verifyPassword({ body: { password }, headers: requestHeaders });
+      await auth.api.verifyPassword({
+        body: { password },
+        headers: requestHeaders,
+      });
       return true;
     } catch {
       return false;
@@ -59,7 +74,10 @@ export async function POST(request: Request) {
     verifyPassword,
   );
   if (!sessionKey) {
-    return error("That recovery key and password do not unlock this account.", 400);
+    return error(
+      "That recovery key and password do not unlock this account.",
+      400,
+    );
   }
 
   const response = NextResponse.json({ restored: true }, { headers: noStore });

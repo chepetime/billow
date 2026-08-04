@@ -4,8 +4,8 @@ import { getPrisma } from "@billow/db";
 
 import {
   EMAIL_CAPABILITY_UNKNOWN,
-  resolveEmailCapability,
   type EmailCapability,
+  resolveEmailCapability,
 } from "./capability";
 import {
   CredentialCryptoError,
@@ -60,10 +60,7 @@ export function isValidEmail(value: string): boolean {
  * the display name cannot inject a second header: anything outside a
  * conservative character set is dropped rather than escaped.
  */
-export function formatFromAddress(
-  email: string,
-  name: string | null,
-): string {
+export function formatFromAddress(email: string, name: string | null): string {
   const safeName = (name ?? "").replace(/[^\p{L}\p{N} .'-]/gu, "").trim();
   return safeName ? `${safeName} <${email}>` : email;
 }
@@ -73,9 +70,7 @@ export async function getPublicEmailSettings(): Promise<PublicEmailSettings> {
     where: { id: SETTINGS_ID },
   });
 
-  const provider = isSupportedProvider(row?.provider)
-    ? row.provider
-    : "resend";
+  const provider = isSupportedProvider(row?.provider) ? row.provider : "resend";
 
   if (!row?.apiKey) {
     return {
@@ -205,9 +200,10 @@ export async function getConfiguredPublicUrl(): Promise<string | null> {
  * Reads the decrypted key for actually sending. Server-side only, and the
  * result must never reach a response body.
  */
-export async function getSendingCredentials(): Promise<
-  { apiKey: string; from: string } | null
-> {
+export async function getSendingCredentials(): Promise<{
+  apiKey: string;
+  from: string;
+} | null> {
   const row = await getPrisma().emailSettings.findUnique({
     where: { id: SETTINGS_ID },
   });

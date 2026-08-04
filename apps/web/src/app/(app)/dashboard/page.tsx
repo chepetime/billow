@@ -1,7 +1,6 @@
-import Link from "next/link";
-
-import { InvoiceStatusBadge } from "@/components/ui/badge";
 import { requireSession } from "@billow/auth";
+import Link from "next/link";
+import { InvoiceStatusBadge } from "@/components/ui/badge";
 import {
   formatInvoiceDate,
   formatMoney,
@@ -39,18 +38,20 @@ export default async function DashboardPage() {
         <div className="rounded-lg border bg-card p-5">
           <h2 className="text-sm font-medium">Set up your workspace</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Before you can create invoices, Billow needs a few things in
-            place:
+            Before you can create invoices, Billow needs a few things in place:
           </p>
           <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
             <li>
-              1. A sender profile ({workspace.userProfiles.length > 0 ? "done" : "not set up"})
+              1. A sender profile (
+              {workspace.userProfiles.length > 0 ? "done" : "not set up"})
             </li>
             <li>
-              2. At least one bank account ({workspace.bankAccounts.length > 0 ? "done" : "not set up"})
+              2. At least one bank account (
+              {workspace.bankAccounts.length > 0 ? "done" : "not set up"})
             </li>
             <li>
-              3. A client company ({workspace.clientCompanies.length > 0 ? "done" : "not set up"})
+              3. A client company (
+              {workspace.clientCompanies.length > 0 ? "done" : "not set up"})
             </li>
           </ul>
           <p className="mt-3 text-sm text-muted-foreground">
@@ -154,9 +155,7 @@ export default async function DashboardPage() {
                   {workspace.bankAccounts.map((bankAccount) => (
                     <li key={bankAccount.id} className="text-sm">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          {bankAccount.label}
-                        </span>
+                        <span className="font-medium">{bankAccount.label}</span>
                         {bankAccount.isDefault && (
                           <span className="rounded-md bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
                             Default

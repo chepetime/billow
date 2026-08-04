@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Field } from "@/components/ui/field";
 import {
-  twoFactorCodeSchema,
   type TwoFactorCodeInput,
+  twoFactorCodeSchema,
 } from "@/lib/schemas/auth";
 
 export function TwoFactorForm() {
@@ -73,7 +72,12 @@ export function TwoFactorForm() {
         <p className="text-sm text-destructive">{formError}</p>
       ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Verifying..." : "Verify"}
       </Button>
 

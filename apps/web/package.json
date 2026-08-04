@@ -11,7 +11,6 @@
     "dev:app": "next dev",
     "build": "pnpm --filter @billow/db db:generate && next build --webpack",
     "start": "next start",
-    "lint": "eslint",
     "test": "vitest",
     "test:run": "vitest run",
     "dev:local": "sh scripts/dev-local.sh",
@@ -47,7 +46,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@billow/eslint-config": "workspace:*",
     "@billow/tailwind-config": "workspace:*",
     "@billow/typescript-config": "workspace:*",
     "@billow/vitest-config": "workspace:*",
@@ -55,7 +53,6 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "eslint": "^9.39.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

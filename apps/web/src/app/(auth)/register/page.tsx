@@ -1,10 +1,9 @@
-import Link from "next/link";
-
-import { SignUpForm } from "@/app/(auth)/_components/sign-up-form";
-import { buttonVariants } from "@billow/shadcn/components/button";
 import { getRegistrationEnabled, requireGuest } from "@billow/auth";
 import { canRegister } from "@billow/auth/env";
 import { getPrisma } from "@billow/db";
+import { buttonVariants } from "@billow/shadcn/components/button";
+import Link from "next/link";
+import { SignUpForm } from "@/app/(auth)/_components/sign-up-form";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +20,7 @@ export default async function RegisterPage() {
 
   const registrationEnabled = await getRegistrationEnabled().catch(() => false);
   const registrationOpen =
-    userCount !== null &&
-    canRegister(userCount, registrationEnabled);
+    userCount !== null && canRegister(userCount, registrationEnabled);
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-10 text-foreground">
@@ -49,7 +47,11 @@ export default async function RegisterPage() {
             </p>
             <Link
               href="/health"
-              className={buttonVariants({ variant: "outline", size: "lg", className: "w-full" })}
+              className={buttonVariants({
+                variant: "outline",
+                size: "lg",
+                className: "w-full",
+              })}
             >
               Check service health
             </Link>

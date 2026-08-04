@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
+import { authClient } from "@billow/auth/client";
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Field } from "@/components/ui/field";
-import { authClient } from "@billow/auth/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 export type AdminUser = {
@@ -31,9 +30,7 @@ export function UsersSection({
 }) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [passwordTargetId, setPasswordTargetId] = useState<string | null>(
-    null,
-  );
+  const [passwordTargetId, setPasswordTargetId] = useState<string | null>(null);
   const [passwordValue, setPasswordValue] = useState("");
 
   async function run(
@@ -128,11 +125,14 @@ export function UsersSection({
                     size="sm"
                     disabled={busy || self}
                     onClick={() =>
-                      run(user.id, admin ? "Role set to user" : "Role set to admin", () =>
-                        authClient.admin.setRole({
-                          userId: user.id,
-                          role: admin ? "user" : "admin",
-                        }),
+                      run(
+                        user.id,
+                        admin ? "Role set to user" : "Role set to admin",
+                        () =>
+                          authClient.admin.setRole({
+                            userId: user.id,
+                            role: admin ? "user" : "admin",
+                          }),
                       )
                     }
                   >
@@ -145,10 +145,13 @@ export function UsersSection({
                     size="sm"
                     disabled={busy || self}
                     onClick={() =>
-                      run(user.id, user.banned ? "User unbanned" : "User banned", () =>
-                        user.banned
-                          ? authClient.admin.unbanUser({ userId: user.id })
-                          : authClient.admin.banUser({ userId: user.id }),
+                      run(
+                        user.id,
+                        user.banned ? "User unbanned" : "User banned",
+                        () =>
+                          user.banned
+                            ? authClient.admin.unbanUser({ userId: user.id })
+                            : authClient.admin.banUser({ userId: user.id }),
                       )
                     }
                   >
@@ -162,7 +165,9 @@ export function UsersSection({
                     disabled={busy}
                     onClick={() =>
                       run(user.id, "Sessions revoked", () =>
-                        authClient.admin.revokeUserSessions({ userId: user.id }),
+                        authClient.admin.revokeUserSessions({
+                          userId: user.id,
+                        }),
                       )
                     }
                   >

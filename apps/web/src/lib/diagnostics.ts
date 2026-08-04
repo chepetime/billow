@@ -8,6 +8,7 @@ import v8 from "node:v8";
 
 import { auth } from "@billow/auth";
 import { getAuthEnv } from "@billow/auth/env";
+import { getPrisma } from "@billow/db";
 import {
   getEmailCapability,
   getPublicEmailSettings,
@@ -15,7 +16,6 @@ import {
 } from "@billow/email";
 import { getRecentErrors } from "@/lib/error-log";
 import { securityHeaders } from "@/lib/security-headers";
-import { getPrisma } from "@billow/db";
 
 /**
  * Diagnostics are only ever rendered behind a session: they include
@@ -126,7 +126,9 @@ export function collectEnv(env: NodeJS.ProcessEnv = process.env): EnvEntry[] {
         };
       });
   } catch (error) {
-    return [{ key: "environment", value: `⚠ ${describe(error)}`, sensitive: false }];
+    return [
+      { key: "environment", value: `⚠ ${describe(error)}`, sensitive: false },
+    ];
   }
 }
 
@@ -209,7 +211,10 @@ export function collectProcess(): Field[] {
     probe("ArrayBuffers", () => mb(process.memoryUsage().arrayBuffers)),
     probe("Peak RSS", () => mb(process.resourceUsage().maxRSS * 1024)),
     probe("CPU user", () => `${Math.round(process.cpuUsage().user / 1000)} ms`),
-    probe("CPU system", () => `${Math.round(process.cpuUsage().system / 1000)} ms`),
+    probe(
+      "CPU system",
+      () => `${Math.round(process.cpuUsage().system / 1000)} ms`,
+    ),
   ]);
 }
 
@@ -255,9 +260,7 @@ export function collectRuntime(): Field[] {
             version?: string;
           };
           return `prisma ${pkg.version ?? "?"}`;
-        } catch {
-          continue;
-        }
+        } catch {}
       }
       return "(not present — migrations run outside this image)";
     }),
@@ -271,7 +274,12 @@ export function collectHost(): Field[] {
     probe("Platform", () => `${process.platform}/${process.arch}`),
     probe("CPUs", () => os.cpus().length),
     probe("CPU model", () => os.cpus()[0]?.model),
-    probe("Load average", () => os.loadavg().map((n) => n.toFixed(2)).join(", ")),
+    probe("Load average", () =>
+      os
+        .loadavg()
+        .map((n) => n.toFixed(2))
+        .join(", "),
+    ),
     probe("Memory free", () => mb(os.freemem())),
     probe("Memory total", () => mb(os.totalmem())),
     probe("Host uptime", () => duration(os.uptime())),
@@ -389,7 +397,6 @@ export function collectAuth(): Field[] {
   ]);
 }
 
-
 /**
  * Outbound email, and specifically why password reset is or is not on offer.
  *
@@ -481,23 +488,37 @@ export function collectContainer(): Field[] {
     ),
     probe("Container hostname", () => os.hostname()),
     probe("Memory limit (cgroup)", () =>
-      cgroupBytes("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"),
+      cgroupBytes(
+        "/sys/fs/cgroup/memory.max",
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+      ),
     ),
     probe("Memory in use (cgroup)", () =>
-      cgroupBytes("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory/memory.usage_in_bytes"),
+      cgroupBytes(
+        "/sys/fs/cgroup/memory.current",
+        "/sys/fs/cgroup/memory/memory.usage_in_bytes",
+      ),
     ),
     probe("Memory peak (cgroup)", () =>
-      cgroupBytes("/sys/fs/cgroup/memory.peak", "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"),
+      cgroupBytes(
+        "/sys/fs/cgroup/memory.peak",
+        "/sys/fs/cgroup/memory/memory.max_usage_in_bytes",
+      ),
     ),
     probe("CPU limit (cgroup)", () => {
       const raw = readFirstLine("/sys/fs/cgroup/cpu.max");
       if (!raw) return "unavailable";
       const [quota, period] = raw.split(/\s+/);
-      return quota === "max" ? "unlimited" : `${Number(quota) / Number(period)} cores`;
+      return quota === "max"
+        ? "unlimited"
+        : `${Number(quota) / Number(period)} cores`;
     }),
     probe("Timezone", () => Intl.DateTimeFormat().resolvedOptions().timeZone),
     probe("Container clock", () => new Date().toISOString()),
-    probe("Clock note", () => "TOTP two-factor fails if this drifts from real time"),
+    probe(
+      "Clock note",
+      () => "TOTP two-factor fails if this drifts from real time",
+    ),
   ]);
 }
 
@@ -517,11 +538,13 @@ export async function collectNetwork(): Promise<Field[]> {
 
   const fields = [
     probe("Database hostname", () => dbHost || "unavailable"),
-    probe("Nameservers", () =>
-      (readFirstLine("/etc/resolv.conf") ?? "")
-        .split("\n")
-        .filter((l) => l.startsWith("nameserver"))
-        .join(" ") || dns.getServers().join(", "),
+    probe(
+      "Nameservers",
+      () =>
+        (readFirstLine("/etc/resolv.conf") ?? "")
+          .split("\n")
+          .filter((l) => l.startsWith("nameserver"))
+          .join(" ") || dns.getServers().join(", "),
     ),
     probe("Interfaces", () =>
       Object.entries(os.networkInterfaces())
@@ -547,7 +570,6 @@ export async function collectNetwork(): Promise<Field[]> {
 
   return [...fields, resolved, disk];
 }
-
 
 /**
  * The uploads volume. Only Postgres used to persist, so this section answers
@@ -655,7 +677,9 @@ export async function collectDatabase() {
 
   const migrations = await probeList(
     () =>
-      prisma().$queryRawUnsafe<{ migration_name: string; finished_at: Date | null }[]>(
+      prisma().$queryRawUnsafe<
+        { migration_name: string; finished_at: Date | null }[]
+      >(
         "SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY started_at DESC LIMIT 15",
       ),
     (row) => `${row.finished_at ? "✓" : "✗ pending"} ${row.migration_name}`,

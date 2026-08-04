@@ -1,21 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
-
-import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
 import { authClient } from "@billow/auth/client";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
+import { Field } from "@/components/ui/field";
 import { notifyError, notifySuccess } from "@/lib/notify";
 import {
-  changeEmailSchema,
-  changePasswordSchema,
-  profileSchema,
   type ChangeEmailInput,
   type ChangePasswordInput,
+  changeEmailSchema,
+  changePasswordSchema,
   type ProfileInput,
+  profileSchema,
 } from "@/lib/schemas/account";
 
 export function AccountForm({
@@ -97,12 +96,37 @@ export function AccountForm({
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={profileForm.handleSubmit(saveProfile)} noValidate>
-          <Field label="Name" htmlFor="name" error={profileForm.formState.errors.name?.message}>
-            <Input id="name" type="text" autoComplete="name" aria-invalid={Boolean(profileForm.formState.errors.name)} {...profileForm.register("name")} />
+        <form
+          className="space-y-4"
+          onSubmit={profileForm.handleSubmit(saveProfile)}
+          noValidate
+        >
+          <Field
+            label="Name"
+            htmlFor="name"
+            error={profileForm.formState.errors.name?.message}
+          >
+            <Input
+              id="name"
+              type="text"
+              autoComplete="name"
+              aria-invalid={Boolean(profileForm.formState.errors.name)}
+              {...profileForm.register("name")}
+            />
           </Field>
-          <Field label="Username" htmlFor="username" error={profileForm.formState.errors.username?.message}>
-            <Input id="username" type="text" autoComplete="username" placeholder="Not set" aria-invalid={Boolean(profileForm.formState.errors.username)} {...profileForm.register("username")} />
+          <Field
+            label="Username"
+            htmlFor="username"
+            error={profileForm.formState.errors.username?.message}
+          >
+            <Input
+              id="username"
+              type="text"
+              autoComplete="username"
+              placeholder="Not set"
+              aria-invalid={Boolean(profileForm.formState.errors.username)}
+              {...profileForm.register("username")}
+            />
           </Field>
           <Button type="submit" disabled={profileForm.formState.isSubmitting}>
             {profileForm.formState.isSubmitting ? "Saving..." : "Save profile"}
@@ -113,14 +137,35 @@ export function AccountForm({
       <section className="space-y-4 rounded-lg border bg-card p-6">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Email</h2>
-          <p className="text-sm text-muted-foreground">Used to sign in and to recover your account.</p>
+          <p className="text-sm text-muted-foreground">
+            Used to sign in and to recover your account.
+          </p>
         </div>
 
-        <form className="space-y-4" onSubmit={emailForm.handleSubmit(saveEmail)} noValidate>
-          <Field label="Email address" htmlFor="email" error={emailForm.formState.errors.newEmail?.message}>
-            <Input id="email" type="email" autoComplete="email" aria-invalid={Boolean(emailForm.formState.errors.newEmail)} {...emailForm.register("newEmail")} />
+        <form
+          className="space-y-4"
+          onSubmit={emailForm.handleSubmit(saveEmail)}
+          noValidate
+        >
+          <Field
+            label="Email address"
+            htmlFor="email"
+            error={emailForm.formState.errors.newEmail?.message}
+          >
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid={Boolean(emailForm.formState.errors.newEmail)}
+              {...emailForm.register("newEmail")}
+            />
           </Field>
-          <Button type="submit" disabled={emailForm.formState.isSubmitting || emailValue.trim() === email}>
+          <Button
+            type="submit"
+            disabled={
+              emailForm.formState.isSubmitting || emailValue.trim() === email
+            }
+          >
             {emailForm.formState.isSubmitting ? "Saving..." : "Update email"}
           </Button>
         </form>
@@ -129,18 +174,48 @@ export function AccountForm({
       <section className="space-y-4 rounded-lg border bg-card p-6">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Change password</h2>
-          <p className="text-sm text-muted-foreground">Changing your password signs you out of other sessions.</p>
+          <p className="text-sm text-muted-foreground">
+            Changing your password signs you out of other sessions.
+          </p>
         </div>
 
-        <form className="space-y-4" onSubmit={passwordForm.handleSubmit(savePassword)} noValidate>
-          <Field label="Current password" htmlFor="currentPassword" error={passwordForm.formState.errors.currentPassword?.message}>
-            <Input id="currentPassword" type="password" autoComplete="current-password" aria-invalid={Boolean(passwordForm.formState.errors.currentPassword)} {...passwordForm.register("currentPassword")} />
+        <form
+          className="space-y-4"
+          onSubmit={passwordForm.handleSubmit(savePassword)}
+          noValidate
+        >
+          <Field
+            label="Current password"
+            htmlFor="currentPassword"
+            error={passwordForm.formState.errors.currentPassword?.message}
+          >
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={Boolean(
+                passwordForm.formState.errors.currentPassword,
+              )}
+              {...passwordForm.register("currentPassword")}
+            />
           </Field>
-          <Field label="New password" htmlFor="newPassword" error={passwordForm.formState.errors.newPassword?.message}>
-            <Input id="newPassword" type="password" autoComplete="new-password" aria-invalid={Boolean(passwordForm.formState.errors.newPassword)} {...passwordForm.register("newPassword")} />
+          <Field
+            label="New password"
+            htmlFor="newPassword"
+            error={passwordForm.formState.errors.newPassword?.message}
+          >
+            <Input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
+              {...passwordForm.register("newPassword")}
+            />
           </Field>
           <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
-            {passwordForm.formState.isSubmitting ? "Saving..." : "Change password"}
+            {passwordForm.formState.isSubmitting
+              ? "Saving..."
+              : "Change password"}
           </Button>
         </form>
       </section>

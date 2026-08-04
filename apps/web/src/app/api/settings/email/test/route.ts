@@ -1,5 +1,3 @@
-import { NextResponse } from "next/server";
-
 import { getAdminSession } from "@billow/auth";
 import {
   clearEmailVerification,
@@ -7,8 +5,9 @@ import {
   sendEmail,
 } from "@billow/email";
 import { TestEmail, testEmailText } from "@billow/email/templates";
-import { error } from "@/lib/api/respond";
+import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 import { getAppMetadata } from "@/lib/app-metadata";
 import { recordError } from "@/lib/error-log";
 
@@ -62,7 +61,10 @@ export async function POST(request: Request) {
     // depend on email hide themselves again rather than promising delivery
     // the administrator has just watched fail.
     await clearEmailVerification();
-    return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
+    return NextResponse.json(
+      { ok: false, error: result.error },
+      { status: 502 },
+    );
   }
 
   // This is the only place verification is granted: proof that the key, the

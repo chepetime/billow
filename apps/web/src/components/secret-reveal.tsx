@@ -72,8 +72,11 @@ export function SecretReveal({
       .then(({ activateOPButton, encodeOPSaveRequest }) => {
         if (cancelled) return;
 
-        const fields: SaveRequestField[] = [{ autocomplete: autoComplete, value: secret }];
-        if (username) fields.unshift({ autocomplete: "username", value: username });
+        const fields: SaveRequestField[] = [
+          { autocomplete: autoComplete, value: secret },
+        ];
+        if (username)
+          fields.unshift({ autocomplete: "username", value: username });
 
         // Tie the saved item to this installation's own origin. It has to be
         // read at runtime: every install lives somewhere different —
@@ -124,7 +127,14 @@ export function SecretReveal({
       */}
       <div className="sr-only">
         {username ? (
-          <input type="text" readOnly value={username} autoComplete="username" aria-hidden="true" tabIndex={-1} />
+          <input
+            type="text"
+            readOnly
+            value={username}
+            autoComplete="username"
+            aria-hidden="true"
+            tabIndex={-1}
+          />
         ) : null}
         <label htmlFor={fieldId}>{label}</label>
         <input
@@ -138,7 +148,11 @@ export function SecretReveal({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <CopyButton value={secret} label={`Copy ${label.toLowerCase()}`} copiedLabel="Copied" />
+        <CopyButton
+          value={secret}
+          label={`Copy ${label.toLowerCase()}`}
+          copiedLabel="Copied"
+        />
         {otpauthUri ? (
           <a
             href={otpauthUri}

@@ -1,8 +1,8 @@
 export {
   EMAIL_CAPABILITY_UNKNOWN,
-  resolveEmailCapability,
   type EmailCapability,
   type EmailCapabilityInput,
+  resolveEmailCapability,
 } from "./capability";
 
 export {
@@ -13,12 +13,12 @@ export {
 } from "./crypto";
 
 export {
-  isSupportedProvider,
-  SUPPORTED_PROVIDERS,
   type EmailProvider,
+  isSupportedProvider,
   type OutgoingEmail,
   type ProviderName,
   type SendResult,
+  SUPPORTED_PROVIDERS,
 } from "./provider";
 
 export {
@@ -28,9 +28,10 @@ export {
   rewriteOrigin,
   rewriteResetLink,
 } from "./public-url";
-
+export { type RenderedMessage, sendEmail } from "./send";
 export {
   clearEmailVerification,
+  type EmailSettingsUpdate,
   formatFromAddress,
   getConfiguredPublicUrl,
   getEmailCapability,
@@ -38,9 +39,6 @@ export {
   getSendingCredentials,
   isValidEmail,
   markEmailVerified,
-  updateEmailSettings,
-  type EmailSettingsUpdate,
   type PublicEmailSettings,
+  updateEmailSettings,
 } from "./settings";
-
-export { sendEmail, type RenderedMessage } from "./send";

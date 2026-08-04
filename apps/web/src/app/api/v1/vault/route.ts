@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
-
 import { getPrisma } from "@billow/db";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiIdentity } from "@/lib/api/identity";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
-import { decryptVaultPayload, encryptVaultPayload, VaultCryptoError } from "@/lib/vault-crypto";
+import { error } from "@/lib/api/respond";
+import {
+  decryptVaultPayload,
+  encryptVaultPayload,
+  VaultCryptoError,
+} from "@/lib/vault-crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +17,9 @@ const payloadSchema = z.object({ secret: z.string().min(1).max(4096) });
 const noStore = { "Cache-Control": "no-store" };
 
 function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(request.headers.get("x-api-key") || request.headers.get("authorization"));
+  return Boolean(
+    request.headers.get("x-api-key") || request.headers.get("authorization"),
+  );
 }
 
 function vaultKey(request: Request): string | null {
@@ -76,7 +81,10 @@ async function identityFor(request: Request) {
 async function overVaultLimit(userId: string) {
   const limit = await consumeRateLimit(`vault:${userId}`, 20, 60);
   if (limit.allowed) return null;
-  return error(`Too many vault requests. Try again in ${limit.retryAfter} seconds.`, 429);
+  return error(
+    `Too many vault requests. Try again in ${limit.retryAfter} seconds.`,
+    429,
+  );
 }
 
 export async function GET(request: Request) {
@@ -88,16 +96,25 @@ export async function GET(request: Request) {
   const throttled = await overVaultLimit(identity.userId);
   if (throttled) return throttled;
 
-  const entry = await getPrisma().vaultEntry.findUnique({ where: { userId: identity.userId } });
+  const entry = await getPrisma().vaultEntry.findUnique({
+    where: { userId: identity.userId },
+  });
   if (!entry) return error("No vault entry exists yet.", 404);
 
   try {
     return NextResponse.json(
-      { secret: await decryptVaultPayload(identity.userId, key, entry.ciphertext) },
+      {
+        secret: await decryptVaultPayload(
+          identity.userId,
+          key,
+          entry.ciphertext,
+        ),
+      },
       { headers: noStore },
     );
   } catch (err) {
-    if (err instanceof VaultCryptoError) return error("The vault key cannot unlock this entry.", 401);
+    if (err instanceof VaultCryptoError)
+      return error("The vault key cannot unlock this entry.", 401);
     throw err;
   }
 }
@@ -112,9 +129,14 @@ export async function POST(request: Request) {
   if (throttled) return throttled;
 
   const body = payloadSchema.safeParse(await request.json().catch(() => null));
-  if (!body.success) return error("Enter a vault note up to 4,096 characters.", 400);
+  if (!body.success)
+    return error("Enter a vault note up to 4,096 characters.", 400);
 
-  const ciphertext = await encryptVaultPayload(identity.userId, key, body.data.secret);
+  const ciphertext = await encryptVaultPayload(
+    identity.userId,
+    key,
+    body.data.secret,
+  );
   await getPrisma().vaultEntry.upsert({
     where: { userId: identity.userId },
     create: { userId: identity.userId, ciphertext },
@@ -127,6 +149,8 @@ export async function DELETE(request: Request) {
   const identity = await identityFor(request);
   if (identity instanceof NextResponse) return identity;
 
-  await getPrisma().vaultEntry.deleteMany({ where: { userId: identity.userId } });
+  await getPrisma().vaultEntry.deleteMany({
+    where: { userId: identity.userId },
+  });
   return new NextResponse(null, { status: 204, headers: noStore });
 }

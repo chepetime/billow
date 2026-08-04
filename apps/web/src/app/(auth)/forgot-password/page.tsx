@@ -1,8 +1,7 @@
-import { notFound } from "next/navigation";
-
-import { ForgotPasswordForm } from "@/app/(auth)/_components/forgot-password-form";
 import { requireGuest } from "@billow/auth";
 import { getEmailCapability } from "@billow/email";
+import { notFound } from "next/navigation";
+import { ForgotPasswordForm } from "@/app/(auth)/_components/forgot-password-form";
 
 export const dynamic = "force-dynamic";
 

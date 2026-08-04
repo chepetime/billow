@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Field } from "@/components/ui/field";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 export function RestoreAccessForm() {
@@ -23,7 +22,9 @@ export function RestoreAccessForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recoveryKey, password }),
       });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       if (!response.ok) throw new Error(data?.error ?? "Something went wrong.");
 
       notifySuccess("Access restored", "Your data is readable again.");
@@ -37,7 +38,11 @@ export function RestoreAccessForm() {
   }
 
   return (
-    <form className="space-y-4 rounded-lg border bg-card p-6" onSubmit={submit} noValidate>
+    <form
+      className="space-y-4 rounded-lg border bg-card p-6"
+      onSubmit={submit}
+      noValidate
+    >
       <Field label="Recovery key" htmlFor="restoreRecoveryKey">
         <Input
           id="restoreRecoveryKey"
@@ -65,7 +70,9 @@ export function RestoreAccessForm() {
       </p>
       <Button
         type="submit"
-        disabled={busy || recoveryKey.trim().length === 0 || password.length === 0}
+        disabled={
+          busy || recoveryKey.trim().length === 0 || password.length === 0
+        }
       >
         {busy ? "Restoring..." : "Restore access"}
       </Button>

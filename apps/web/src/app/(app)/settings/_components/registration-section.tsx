@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-
 import { Switch } from "@billow/shadcn/components/switch";
+import { useState } from "react";
 
 export function RegistrationSection({ enabled }: { enabled: boolean }) {
   const [isEnabled, setIsEnabled] = useState(enabled);

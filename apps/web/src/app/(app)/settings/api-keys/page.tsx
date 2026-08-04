@@ -1,10 +1,9 @@
-import { headers } from "next/headers";
-
-import {
-  ApiKeysSection,
-  type ApiKeySummary,
-} from "@/app/(app)/_components/api-keys-section";
 import { auth, requireSession } from "@billow/auth";
+import { headers } from "next/headers";
+import {
+  type ApiKeySummary,
+  ApiKeysSection,
+} from "@/app/(app)/_components/api-keys-section";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";

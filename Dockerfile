@@ -25,7 +25,6 @@ COPY packages/crypto/package.json ./packages/crypto/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/email/package.json ./packages/email/package.json
 COPY packages/shadcn/package.json ./packages/shadcn/package.json
-COPY config/eslint-config/package.json ./config/eslint-config/package.json
 COPY config/tailwind-config/package.json ./config/tailwind-config/package.json
 COPY config/typescript-config/package.json ./config/typescript-config/package.json
 COPY config/vitest-config/package.json ./config/vitest-config/package.json

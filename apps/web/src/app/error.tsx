@@ -2,7 +2,10 @@
 
 import { Button } from "@billow/shadcn/components/button";
 
-export default function Error({
+// Named ErrorBoundary rather than Error: the file's default export name is not
+// part of Next's contract, and calling it Error shadows the global whose type
+// the props below actually refer to.
+export default function ErrorBoundary({
   error,
   reset,
 }: {

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Field } from "@/components/ui/field";
 
 export function DeleteAccountSection() {
   const router = useRouter();
@@ -40,7 +39,9 @@ export function DeleteAccountSection() {
   return (
     <section className="space-y-4 rounded-lg border border-destructive/30 bg-card p-6">
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-destructive">Delete account</h2>
+        <h2 className="text-base font-semibold text-destructive">
+          Delete account
+        </h2>
         <p className="text-sm leading-6 text-muted-foreground">
           This permanently removes your sign-in, API keys, invoices, clients,
           bank accounts, and sender profiles. This cannot be undone.
@@ -58,7 +59,7 @@ export function DeleteAccountSection() {
           />
         </Field>
         <Field
-          label='Type DELETE to confirm'
+          label="Type DELETE to confirm"
           htmlFor="deleteConfirmation"
           hint="This action cannot be reversed."
         >
@@ -73,7 +74,9 @@ export function DeleteAccountSection() {
         <Button
           type="submit"
           variant="destructive"
-          disabled={isPending || confirmation !== "DELETE" || password.length === 0}
+          disabled={
+            isPending || confirmation !== "DELETE" || password.length === 0
+          }
         >
           {isPending ? "Deleting account..." : "Delete account"}
         </Button>

@@ -2,7 +2,7 @@ import { InvoiceStatusBadge } from "@/components/ui/badge";
 import {
   formatCurrency,
   formatInvoiceDate,
-  getInvoiceById,
+  type getInvoiceById,
 } from "@/lib/invoice-workspace";
 
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoiceById>>>;
@@ -45,9 +45,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
               {userProfile.address}
             </p>
             {userProfile.department && (
-              <p className="text-muted-foreground">
-                {userProfile.department}
-              </p>
+              <p className="text-muted-foreground">{userProfile.department}</p>
             )}
             {userProfile.manager && (
               <p className="text-muted-foreground">
@@ -58,9 +56,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
         </section>
 
         <section className="rounded-lg border bg-card p-5">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Bill To
-          </h2>
+          <h2 className="text-sm font-medium text-muted-foreground">Bill To</h2>
           <div className="mt-2 space-y-0.5 text-sm">
             <p className="font-medium">{clientCompany.name}</p>
             {clientCompany.legalName && <p>{clientCompany.legalName}</p>}
@@ -71,9 +67,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
             )}
             <p className="text-muted-foreground">{clientCompany.address1}</p>
             {clientCompany.address2 && (
-              <p className="text-muted-foreground">
-                {clientCompany.address2}
-              </p>
+              <p className="text-muted-foreground">{clientCompany.address2}</p>
             )}
             <p className="text-muted-foreground">
               {clientCompany.cityStatePostal}
@@ -163,9 +157,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
           {bankAccount.routingNumber && (
             <div>
               <p className="text-xs text-muted-foreground">Routing number</p>
-              <p className="text-sm font-medium">
-                {bankAccount.routingNumber}
-              </p>
+              <p className="text-sm font-medium">{bankAccount.routingNumber}</p>
             </div>
           )}
           {bankAccount.institutionNumber && (
@@ -181,9 +173,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
           {bankAccount.transitNumber && (
             <div>
               <p className="text-xs text-muted-foreground">Transit number</p>
-              <p className="text-sm font-medium">
-                {bankAccount.transitNumber}
-              </p>
+              <p className="text-sm font-medium">{bankAccount.transitNumber}</p>
             </div>
           )}
           {bankAccount.swift && (

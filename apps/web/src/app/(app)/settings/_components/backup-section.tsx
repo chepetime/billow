@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 import { Button } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
-import { notifyError, notifySuccess } from "@/lib/notify";
+import { useState } from "react";
 import type { ImportSummary } from "@/lib/backup";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 function contentDispositionFilename(header: string | null): string | null {
   if (!header) return null;
@@ -92,7 +91,10 @@ export function BackupSection() {
 
   async function handleRestore() {
     if (!selectedFile) {
-      notifyError("Choose a file first", "Select a Billow backup file to restore.");
+      notifyError(
+        "Choose a file first",
+        "Select a Billow backup file to restore.",
+      );
       return;
     }
 
@@ -163,7 +165,9 @@ export function BackupSection() {
             type="file"
             accept=".tar.gz,.gz,application/gzip,application/json"
             className="w-auto"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              setSelectedFile(event.target.files?.[0] ?? null)
+            }
           />
           <Button
             type="button"

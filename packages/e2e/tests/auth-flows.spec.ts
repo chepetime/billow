@@ -1,14 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
-import {
-  secondsRemainingInPeriod,
-  secretFromUri,
-  totp,
-} from "./fixtures/totp";
+import { secondsRemainingInPeriod, secretFromUri, totp } from "./fixtures/totp";
 import {
   readOwnerCredentials,
-  updateOwnerUsername,
   uniqueUsername,
+  updateOwnerUsername,
 } from "./fixtures/users";
 
 /**
@@ -149,9 +145,7 @@ async function submitTotp(page: Page, secret: string, buttonName: string) {
     );
   }
 
-  await page
-    .getByLabel("Authentication code")
-    .fill(totp(secret));
+  await page.getByLabel("Authentication code").fill(totp(secret));
   await page.getByRole("button", { name: buttonName }).click();
 }
 

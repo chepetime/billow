@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build --webpack",
-    "start": "next start --port 3001",
-    "lint": "eslint"
+    "start": "next start --port 3001"
   },
   "dependencies": {
     "fumadocs-core": "^16.14.0",
@@ -18,13 +17,11 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@billow/eslint-config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "eslint": "^9.39.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }

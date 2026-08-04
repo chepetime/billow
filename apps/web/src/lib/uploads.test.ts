@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MAX_UPLOADS_PER_USER_BYTES,
   contentDispositionHeader,
+  MAX_UPLOADS_PER_USER_BYTES,
   wouldExceedQuota,
 } from "@/lib/uploads";
 

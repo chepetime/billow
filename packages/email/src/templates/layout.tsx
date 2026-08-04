@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   Body,
   Container,
@@ -8,7 +9,6 @@ import {
   Section,
   Text,
 } from "react-email";
-import type { ReactNode } from "react";
 
 /**
  * Shared shell for every message.

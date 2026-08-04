@@ -78,11 +78,9 @@ export async function deliverPasswordResetEmail(
     // Recorded without the URL or token: this table is readable from the
     // admin diagnostics page, and a working reset link there would be an
     // account takeover for anyone who can see it.
-    await recordError(
-      "auth.passwordReset.send",
-      new Error(result.error),
-      { userId: message.user.id },
-    );
+    await recordError("auth.passwordReset.send", new Error(result.error), {
+      userId: message.user.id,
+    });
 
     // Email was verified at some point but has now failed for a real user.
     // Withdrawing verification hides the reset link again, so the next person

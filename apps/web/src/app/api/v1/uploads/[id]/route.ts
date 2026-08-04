@@ -2,16 +2,23 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
-import { contentDispositionHeader, deleteUpload, getUploadForUser, readUploadBytes } from "@/lib/uploads";
+import {
+  contentDispositionHeader,
+  deleteUpload,
+  getUploadForUser,
+  readUploadBytes,
+} from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
 /** See the matching helper in ../route.ts: API-key callers skip the same-origin check. */
 function isCredentialedByApiKey(request: Request): boolean {
-  return Boolean(request.headers.get("x-api-key") || request.headers.get("authorization"));
+  return Boolean(
+    request.headers.get("x-api-key") || request.headers.get("authorization"),
+  );
 }
 
 type RouteParams = { params: Promise<{ id: string }> };

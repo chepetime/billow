@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  EMAIL_CAPABILITY_UNKNOWN,
-  resolveEmailCapability,
-} from "./capability";
+import { EMAIL_CAPABILITY_UNKNOWN, resolveEmailCapability } from "./capability";
 
 const VERIFIED_AT = new Date("2026-07-29T10:00:00.000Z");
 

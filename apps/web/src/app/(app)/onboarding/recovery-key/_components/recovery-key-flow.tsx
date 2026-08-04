@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { Button } from "@billow/shadcn/components/button";
-import { Field } from "@/components/ui/field";
 import { Input } from "@billow/shadcn/components/input";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { SecretReveal } from "@/components/secret-reveal";
+import { Field } from "@/components/ui/field";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 type Stage = "intro" | "revealed";
@@ -17,15 +16,21 @@ async function post(url: string, body?: unknown) {
     headers: { "Content-Type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  const data = (await response.json().catch(() => null)) as
-    | { recoveryKey?: string; confirmed?: boolean; error?: string }
-    | null;
+  const data = (await response.json().catch(() => null)) as {
+    recoveryKey?: string;
+    confirmed?: boolean;
+    error?: string;
+  } | null;
 
   if (!response.ok) throw new Error(data?.error ?? "Something went wrong.");
   return data;
 }
 
-export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolean }) {
+export function RecoveryKeyFlow({
+  alreadyGenerated,
+}: {
+  alreadyGenerated: boolean;
+}) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("intro");
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
@@ -41,7 +46,10 @@ export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolea
       setEntry("");
       setStage("revealed");
     } catch (caught) {
-      notifyError("Could not generate a recovery key", (caught as Error).message);
+      notifyError(
+        "Could not generate a recovery key",
+        (caught as Error).message,
+      );
     } finally {
       setBusy(false);
     }
@@ -52,7 +60,10 @@ export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolea
     setBusy(true);
     try {
       await post("/api/v1/recovery-key/confirm", { recoveryKey: entry });
-      notifySuccess("Recovery key confirmed", "Keep it somewhere you can find it.");
+      notifySuccess(
+        "Recovery key confirmed",
+        "Keep it somewhere you can find it.",
+      );
       router.replace("/dashboard");
       router.refresh();
     } catch (caught) {
@@ -67,7 +78,9 @@ export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolea
       <div className="space-y-4 rounded-lg border bg-card p-6">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">
-            {alreadyGenerated ? "Generate a new recovery key" : "Generate your recovery key"}
+            {alreadyGenerated
+              ? "Generate a new recovery key"
+              : "Generate your recovery key"}
           </h2>
           <p className="text-sm text-muted-foreground">
             {alreadyGenerated
@@ -104,7 +117,11 @@ export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolea
         ) : null}
       </div>
 
-      <form className="space-y-4 rounded-lg border bg-card p-6" onSubmit={confirm} noValidate>
+      <form
+        className="space-y-4 rounded-lg border bg-card p-6"
+        onSubmit={confirm}
+        noValidate
+      >
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Confirm you saved it</h2>
           <p className="text-sm text-muted-foreground">
@@ -127,7 +144,12 @@ export function RecoveryKeyFlow({ alreadyGenerated }: { alreadyGenerated: boolea
           <Button type="submit" disabled={busy || entry.trim().length === 0}>
             {busy ? "Checking..." : "Confirm and continue"}
           </Button>
-          <Button type="button" variant="outline" onClick={generate} disabled={busy}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={generate}
+            disabled={busy}
+          >
             Generate a different key
           </Button>
         </div>

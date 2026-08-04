@@ -1,10 +1,10 @@
-import {
-  SessionsSection,
-  type SessionSummary,
-} from "@/app/(app)/_components/sessions-section";
-import { TwoFactorSection } from "@/app/(app)/_components/two-factor-section";
 import { requireSession } from "@billow/auth";
 import { getPrisma } from "@billow/db";
+import {
+  type SessionSummary,
+  SessionsSection,
+} from "@/app/(app)/_components/sessions-section";
+import { TwoFactorSection } from "@/app/(app)/_components/two-factor-section";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,10 @@ export const dynamic = "force-dynamic";
  * carries live credentials, which is part of why the CSP forbids third-party
  * script and connect sources.
  */
-async function listSessions(userId: string, currentToken: string): Promise<SessionSummary[]> {
+async function listSessions(
+  userId: string,
+  currentToken: string,
+): Promise<SessionSummary[]> {
   try {
     // Read straight from the session table rather than through
     // `auth.api.listSessions`, which sits behind BetterAuth's sensitive-session
@@ -43,22 +46,26 @@ async function listSessions(userId: string, currentToken: string): Promise<Sessi
       },
     });
 
-    return sessions
-      .map((session) => ({
-        id: session.id,
-        token: session.token,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        expiresAt: session.expiresAt,
-        ipAddress: session.ipAddress,
-        userAgent: session.userAgent,
-        current: session.token === currentToken,
-      }))
-      // Current device first, then most recently signed in.
-      .sort((a, b) => {
-        if (a.current !== b.current) return a.current ? -1 : 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
+    return (
+      sessions
+        .map((session) => ({
+          id: session.id,
+          token: session.token,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          expiresAt: session.expiresAt,
+          ipAddress: session.ipAddress,
+          userAgent: session.userAgent,
+          current: session.token === currentToken,
+        }))
+        // Current device first, then most recently signed in.
+        .sort((a, b) => {
+          if (a.current !== b.current) return a.current ? -1 : 1;
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        })
+    );
   } catch (error) {
     await recordError("listSessions", error);
     return [];

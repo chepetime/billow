@@ -91,6 +91,8 @@ the model to follow.
 
 ## Style
 
-- TypeScript strict. No `any`, and no `eslint-disable` to paper over a type error.
+- TypeScript strict. No `any`, and no `biome-ignore` to paper over a type error.
+  A `biome-ignore` needs a reason after the colon; Biome fails the build on a
+  suppression that no longer suppresses anything.
 - Import shared UI from the workspace packages rather than redefining it.
 - Comments explain **why**, not what.

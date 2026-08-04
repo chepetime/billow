@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scrypt as scryptCallback } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scrypt as scryptCallback,
+} from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const KEY_BYTES = 32;
@@ -29,18 +34,24 @@ async function deriveKey(vaultKey: string, salt: Buffer): Promise<Buffer> {
   if (!vaultKey || vaultKey.length > 1024) throw new VaultCryptoError();
 
   return new Promise<Buffer>((resolve, reject) => {
-    scryptCallback(vaultKey, salt, KEY_BYTES, {
-      N: SCRYPT_N,
-      r: SCRYPT_R,
-      p: SCRYPT_P,
-      maxmem: SCRYPT_MAX_MEMORY,
-    }, (error, derived) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(derived);
-    });
+    scryptCallback(
+      vaultKey,
+      salt,
+      KEY_BYTES,
+      {
+        N: SCRYPT_N,
+        r: SCRYPT_R,
+        p: SCRYPT_P,
+        maxmem: SCRYPT_MAX_MEMORY,
+      },
+      (error, derived) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(derived);
+      },
+    );
   });
 }
 
@@ -62,7 +73,10 @@ export async function encryptVaultPayload(
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, await deriveKey(vaultKey, salt), iv);
   cipher.setAAD(associatedData(userId));
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
 
   return [
     VERSION,
@@ -86,15 +100,26 @@ export async function decryptVaultPayload(
   const iv = Buffer.from(ivPart, "base64url");
   const tag = Buffer.from(tagPart, "base64url");
   const ciphertext = Buffer.from(ciphertextPart, "base64url");
-  if (salt.length !== SALT_BYTES || iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {
+  if (
+    salt.length !== SALT_BYTES ||
+    iv.length !== IV_BYTES ||
+    tag.length !== TAG_BYTES
+  ) {
     throw new VaultCryptoError();
   }
 
   try {
-    const decipher = createDecipheriv(ALGORITHM, await deriveKey(vaultKey, salt), iv);
+    const decipher = createDecipheriv(
+      ALGORITHM,
+      await deriveKey(vaultKey, salt),
+      iv,
+    );
     decipher.setAAD(associatedData(userId));
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString("utf8");
   } catch {
     // Do not distinguish a wrong key, tampering, or a swapped owner binding.
     throw new VaultCryptoError();

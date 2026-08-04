@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-
 import { auth } from "@billow/auth";
-import { error } from "@/lib/api/respond";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { getPrisma } from "@billow/db";
+import { NextResponse } from "next/server";
+import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 
 export async function DELETE(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return error("Authentication required.", 401);
 

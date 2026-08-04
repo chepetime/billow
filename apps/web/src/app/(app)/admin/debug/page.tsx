@@ -1,6 +1,5 @@
-import { headers } from "next/headers";
-
 import { requireAdmin } from "@billow/auth";
+import { headers } from "next/headers";
 import { collectDiagnostics, type Field } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -84,8 +83,8 @@ export default async function DebugPage() {
         <h1 className="text-2xl font-semibold tracking-normal">Debug</h1>
         <p className="text-sm text-muted-foreground">
           Runtime diagnostics. Secret values are masked, but this page still
-          exposes internals, so it requires a signed-in session. Machine-readable
-          copy at{" "}
+          exposes internals, so it requires a signed-in session.
+          Machine-readable copy at{" "}
           <a
             className="text-primary underline underline-offset-4"
             href="/api/admin/diagnostics"
@@ -94,7 +93,9 @@ export default async function DebugPage() {
           </a>
           .
         </p>
-        <p className="text-xs text-muted-foreground">Checked at {d.checkedAt}</p>
+        <p className="text-xs text-muted-foreground">
+          Checked at {d.checkedAt}
+        </p>
       </div>
 
       <Section title="Application" fields={d.application} />
@@ -103,9 +104,18 @@ export default async function DebugPage() {
       <Section title="Security" fields={d.security} />
       <Section title="Email" fields={d.email} />
 
-      <Section title="Database" fields={[...d.database.server, ...d.database.counts]}>
-        <List title="Migrations (most recent first)" items={d.database.migrations.items} />
-        <List title="Connections by state" items={d.database.connections.items} />
+      <Section
+        title="Database"
+        fields={[...d.database.server, ...d.database.counts]}
+      >
+        <List
+          title="Migrations (most recent first)"
+          items={d.database.migrations.items}
+        />
+        <List
+          title="Connections by state"
+          items={d.database.connections.items}
+        />
         <List title="Largest tables" items={d.database.tables.items} />
       </Section>
 

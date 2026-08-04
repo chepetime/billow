@@ -1,6 +1,6 @@
+import { requireSession } from "@billow/auth";
 import { AccountForm } from "@/app/(app)/_components/account-form";
 import { LanguageSection } from "@/app/(app)/_components/language-section";
-import { requireSession } from "@billow/auth";
 
 export const dynamic = "force-dynamic";
 

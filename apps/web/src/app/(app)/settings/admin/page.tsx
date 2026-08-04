@@ -1,11 +1,16 @@
-import Link from "next/link";
+import { auth, requireAdmin } from "@billow/auth";
+import {
+  getPublicEmailSettings,
+  type PublicEmailSettings,
+} from "@billow/email";
 import { headers } from "next/headers";
-
+import Link from "next/link";
 import { BackupSection } from "@/app/(app)/settings/_components/backup-section";
 import { EmailSection } from "@/app/(app)/settings/_components/email-section";
-import { UsersSection, type AdminUser } from "@/app/(app)/settings/_components/users-section";
-import { auth, requireAdmin } from "@billow/auth";
-import { getPublicEmailSettings, type PublicEmailSettings } from "@billow/email";
+import {
+  type AdminUser,
+  UsersSection,
+} from "@/app/(app)/settings/_components/users-section";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";

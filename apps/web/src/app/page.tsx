@@ -1,5 +1,9 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { getRegistrationEnabled, getSession } from "@billow/auth";
+import { canRegister } from "@billow/auth/env";
+import { getPrisma } from "@billow/db";
+
+import { buttonVariants } from "@billow/shadcn/components/button";
+import { Card, CardContent } from "@billow/shadcn/components/card";
 import {
   ArrowRight,
   Check,
@@ -7,15 +11,11 @@ import {
   Database,
   ShieldCheck,
 } from "lucide-react";
-
-import { buttonVariants } from "@billow/shadcn/components/button";
-import { Card, CardContent } from "@billow/shadcn/components/card";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getAppMetadata } from "@/lib/app-metadata";
-import { getRegistrationEnabled, getSession } from "@billow/auth";
-import { canRegister } from "@billow/auth/env";
 import { cn } from "@/lib/utils";
-import { getPrisma } from "@billow/db";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,13 @@ const capabilities = [
 const stack = [
   {
     layer: "Interface",
-    items: ["Next.js 16 (App Router, RSC)", "React 19", "TypeScript 5", "Tailwind CSS 4", "shadcn/ui on Base UI"],
+    items: [
+      "Next.js 16 (App Router, RSC)",
+      "React 19",
+      "TypeScript 5",
+      "Tailwind CSS 4",
+      "shadcn/ui on Base UI",
+    ],
   },
   {
     layer: "Data",
@@ -56,15 +62,33 @@ const stack = [
   },
   {
     layer: "Identity",
-    items: ["better-auth", "TOTP two-factor", "API keys", "Admin and impersonation"],
+    items: [
+      "better-auth",
+      "TOTP two-factor",
+      "API keys",
+      "Admin and impersonation",
+    ],
   },
   {
     layer: "Platform",
-    items: ["next-intl", "next-themes", "Resend email", "File uploads", "Health and error log"],
+    items: [
+      "next-intl",
+      "next-themes",
+      "Resend email",
+      "File uploads",
+      "Health and error log",
+    ],
   },
   {
     layer: "Build and ship",
-    items: ["pnpm workspaces", "Turborepo", "Vitest", "Playwright", "Docker on Node 24", "GitHub Actions to GHCR"],
+    items: [
+      "pnpm workspaces",
+      "Turborepo",
+      "Vitest",
+      "Playwright",
+      "Docker on Node 24",
+      "GitHub Actions to GHCR",
+    ],
   },
 ] as const;
 
@@ -90,10 +114,10 @@ export default async function Home() {
   ]);
   const name = metadata?.name ?? "Billow";
   const tagline =
-    metadata?.tagline ?? "A self-hosted app with the boring parts already built.";
+    metadata?.tagline ??
+    "A self-hosted app with the boring parts already built.";
   const registrationOpen =
-    userCount !== null &&
-    canRegister(userCount, registrationEnabled);
+    userCount !== null && canRegister(userCount, registrationEnabled);
   const primaryHref = registrationOpen ? "/register" : "/login";
   const primaryLabel = registrationOpen ? "Get started" : "Log in";
 
@@ -152,8 +176,8 @@ export default async function Home() {
           <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
             {name} is a full-stack starter for software you run yourself:
             accounts, two-factor, an API, migrations, backups, a Docker image
-            and a release pipeline — so the only thing left to build is
-            whatever you actually wanted to build.
+            and a release pipeline — so the only thing left to build is whatever
+            you actually wanted to build.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -172,7 +196,10 @@ export default async function Home() {
           <div className="mt-14 w-full overflow-hidden border bg-card text-left shadow-sm">
             <div className="flex items-center justify-between border-b px-5 py-3 sm:px-6">
               <div className="flex items-center gap-2 text-sm font-medium">
-                <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                <span
+                  className="size-2 rounded-full bg-emerald-500"
+                  aria-hidden="true"
+                />
                 The stack
               </div>
               <span className="text-xs text-muted-foreground">
@@ -201,7 +228,9 @@ export default async function Home() {
 
       <section className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-20">
         <div className="max-w-xl">
-          <p className="text-sm font-medium text-muted-foreground">What comes with it</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            What comes with it
+          </p>
           <h2 className="mt-3 text-3xl font-semibold text-balance sm:text-4xl">
             The scaffolding every app needs and nobody enjoys writing twice.
           </h2>
@@ -231,7 +260,10 @@ export default async function Home() {
             "Runs on Umbrel, or any Docker host",
           ].map((item) => (
             <span key={item} className="flex items-center gap-2">
-              <Check aria-hidden="true" className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <Check
+                aria-hidden="true"
+                className="size-4 text-emerald-600 dark:text-emerald-400"
+              />
               {item}
             </span>
           ))}

@@ -101,7 +101,10 @@ describe("resolveEmailOrigin", () => {
 
   it("falls back to the request when the configured URL is unusable", () => {
     expect(
-      resolveEmailOrigin("http://localhost:3000", headers({ host: "b.example" })),
+      resolveEmailOrigin(
+        "http://localhost:3000",
+        headers({ host: "b.example" }),
+      ),
     ).toBe("http://b.example");
   });
 
@@ -120,7 +123,9 @@ describe("rewriteOrigin", () => {
         "http://localhost:3000/api/auth/reset-password/tok_123?callbackURL=%2F",
         "https://billow.example",
       ),
-    ).toBe("https://billow.example/api/auth/reset-password/tok_123?callbackURL=%2F");
+    ).toBe(
+      "https://billow.example/api/auth/reset-password/tok_123?callbackURL=%2F",
+    );
   });
 
   it("returns null for an unparseable url", () => {
@@ -153,7 +158,9 @@ describe("rewriteResetLink", () => {
   it("keeps the callback same-origin with the link", () => {
     // BetterAuth runs an origin check over callbackURL; a callback pointing
     // somewhere else would be rejected, and would be an open redirect.
-    const parsed = new URL(rewriteResetLink(link, "http://umbrel.local:46247")!);
+    const parsed = new URL(
+      rewriteResetLink(link, "http://umbrel.local:46247")!,
+    );
     expect(new URL(parsed.searchParams.get("callbackURL")!).origin).toBe(
       parsed.origin,
     );
@@ -162,7 +169,9 @@ describe("rewriteResetLink", () => {
   it("leaves an already-absolute callback untouched", () => {
     const absolute =
       "http://localhost:3000/api/auth/reset-password/t?callbackURL=https%3A%2F%2Fpinned.example%2Freset-password";
-    const parsed = new URL(rewriteResetLink(absolute, "https://billow.example")!);
+    const parsed = new URL(
+      rewriteResetLink(absolute, "https://billow.example")!,
+    );
     expect(parsed.searchParams.get("callbackURL")).toBe(
       "https://pinned.example/reset-password",
     );

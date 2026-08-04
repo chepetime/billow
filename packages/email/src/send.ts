@@ -2,9 +2,8 @@ import "server-only";
 
 import { render } from "@react-email/render";
 import type { ReactElement } from "react";
-
-import { createResendProvider } from "./providers/resend";
 import type { SendResult } from "./provider";
+import { createResendProvider } from "./providers/resend";
 import { getSendingCredentials } from "./settings";
 
 export interface RenderedMessage {

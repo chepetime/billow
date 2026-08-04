@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { authClient } from "@billow/auth/client";
+import { Button } from "@billow/shadcn/components/button";
+import { Input } from "@billow/shadcn/components/input";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button } from "@billow/shadcn/components/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@billow/shadcn/components/input";
-import { authClient } from "@billow/auth/client";
 import {
-  resetPasswordSchema,
   type ResetPasswordInput,
+  resetPasswordSchema,
 } from "@/lib/schemas/auth";
 
 interface ResetPasswordFormProps {
@@ -117,7 +116,12 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Saving..." : "Set new password"}
       </Button>
     </form>

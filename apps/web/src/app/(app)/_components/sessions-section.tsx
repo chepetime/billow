@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
-import { Button } from "@billow/shadcn/components/button";
 import { authClient } from "@billow/auth/client";
+import { Button } from "@billow/shadcn/components/button";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { notifyError, notifySuccess } from "@/lib/notify";
 
 export type SessionSummary = {
@@ -39,21 +38,29 @@ function formatDate(value: Date | string) {
 function describeClient(userAgent: string | null | undefined) {
   if (!userAgent) return "Unknown device";
 
-  const browser =
-    /Edg\//.test(userAgent) ? "Edge"
-    : /OPR\//.test(userAgent) ? "Opera"
-    : /Chrome\//.test(userAgent) ? "Chrome"
-    : /Safari\//.test(userAgent) ? "Safari"
-    : /Firefox\//.test(userAgent) ? "Firefox"
-    : null;
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /OPR\//.test(userAgent)
+      ? "Opera"
+      : /Chrome\//.test(userAgent)
+        ? "Chrome"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : /Firefox\//.test(userAgent)
+            ? "Firefox"
+            : null;
 
-  const platform =
-    /iPhone|iPad/.test(userAgent) ? "iOS"
-    : /Android/.test(userAgent) ? "Android"
-    : /Mac OS X/.test(userAgent) ? "macOS"
-    : /Windows/.test(userAgent) ? "Windows"
-    : /Linux/.test(userAgent) ? "Linux"
-    : null;
+  const platform = /iPhone|iPad/.test(userAgent)
+    ? "iOS"
+    : /Android/.test(userAgent)
+      ? "Android"
+      : /Mac OS X/.test(userAgent)
+        ? "macOS"
+        : /Windows/.test(userAgent)
+          ? "Windows"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : null;
 
   if (browser && platform) return `${browser} on ${platform}`;
   return browser ?? platform ?? "Unknown device";

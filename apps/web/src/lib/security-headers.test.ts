@@ -16,7 +16,9 @@ describe("securityHeaders", () => {
   });
 
   it("sets a strict Referrer-Policy", () => {
-    expect(getHeader("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+    expect(getHeader("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
   });
 
   it("denies framing via X-Frame-Options", () => {
@@ -26,7 +28,13 @@ describe("securityHeaders", () => {
   it("denies unused device capabilities via Permissions-Policy", () => {
     const policy = getHeader("Permissions-Policy");
 
-    for (const feature of ["camera", "microphone", "geolocation", "payment", "usb"]) {
+    for (const feature of [
+      "camera",
+      "microphone",
+      "geolocation",
+      "payment",
+      "usb",
+    ]) {
       expect(policy).toContain(`${feature}=()`);
     }
   });

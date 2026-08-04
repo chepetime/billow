@@ -1,5 +1,5 @@
-import { DeleteAccountSection } from "@/app/(app)/settings/_components/delete-account-section";
 import { requireSession } from "@billow/auth";
+import { DeleteAccountSection } from "@/app/(app)/settings/_components/delete-account-section";
 
 export const dynamic = "force-dynamic";
 

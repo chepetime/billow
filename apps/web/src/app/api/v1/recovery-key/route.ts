@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
-
 import { getDataKey, getSession, issueRecoveryKeyFor } from "@billow/auth";
+import { NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
-import { error } from "@/lib/api/respond";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
+import { error } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +19,23 @@ const noStore = { "Cache-Control": "no-store" };
  * should require the person, not a token left in a script.
  */
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) return error("Invalid request origin.", 403);
+  if (!isSameOriginRequest(request))
+    return error("Invalid request origin.", 403);
 
   const session = await getSession();
   if (!session) return error("Sign in to generate a recovery key.", 401);
 
   // scrypt runs below; throttle before spending it.
-  const limit = await consumeRateLimit(`recovery-key:issue:${session.user.id}`, 5, 300);
+  const limit = await consumeRateLimit(
+    `recovery-key:issue:${session.user.id}`,
+    5,
+    300,
+  );
   if (!limit.allowed) {
-    return error(`Too many attempts. Try again in ${limit.retryAfter} seconds.`, 429);
+    return error(
+      `Too many attempts. Try again in ${limit.retryAfter} seconds.`,
+      429,
+    );
   }
 
   const dataKey = await getDataKey(session.user.id, session.session.id);

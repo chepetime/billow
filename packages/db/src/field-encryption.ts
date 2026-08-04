@@ -43,7 +43,12 @@ function fieldsFor(model: string | undefined): readonly string[] {
   return (model && ENCRYPTED_FIELDS[model]) || [];
 }
 
-function sealWrite(model: string, fields: readonly string[], dataKey: Buffer, data: unknown) {
+function sealWrite(
+  model: string,
+  fields: readonly string[],
+  dataKey: Buffer,
+  data: unknown,
+) {
   if (!data || typeof data !== "object") return data;
   const record = data as Record<string, unknown>;
 
@@ -59,9 +64,15 @@ function sealWrite(model: string, fields: readonly string[], dataKey: Buffer, da
   return record;
 }
 
-function openRead(model: string, fields: readonly string[], dataKey: Buffer, row: unknown): unknown {
+function openRead(
+  model: string,
+  fields: readonly string[],
+  dataKey: Buffer,
+  row: unknown,
+): unknown {
   if (!row || typeof row !== "object") return row;
-  if (Array.isArray(row)) return row.map((item) => openRead(model, fields, dataKey, item));
+  if (Array.isArray(row))
+    return row.map((item) => openRead(model, fields, dataKey, item));
   const record = row as Record<string, unknown>;
 
   for (const field of fields) {
@@ -113,13 +124,18 @@ export function encryptedPrisma(dataKey: Buffer) {
             }
             // upsert carries both halves.
             for (const half of ["create", "update"] as const) {
-              if (half in input) input[half] = sealWrite(model!, fields, dataKey, input[half]);
+              if (half in input)
+                input[half] = sealWrite(model!, fields, dataKey, input[half]);
             }
           }
 
           const result = await query(args);
           // Counts and aggregates come back as numbers; leave them alone.
-          if (operation.startsWith("count") || operation.startsWith("aggregate")) return result;
+          if (
+            operation.startsWith("count") ||
+            operation.startsWith("aggregate")
+          )
+            return result;
 
           return openRead(model!, fields, dataKey, result);
         },
@@ -139,15 +155,23 @@ export function encryptedPrisma(dataKey: Buffer) {
  * Idempotent — a row whose listed fields are already sealed is skipped, so
  * once a user is migrated this costs one indexed read per sign-in.
  */
-export async function backfillEncryptedFields(userId: string, dataKey: Buffer): Promise<number> {
+export async function backfillEncryptedFields(
+  userId: string,
+  dataKey: Buffer,
+): Promise<number> {
   const plain = getPrisma();
   const sealed = encryptedPrisma(dataKey);
   let migrated = 0;
 
   const pending = (row: Record<string, unknown>, fields: readonly string[]) =>
-    fields.filter((field) => typeof row[field] === "string" && !isEncryptedField(row[field]));
+    fields.filter(
+      (field) =>
+        typeof row[field] === "string" && !isEncryptedField(row[field]),
+    );
 
-  for (const profile of await plain.userProfile.findMany({ where: { userId } })) {
+  for (const profile of await plain.userProfile.findMany({
+    where: { userId },
+  })) {
     const row = profile as unknown as Record<string, unknown>;
     const fields = pending(row, ENCRYPTED_FIELDS["UserProfile"]!);
     if (fields.length === 0) continue;
@@ -158,7 +182,9 @@ export async function backfillEncryptedFields(userId: string, dataKey: Buffer): 
     migrated += 1;
   }
 
-  for (const account of await plain.bankAccount.findMany({ where: { userProfile: { userId } } })) {
+  for (const account of await plain.bankAccount.findMany({
+    where: { userProfile: { userId } },
+  })) {
     const row = account as unknown as Record<string, unknown>;
     const fields = pending(row, ENCRYPTED_FIELDS["BankAccount"]!);
     if (fields.length === 0) continue;

@@ -1,7 +1,6 @@
-import { z } from "zod";
-
 import { getPrisma } from "@billow/db";
 import type { Prisma } from "@billow/db/client";
+import { z } from "zod";
 
 // Deliberately no "server-only" import: the payload schema in this module
 // (backupPayloadSchema / parseBackupPayload) is unit tested directly in
@@ -220,7 +219,10 @@ export function uploadEntryName(index: number): string {
  */
 export async function exportWorkspace(
   userId: string,
-  client: Pick<ReturnType<typeof getPrisma>, "userProfile" | "bankAccount" | "clientCompany" | "invoice" | "upload"> = getPrisma(),
+  client: Pick<
+    ReturnType<typeof getPrisma>,
+    "userProfile" | "bankAccount" | "clientCompany" | "invoice" | "upload"
+  > = getPrisma(),
 ): Promise<BackupPayload> {
   const prisma = client;
 
