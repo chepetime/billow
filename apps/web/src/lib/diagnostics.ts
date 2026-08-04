@@ -572,6 +572,102 @@ export async function collectNetwork(): Promise<Field[]> {
 }
 
 /**
+ * How many filesystem entries a storage scan visits before it gives up.
+ * Uploads live in per-user subdirectories that grow without bound between
+ * diagnostics requests, and this runs on demand on a Raspberry Pi's SD card
+ * — an unbounded recursive walk would turn the diagnostics page itself into
+ * a denial-of-service. The number is generous enough to cover a real
+ * single-tenant install's uploads while keeping worst-case wall time
+ * bounded; the cap is a parameter, not a magic constant, so a test can prove
+ * truncation without creating thousands of files.
+ */
+export const STORAGE_SCAN_ENTRY_LIMIT = 20_000;
+
+/**
+ * How many directory levels deep a storage scan follows. The storage layout
+ * (`storage.ts`) is `<userId>/<uuid>.<ext>` — two levels — so this is
+ * headroom against an unexpected layout, not a value tuned to the current
+ * convention.
+ */
+export const STORAGE_SCAN_MAX_DEPTH = 8;
+
+export type StorageUsage = {
+  files: number;
+  bytes: number;
+  truncated: boolean;
+};
+
+/**
+ * Recursively sums file count and bytes under `dir`. Bounded on two axes —
+ * total entries visited and recursion depth — because the storage root's
+ * per-user subdirectories are outside this process's control and could in
+ * principle be arbitrarily large or deep.
+ *
+ * Symlinks are never followed: `entry.isSymbolicLink()` reports the
+ * directory entry's own type without resolving the link, so a link planted
+ * (or accidentally left) inside the storage root is skipped rather than
+ * sending the walk wandering the rest of the filesystem. A single
+ * unreadable directory or file — permission error, or removed mid-scan — is
+ * skipped rather than aborting the scan, so one bad entry can't take down
+ * the whole diagnostics page.
+ */
+export async function scanStorageUsage(
+  dir: string,
+  limit = STORAGE_SCAN_ENTRY_LIMIT,
+  maxDepth = STORAGE_SCAN_MAX_DEPTH,
+): Promise<StorageUsage> {
+  let files = 0;
+  let bytes = 0;
+  let visited = 0;
+  let truncated = false;
+
+  async function walk(current: string, depth: number): Promise<void> {
+    if (truncated) return;
+    if (depth > maxDepth) {
+      truncated = true;
+      return;
+    }
+
+    let entries: fs.Dirent[];
+    try {
+      entries = await fsp.readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (truncated) return;
+      if (visited >= limit) {
+        truncated = true;
+        return;
+      }
+      visited += 1;
+
+      if (entry.isSymbolicLink()) continue;
+
+      const entryPath = `${current}/${entry.name}`;
+      try {
+        if (entry.isDirectory()) {
+          await walk(entryPath, depth + 1);
+        } else if (entry.isFile()) {
+          // stat before counting: a file that can't be stat'd (permission
+          // error, removed mid-scan) has no known size, so it is skipped
+          // rather than counted with a phantom size of zero.
+          const size = (await fsp.stat(entryPath)).size;
+          files += 1;
+          bytes += size;
+        }
+      } catch {
+        // One unreadable or vanished entry must not abort the whole scan.
+      }
+    }
+  }
+
+  await walk(dir, 0);
+  return { files, bytes, truncated };
+}
+
+/**
  * The uploads volume. Only Postgres used to persist, so this section answers
  * the question that matters after an update: did the mount actually arrive,
  * and can the unprivileged runtime user write to it?
@@ -602,14 +698,12 @@ export async function collectStorage(): Promise<Field[]> {
   });
 
   const usage = await probeAsync("Files / bytes used", async () => {
-    let files = 0;
-    let bytes = 0;
-    for (const entry of await fsp.readdir(dir, { withFileTypes: true })) {
-      if (!entry.isFile()) continue;
-      files += 1;
-      bytes += (await fsp.stat(`${dir}/${entry.name}`)).size;
-    }
-    return `${files} / ${mb(bytes)}`;
+    const { files, bytes, truncated } = await scanStorageUsage(dir);
+    // A silently capped number is worse than an honest one: an operator who
+    // sees "20000 files" with no caveat will trust it as the real count.
+    return truncated
+      ? `${files} / ${mb(bytes)} (truncated at ${STORAGE_SCAN_ENTRY_LIMIT} entries — actual usage is higher)`
+      : `${files} / ${mb(bytes)}`;
   });
 
   const free = await probeAsync("Free on that device", async () => {
