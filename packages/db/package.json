@@ -14,7 +14,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@billow/crypto": "workspace:*",
@@ -23,5 +25,10 @@
     "dotenv": "^17.4.2",
     "pg": "^8.22.0",
     "prisma": "^7.9.1"
+  },
+  "devDependencies": {
+    "@billow/vitest-config": "workspace:*",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

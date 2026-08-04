@@ -30,7 +30,65 @@ function isTransientConnectionError(error: unknown): boolean {
   );
 }
 
+// Operations where re-issuing the query after a dropped connection cannot
+// change what the database observed: no matter which side of the round trip
+// the connection failed on, nothing was written, so retrying is exactly
+// equivalent to trying once. $queryRaw/$queryRawUnsafe belong here because
+// they are reads; $executeRaw/$executeRawUnsafe deliberately do not, because
+// they run arbitrary SQL that may mutate. Anything not in this set — create,
+// update, delete, upsert, createMany, executeRaw, and any future mutation —
+// is retried zero times: a connection reset after the database already
+// committed and only the response was lost is retried transparently, which
+// silently replays the write (see AUDIT-CODEX.md item 2, and the upload
+// path, where a replayed insert collides with the file already written under
+// the first attempt's storage key).
+const RETRYABLE_READ_OPERATIONS = new Set([
+  "findUnique",
+  "findUniqueOrThrow",
+  "findFirst",
+  "findFirstOrThrow",
+  "findMany",
+  "count",
+  "aggregate",
+  "groupBy",
+  "$queryRaw",
+  "$queryRawUnsafe",
+]);
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Extracted from createPrismaClient so the retry/no-retry decision can be
+// exercised directly in tests against a fake `query`, without constructing a
+// real PrismaClient or reaching a database.
+export function createRetryExtension() {
+  return {
+    name: "retry-transient-connection",
+    query: {
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }: {
+        operation: string;
+        args: unknown;
+        query: (args: unknown) => Promise<unknown>;
+      }) {
+        const maxAttempts = RETRYABLE_READ_OPERATIONS.has(operation) ? 3 : 1;
+        for (let attempt = 1; ; attempt++) {
+          try {
+            return await query(args);
+          } catch (error) {
+            if (attempt < maxAttempts && isTransientConnectionError(error)) {
+              await sleep(attempt * 100);
+              continue;
+            }
+            throw error;
+          }
+        }
+      },
+    },
+  };
+}
 
 export function createPrismaClient() {
   const connectionString =
@@ -49,28 +107,18 @@ export function createPrismaClient() {
 
   // A pooled connection can be closed server-side (idle drop, brief network
   // blip) while the pool still hands it out, so the first query on it fails
-  // and only a retry — which acquires a fresh connection — succeeds. Retry
-  // those transient failures transparently for every query, including the
-  // ones BetterAuth issues through this same client.
-  return client.$extends({
-    name: "retry-transient-connection",
-    query: {
-      async $allOperations({ args, query }) {
-        const maxAttempts = 3;
-        for (let attempt = 1; ; attempt++) {
-          try {
-            return await query(args);
-          } catch (error) {
-            if (attempt < maxAttempts && isTransientConnectionError(error)) {
-              await sleep(attempt * 100);
-              continue;
-            }
-            throw error;
-          }
-        }
-      },
-    },
-  });
+  // and only a retry — which acquires a fresh connection — succeeds. That is
+  // safe to redo transparently for reads (see RETRYABLE_READ_OPERATIONS
+  // above), including the ones BetterAuth issues through this same client.
+  // Mutations get one attempt: a connection error on a mutation is ambiguous
+  // rather than safe to replay, so it is left to propagate through the
+  // normal error path instead of being retried here.
+  //
+  // This is unrelated to first-boot readiness: `apps/web/scripts/start.sh`
+  // runs `prisma migrate deploy` as its own CLI process, with its own
+  // retry-while-Postgres-comes-up loop, before this client is ever
+  // constructed. Nothing here needs to cover that window.
+  return client.$extends(createRetryExtension());
 }
 
 export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
