@@ -11,12 +11,16 @@ apps/
   docs/         This documentation site (Fumadocs)
 packages/
   db/           @billow/db — Prisma schema, migrations, seed, client
+  auth/         @billow/auth — BetterAuth config, session, registration, recovery-key
+  crypto/       @billow/crypto — data-key hierarchy and field-encryption primitives
+  email/        @billow/email — Resend integration and transactional templates
   ui/           @billow/ui — shared React primitives
   shadcn/       @billow/shadcn — shadcn-derived components
 ```
 
-pnpm workspaces define the members; Turborepo orchestrates `build`, `lint`,
-`test:run`, and the `db:*` tasks.
+pnpm workspaces define the members; Turborepo orchestrates `build`, `test:run`,
+and the `db:*` tasks. Lint is not a Turborepo task: `pnpm lint` runs Biome
+(`biome check .`) once over the whole repo rather than per package.
 
 ## Request flow
 
@@ -24,7 +28,7 @@ pnpm workspaces define the members; Turborepo orchestrates `build`, `lint`,
 Browser
   → Umbrel app_proxy            (only in production)
   → Next.js (apps/web)
-      middleware.ts             optimistic redirect for /dashboard, /settings
+      proxy.ts                  optimistic redirect for /dashboard, /settings
       Server Component          requireSession() / getSession()
       → @billow/db getPrisma()  → Postgres
 ```
@@ -35,8 +39,9 @@ Route groups carry the access rules:
 - `app/(app)/*` — the layout calls `requireSession()`; this is the real gate
 - `app/api/v1/*` — public REST surface, authenticated by API key or session
 
-`middleware.ts` is a fast-path only. It checks for a session **cookie**, not a
-valid session, so the server layout remains the source of truth.
+`proxy.ts` (Next's replacement for `middleware.ts`) is a fast-path only. It
+checks for a session **cookie**, not a valid session, so the server layout
+remains the source of truth.
 
 ## Auth model
 

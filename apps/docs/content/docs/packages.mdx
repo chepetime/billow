@@ -36,6 +36,8 @@ Exports:
 - `@billow/db` → `getPrisma()`, `createPrismaClient()`, enums
 - `@billow/db/client` → generated client types (including the `Prisma` namespace)
 - `@billow/db/enums` → generated enums
+- `@billow/db/field-encryption` → `encryptedPrisma()`, `guardedPrisma()`, and
+  `ENCRYPTED_FIELDS` — see [Data classification](/docs/data-classification)
 
 <Callout>
 `getPrisma()` returns an **extended** client (it adds retry behaviour). Type it
@@ -43,14 +45,38 @@ with `ExtendedPrismaClient` rather than `PrismaClient` when you need an
 annotation.
 </Callout>
 
+## `packages/auth` — `@billow/auth`
+
+Owns BetterAuth end to end: the `auth` instance and its plugins, session
+helpers (`getSession()`, `requireSession()`), first-user-only registration,
+and the after-hooks that unwrap a signed-in user's data key. Depends on
+`@billow/crypto` for the key hierarchy and `@billow/db` for storage.
+
+## `packages/crypto` — `@billow/crypto`
+
+The key hierarchy: wrapping and unwrapping a user's data key under a
+password-derived KEK, a recovery-key KEK, and a session key, plus the
+field-encryption primitives that `@billow/db/field-encryption` calls. Pure —
+it operates on buffers and has no dependency on `@billow/db` or Prisma.
+
+## `packages/email` — `@billow/email`
+
+The Resend integration, a provider abstraction, and the transactional
+templates. Also owns encryption of the stored outbound-mail API credential —
+a separate mechanism from the data-key hierarchy above, keyed from
+`BETTER_AUTH_SECRET` because that credential must be readable before any user
+signs in.
+
 ## `packages/ui` and `packages/shadcn`
 
-Shared React primitives. `apps/web` imports components from these rather than
-redefining them, which is what keeps buttons, inputs, and cards consistent
-between the marketing page, the app shell, and settings.
+Shared React primitives. `packages/shadcn` is what `apps/web` actually
+imports, keeping buttons, inputs, and cards consistent between the marketing
+page, the app shell, and settings. `packages/ui` exists as the same kind of
+package but currently has no importer — nothing in the workspace depends on
+it and it is not in `apps/web`'s `transpilePackages`.
 
-Because these are source-level workspace packages, `apps/web` lists them in
-`transpilePackages` in `next.config.ts`.
+Because these are source-level workspace packages, `apps/web` lists the ones
+it imports in `transpilePackages` in `next.config.ts`.
 
 ## Adding a workspace package
 
@@ -59,13 +85,17 @@ Because these are source-level workspace packages, `apps/web` lists them in
 2. **If `apps/web` depends on it, update the Dockerfile.** The image installs
    with `pnpm install --filter @billow/web... --frozen-lockfile`, so it only
    needs the manifests inside the web app's dependency graph — each one is
-   `COPY`d explicitly in the `deps` and `runner` stages. A package web does
-   *not* depend on (like `apps/docs`) needs no changes at all.
+   `COPY`d explicitly in three places: the manifest and the pruned
+   `node_modules` for the `deps` stage, and the source for the `builder`
+   stage. The `runner` stage needs no per-package `COPY` at all: it unpacks
+   Next's traced standalone bundle, which already carries only what the
+   server actually imports. A package web does *not* depend on (like
+   `apps/docs`) needs no Dockerfile changes at all.
 3. **Add it to `transpilePackages`** in `apps/web/next.config.ts` if it ships
    TypeScript source rather than build output.
 
 <Callout>
-Forgetting step 2 fails the Docker build loudly with a missing-manifest error
-rather than shipping something broken, so the coupling is safe — but it is the
-reason the `COPY` list exists instead of a blanket copy.
+Forgetting step 2 fails the Docker build loudly — a missing manifest in `deps`,
+or `Module not found` in `builder` — rather than shipping something broken, so
+the coupling is safe.
 </Callout>

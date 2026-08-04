@@ -71,6 +71,18 @@ Each value is sealed under the user's data key with `Model.field` bound as
 associated data, so a ciphertext cannot be moved between columns, and a fresh
 IV per write means two rows holding the same value do not look alike.
 
+A plaintext write to a listed field is refused, not silently stored.
+`assertEncryptedFieldsSealed` walks every `create`/`update`/`upsert` payload —
+including a nested relation write, which reports the *parent* model to
+Prisma's `$allOperations` and so cannot be caught by the sealer alone — and
+throws `PlaintextEncryptedWriteError` if a listed field is not already in the
+`encv1.` envelope. `encryptedPrisma()` seals a payload and then checks it;
+`guardedPrisma()`, for callers that have no data key and so cannot seal
+anything, only checks. Either way, a caller cannot land plaintext in a column
+the rest of the system believes is encrypted — the failure mode this closed
+was `createBankAccount` and `importWorkspace` writing cleartext account
+numbers into a table that onboarding was already sealing.
+
 Three consequences worth stating plainly:
 
 - **There is no deploy-time migration, and there cannot be.** The server holds

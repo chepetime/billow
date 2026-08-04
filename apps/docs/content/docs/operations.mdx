@@ -102,3 +102,15 @@ The image starts with `apps/web/scripts/start.sh`, which retries
 Two deliberate choices keep the footprint small: the server runs as PID 1 rather
 than under a `pnpm` wrapper, and `NODE_OPTIONS=--max-old-space-size=128` caps the
 V8 heap. Together these took idle memory from roughly 145 MiB to about 60 MiB.
+
+<Callout type="warn">
+That 128 MiB cap bounds the V8 heap only. The routes that run scrypt (the
+vault lab, and recovery-key issue/confirm/restore) allocate a 64 MB buffer
+natively through OpenSSL, outside V8's heap entirely, so `--max-old-space-size`
+does not bound them — see `apps/web/src/lib/api/rate-limit.ts`. The real
+ceiling on those requests is the container's memory limit, shared with the
+Node heap, the Postgres pool, and everything else in the process; a handful of
+concurrent calls is enough to trigger an OOM kill with no V8 heap error to
+explain it. That is why those routes are rate-limited rather than left to the
+heap cap to contain.
+</Callout>

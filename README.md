@@ -9,11 +9,11 @@ the only thing left is the domain you actually care about.
 
 | Layer | What it uses |
 | --- | --- |
-| Interface | Next.js 16 (App Router, React Server Components), React 19, TypeScript 5, Tailwind CSS 4, shadcn/ui on Base UI |
+| Interface | Next.js 16 (App Router, React Server Components), React 19, TypeScript 7, Tailwind CSS 4, shadcn/ui on Base UI |
 | Data | PostgreSQL 16, Prisma 7, Zod 4, React Hook Form |
 | Identity | better-auth — email and username sign-in, TOTP two-factor with backup codes, personal API keys, admin roles and impersonation |
 | Platform | next-intl, next-themes, Resend email, file uploads, workspace backup/restore, health endpoint, persisted error log |
-| Build and ship | pnpm workspaces, Turborepo, Vitest, Playwright, Docker on Node 24, GitHub Actions publishing to GHCR |
+| Build and ship | pnpm workspaces, Turborepo, Vitest, Playwright, Biome, Docker on Node 26, GitHub Actions publishing to GHCR |
 
 The signed-in app ships a small invoicing workspace. It is a worked example of
 the platform rather than the point — a real domain wired through the same auth,
@@ -68,10 +68,11 @@ Useful routes:
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main` or
-`master`. It installs dependencies from `pnpm-lock.yaml`, generates the
-Prisma client, validates the Prisma schema, applies migrations against a
-Postgres service, runs Biome, runs Vitest, and builds the Next.js app.
+`.github/workflows/ci.yml` runs on every push and pull request: a parallel
+matrix runs Biome, Vitest, and the Next.js build; a separate `migrations` job
+applies the Prisma schema against a real Postgres service; and a `docker` job
+builds the production image, boots it, and runs `scripts/smoke.sh` against it
+— so a Dockerfile or runtime break is caught before a release tag ever exists.
 
 ## Deployment
 
@@ -102,24 +103,24 @@ tag is pushed (or via a manual `workflow_dispatch` with a `version` input),
 and the image tags are derived from the git tag, so there is no hardcoded
 version to maintain.
 
-To cut a release:
+To cut a release, one click from the Actions tab or the CLI:
 
 ```bash
-# 1. bump the version in the package.json files and commit
-# 2. tag and push the tag
-git tag v0.1.7
-git push origin v0.1.7
+gh workflow run release.yml -f version=0.1.18
 ```
 
-That builds and pushes (`linux/amd64`):
+`release.yml` validates the version, bumps the three `package.json` files,
+re-runs the full check suite, commits, tags, and calls `publish.yml`, which
+builds and pushes both platforms:
 
 ```text
-ghcr.io/chepetime/billow:v0.1.7   # from the git tag
+ghcr.io/chepetime/billow:v0.1.18   # from the git tag
 ghcr.io/chepetime/billow:latest
 ```
 
-The Umbrel app store repo then references the new versioned image from its
-`billow/docker-compose.yml`.
+Pushing a `v*` tag by hand also works and takes the same `publish.yml` path.
+See `apps/docs/content/docs/releasing.mdx` for the full procedure, including
+the manual Umbrel store step that follows every release.
 
 ## Umbrel Store Contract
 
