@@ -3,8 +3,46 @@ packages:
   - "config/*"
   - "packages/*"
 allowBuilds:
+  '@parcel/watcher': true
   '@prisma/engines': true
+  '@swc/core': true
   esbuild: true
   prisma: true
   sharp: true
   unrs-resolver: true
+  vue-demi: true
+minimumReleaseAgeExclude:
+  - '@next/env@16.3.0'
+  - '@next/eslint-plugin-next@16.3.0'
+  - '@next/swc-darwin-arm64@16.3.0'
+  - '@next/swc-darwin-x64@16.3.0'
+  - '@next/swc-linux-arm64-gnu@16.3.0'
+  - '@next/swc-linux-arm64-musl@16.3.0'
+  - '@next/swc-linux-x64-gnu@16.3.0'
+  - '@next/swc-linux-x64-musl@16.3.0'
+  - '@next/swc-win32-arm64-msvc@16.3.0'
+  - '@next/swc-win32-x64-msvc@16.3.0'
+  - '@typescript-eslint/eslint-plugin@8.66.0'
+  - '@typescript-eslint/parser@8.66.0'
+  - '@typescript-eslint/project-service@8.66.0'
+  - '@typescript-eslint/scope-manager@8.66.0'
+  - '@typescript-eslint/tsconfig-utils@8.66.0'
+  - '@typescript-eslint/type-utils@8.66.0'
+  - '@typescript-eslint/types@8.66.0'
+  - '@typescript-eslint/typescript-estree@8.66.0'
+  - '@typescript-eslint/utils@8.66.0'
+  - '@typescript-eslint/visitor-keys@8.66.0'
+  - eslint-config-next@16.3.0
+  - next@16.3.0
+  - typescript-eslint@8.66.0
+overrides:
+  # sharp 0.34.5 carries a high-severity libvips advisory fixed in 0.35.0, and
+  # ships in the production image as an optional dependency of Next. Next
+  # declares ^0.34.5, which cannot reach the fix, and 0.34.5 is the last release
+  # on that line — so this override is the only thing keeping the patched
+  # version in the tree. See commit 2b4d48b.
+  #
+  # It lives here, not in package.json's `pnpm` field: pnpm 11 stopped reading
+  # that field and silently ignored this pin. The lockfile kept 0.35.3 out of
+  # inertia, so nothing looked wrong while the protection was gone.
+  sharp: ^0.35.3

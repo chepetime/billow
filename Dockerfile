@@ -13,7 +13,7 @@ WORKDIR /repo
 # Node 26 no longer bundles Corepack, so pnpm is installed directly. The
 # version is passed in from package.json's `packageManager` field rather than
 # written here, so there is one place that decides it.
-ARG PNPM_VERSION=pnpm@10.34.1
+ARG PNPM_VERSION=pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee
 RUN npm install --global "$PNPM_VERSION"
 
 # Keep this manifest set limited to the web app's workspace dependency graph.
@@ -37,7 +37,7 @@ FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /repo
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG PNPM_VERSION=pnpm@10.34.1
+ARG PNPM_VERSION=pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee
 RUN npm install --global "$PNPM_VERSION"
 
 COPY --from=deps /repo/node_modules ./node_modules
