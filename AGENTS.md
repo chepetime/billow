@@ -46,6 +46,20 @@ silently leaves it at 600, and `COPY` carries that into the image, where the
 unprivileged `nextjs` user can no longer read it and the container dies at
 startup.
 
+## Node version
+
+`.nvmrc` is the single source of truth for Node, and package.json's
+`packageManager` for pnpm (Node 26 dropped Corepack, so pnpm is installed
+directly). CI's setup action reads it via
+`node-version-file`, and the image builds pass it in as the `NODE_VERSION`
+build argument. The `ARG NODE_VERSION` default in the `Dockerfile` exists only
+so a bare `docker build` works; `scripts/check-versions.sh` runs in CI and
+fails if it drifts from `.nvmrc`.
+
+Do not inline a Node version anywhere else. The composite action and the
+Dockerfile were already out of step once — CI kept building on the old major
+while the image moved on, and nothing said so.
+
 ## Build Notes
 
 Webpack (`next build --webpack`) is intentional. Turbopack previously hit a

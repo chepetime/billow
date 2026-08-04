@@ -51,7 +51,7 @@
     "@billow/tailwind-config": "workspace:*",
     "@billow/typescript-config": "workspace:*",
     "@billow/vitest-config": "workspace:*",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.1.2",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

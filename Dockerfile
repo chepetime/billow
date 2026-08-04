@@ -1,10 +1,20 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-alpine AS deps
+# Declared before the first FROM so the same value reaches every stage below.
+# .nvmrc is authoritative and CI passes it in as a build argument; this default
+# exists only so a bare `docker build` works, and scripts/check-node-version.sh
+# fails if the two ever disagree.
+ARG NODE_VERSION=26
+
+FROM node:${NODE_VERSION}-alpine AS deps
 
 WORKDIR /repo
 
-RUN corepack enable && corepack install --global pnpm@10.34.1
+# Node 26 no longer bundles Corepack, so pnpm is installed directly. The
+# version is passed in from package.json's `packageManager` field rather than
+# written here, so there is one place that decides it.
+ARG PNPM_VERSION=pnpm@10.34.1
+RUN npm install --global "$PNPM_VERSION"
 
 # Keep this manifest set limited to the web app's workspace dependency graph.
 # In particular, apps/docs is intentionally omitted from the image.
@@ -22,12 +32,13 @@ COPY config/vitest-config/package.json ./config/vitest-config/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --filter @billow/web... --frozen-lockfile --store-dir /pnpm/store
 
-FROM node:24-alpine AS builder
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /repo
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN corepack enable
+ARG PNPM_VERSION=pnpm@10.34.1
+RUN npm install --global "$PNPM_VERSION"
 
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
@@ -63,7 +74,7 @@ RUN pnpm --filter @billow/web build \
 # The versions are read from the lockfile-resolved install in `deps` rather
 # than written literally, so bumping Prisma in the workspace cannot leave the
 # image running a different CLI than the repo.
-FROM node:24-alpine AS migrator
+FROM node:${NODE_VERSION}-alpine AS migrator
 COPY --from=deps /repo/packages/db/node_modules/prisma/package.json /tmp/prisma.json
 COPY --from=deps /repo/packages/db/node_modules/dotenv/package.json /tmp/dotenv.json
 WORKDIR /migrate
@@ -84,7 +95,7 @@ RUN set -eu; \
   # the migration toolchain stays around 225 MB.
   rm -rf node_modules/mysql2 node_modules/postgres node_modules/typescript
 
-FROM node:24-alpine AS runner
+FROM node:${NODE_VERSION}-alpine AS runner
 
 WORKDIR /repo
 ENV HOSTNAME=0.0.0.0

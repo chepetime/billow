@@ -1,5 +1,5 @@
 name: Setup workspace
-description: Set up Node 24 + pnpm and install dependencies with a checksum-keyed store cache.
+description: Set up Node (version from .nvmrc) + pnpm and install dependencies with a checksum-keyed store cache.
 
 runs:
   using: composite
@@ -7,16 +7,21 @@ runs:
     - name: Set up Node
       uses: actions/setup-node@v5
       with:
-        node-version: 24
+        # .nvmrc is the single source of truth for the Node version. Do not
+        # inline a number here: this file and the Dockerfile drifted apart
+        # once already, and CI silently kept building on the old major.
+        node-version-file: .nvmrc
         # setup-node v5 auto-caches the package manager from the
-        # `packageManager` field, which probes for pnpm before corepack
-        # installs it. We manage the pnpm store cache ourselves below.
+        # `packageManager` field, which probes for pnpm before it is
+        # installed. We manage the pnpm store cache ourselves below.
         # https://github.com/actions/setup-node/issues/1357
         package-manager-cache: false
 
-    - name: Enable Corepack
+    # Node 26 dropped Corepack from the distribution, so pnpm is installed
+    # directly at the version package.json already declares.
+    - name: Install pnpm
       shell: bash
-      run: corepack enable
+      run: npm install --global "$(node -p "require('./package.json').packageManager")"
 
     - name: Locate pnpm store
       id: pnpm-store

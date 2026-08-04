@@ -96,11 +96,18 @@ jobs:
       #
       # The cache is keyed per architecture because the layers are genuinely
       # different builds, not two views of one.
+      - name: Read pinned Node and pnpm versions
+        run: echo "NODE_VERSION=$(tr -d ' \t\n\r' < .nvmrc)" >> "$GITHUB_ENV"
+          echo "PNPM_VERSION=$(node -p "require('./package.json').packageManager")" >> "$GITHUB_ENV"
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v7
         with:
           context: .
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+            PNPM_VERSION=${{ env.PNPM_VERSION }}
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
