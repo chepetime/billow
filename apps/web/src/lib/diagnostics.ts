@@ -203,8 +203,14 @@ export function collectProcess(): Field[] {
       const cap = /--max-old-space-size[= ](\d+)/.exec(
         `${process.env["NODE_OPTIONS"] ?? ""} ${process.execArgv.join(" ")}`,
       )?.[1];
+      // Deliberately not called "the effective limit", which is what this
+      // said until a real install disproved it: the cap bounds V8's old
+      // space, not the process. scrypt's 64 MB comes from OpenSSL and file
+      // buffers from Node, both outside it. That install reported a 128 MB
+      // cap, a 224 MB heap limit, and a peak RSS of 245.6 MB — past both.
+      // What actually bounds the process is the container memory limit.
       return cap
-        ? `${total} MB total (old-space cap ${cap} MB — the effective limit)`
+        ? `${total} MB total (old-space cap ${cap} MB — bounds V8's old space only, not RSS)`
         : `${total} MB total (no old-space cap set)`;
     }),
     probe("External", () => mb(process.memoryUsage().external)),
