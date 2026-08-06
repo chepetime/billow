@@ -10,6 +10,19 @@ import { UserMenu } from "@/app/(app)/_components/user-menu";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Plain links, not an active-state nav: making one would turn this server
+ * layout into a client component for a highlight, and `usePathname` in a
+ * separate island is more machinery than five links justify.
+ */
+const NAV_LINKS = [
+  { href: "/dashboard", label: "Home" },
+  { href: "/invoices", label: "Invoices" },
+  { href: "/clients", label: "Clients" },
+  { href: "/banks", label: "Banks" },
+  { href: "/senders", label: "Senders" },
+] as const;
+
 export default async function AppLayout({
   children,
 }: Readonly<{
@@ -34,12 +47,17 @@ export default async function AppLayout({
       />
       <header className="border-b print:hidden">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-4 sm:px-8">
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium hover:text-muted-foreground"
-          >
-            Home
-          </Link>
+          <nav className="flex items-center gap-4 overflow-x-auto text-sm">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="whitespace-nowrap font-medium hover:text-muted-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
           <UserMenu
             name={session.user.name}
