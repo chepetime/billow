@@ -1,13 +1,13 @@
 "use client";
 
+import { RiArrowDownLine } from "@remixicon/react";
 import {
   MessageScroller as MessageScrollerPrimitive,
   useMessageScroller,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
-import { ArrowDownIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { Button } from "#components/button";
 import { cn } from "#lib/utils";
 
@@ -56,7 +56,7 @@ function MessageScrollerContent({
   return (
     <MessageScrollerPrimitive.Content
       data-slot="message-scroller-content"
-      className={cn("flex h-max min-h-full flex-col gap-6", className)}
+      className={cn("flex h-max min-h-full flex-col gap-8", className)}
       {...props}
     />
   );
@@ -106,7 +106,7 @@ function MessageScrollerButton({
     >
       {children ?? (
         <>
-          <ArrowDownIcon />
+          <RiArrowDownLine />
           <span className="sr-only">
             {direction === "end" ? "Scroll to end" : "Scroll to start"}
           </span>

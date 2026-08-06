@@ -1,9 +1,15 @@
-import { Loader2Icon } from "lucide-react";
+import { RiLoaderLine } from "@remixicon/react";
 import { cn } from "#lib/utils";
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+// `children` is omitted because @remixicon/react types it as `undefined`,
+// and spreading svg props that admit children onto one fails to compile. A
+// spinner has no children to pass, so the narrower type costs nothing.
+function Spinner({
+  className,
+  ...props
+}: Omit<React.ComponentProps<"svg">, "children">) {
   return (
-    <Loader2Icon
+    <RiLoaderLine
       data-slot="spinner"
       role="status"
       aria-label="Loading"
