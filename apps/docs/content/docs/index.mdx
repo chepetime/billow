@@ -3,15 +3,16 @@ title: Overview
 description: Internal documentation for Billow — the primary source of truth for architecture, conventions, package responsibilities, and operations.
 ---
 
-Billow is a **base setup for self-hosted apps**, packaged for
-[Umbrel](https://umbrel.com): first-user registration, sessions, two-factor
-auth, usernames, personal API keys, health diagnostics, and tag-driven
-releases — the work every self-hosted app needs before it can do anything
-interesting.
+Billow is a **self-hosted invoice manager**, packaged for
+[Umbrel](https://umbrel.com). It generates invoices, exports them as PDFs, and
+tracks what happened to each one afterwards: sent, received, paid, turned into a
+CFDI by the accountant, and included in a filed monthly tax report.
 
-The signed-in app ships a small invoicing workspace. That is a **worked example
-of the platform, not the product**: a real domain wired through the same auth,
-validation, backup and API conventions, there to be replaced by yours.
+Underneath it is a full platform layer — first-user registration, sessions,
+two-factor auth, usernames, personal API keys, per-user field encryption, backup
+and restore, health diagnostics, and tag-driven releases. That layer started life
+as a general-purpose base setup and is still worth reading as one, but it now
+exists to serve invoicing rather than to be replaced by another domain.
 
 This site is the **primary source of truth**. `AGENTS.md` and `README.md` in the
 repository root stay short and point here.
@@ -21,6 +22,7 @@ repository root stay short and point here.
 | If you want to… | Read |
 | --- | --- |
 | Understand how the app fits together | [Architecture](/docs/architecture) |
+| Understand invoices, tracking, and tax periods | [Invoicing](/docs/invoicing) |
 | Know what each workspace package owns | [Packages](/docs/packages) |
 | Write code that matches the codebase | [Conventions](/docs/conventions) |
 | Run, debug, or deploy it | [Operations](/docs/operations) |

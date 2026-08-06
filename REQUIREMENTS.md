@@ -10,12 +10,23 @@ The old app proves the core invoice workflow. Billow should keep the useful
 parts, then add onboarding and reusable records so the user does not edit the
 same contractor, bank, and bill-to data on every invoice.
 
+Billow is the product, not a worked example of the platform. Everything the
+platform layer provides — auth, the data-key hierarchy, uploads, backup — exists
+to serve invoicing.
+
+**What makes Billow more than the old app is tracking.** Writing an invoice is
+the short part of the job. The long part is knowing, months later, whether each
+one was sent, acknowledged, paid, turned into a CFDI by the accountant, and
+included in a filed monthly tax report. The old app answered none of that. The
+dashboard should be able to answer "what is unfinished?" without the user
+keeping a parallel spreadsheet.
+
 ## Current Reference
 
 Reference app:
 
 ```text
-/Users/jlugo/Projects/personal/invoice-center
+/Users/jose/Projects/personal/invoice-center
 ```
 
 Current reference behavior:
@@ -34,6 +45,10 @@ Billow target behavior:
 - User creates invoices from reusable profile, bank, and client records.
 - Each invoice saves its own snapshot-worthy data and line items.
 - Each invoice keeps revision history.
+- Each invoice tracks its own progress through a billing track and a fiscal
+  track, so nothing silently stalls.
+- Each month tracks whether the tax report was filed and paid, and for how much.
+- The dashboard surfaces what is unfinished, not just what exists.
 - Multiple users can sign in and manage their own invoice workspace.
 - Billow supports import and export for moving invoice data in and out of the
   app.
@@ -194,7 +209,6 @@ Required fields:
 - Owning user
 - Invoice number
 - Invoice date
-- Status
 - Currency
 - Sender profile
 - Bank account
@@ -204,12 +218,8 @@ Required fields:
 - Frozen bank snapshot
 - Frozen client snapshot
 
-Statuses:
-
-- Draft
-- Sent
-- Paid
-- Void
+Status is **not** a stored field. See "Lifecycle Tracking" below: an invoice
+carries a set of milestone dates, and the displayed status is derived from them.
 
 Optional fields:
 
@@ -262,6 +272,111 @@ Decision: revisions should support audit-friendly invoice history. Store enough
 data to reconstruct the invoice before and after a save. The implementation can
 also store a concise changed-field summary for display.
 
+## Lifecycle Tracking
+
+An invoice moves along two independent tracks. Separating them matters: the
+client-facing track is about getting paid, the fiscal track is about staying
+compliant, and they progress at different speeds. An invoice can be paid weeks
+before its CFDI exists, and a CFDI can exist for months before the tax report
+covering it is filed.
+
+### Billing track (per invoice)
+
+| # | Milestone | Field | Means |
+| --- | --- | --- | --- |
+| 1 | Verified | `verifiedAt` | The user checked the invoice and it is correct |
+| 2 | Sent | `sentAt` | Delivered to the client |
+| 3 | Received | `receivedAt` | The client confirmed receipt |
+| 4 | Paid | `paidAt` | The money arrived |
+| — | Void | `voidedAt` | Cancelled; excluded from every total |
+
+### Fiscal track
+
+| # | Milestone | Where it lives | Means |
+| --- | --- | --- | --- |
+| 5 | Fiscal invoice (CFDI) issued | `Invoice.cfdiIssuedAt` + a CFDI document | The accountant issued the CFDI; the PDF is attached |
+| 6 | Monthly tax report | `TaxPeriod.filedAt`, `TaxPeriod.paidAt`, `TaxPeriod.taxDue` | The month's report was generated and the tax paid |
+
+Step 6 is **per month, not per invoice** — it is the one item on the user's list
+that does not belong to an invoice at all. It gets its own record.
+
+### Rules
+
+- **Milestone dates are business dates, not audit timestamps.** The user marks
+  "paid" on the 10th for money that arrived on the 3rd, and the stored date must
+  be the 3rd. Each milestone defaults to today and stays editable. The revision
+  log is what records who changed the mark and when.
+- **No ordering enforced in the database.** Real invoices skip steps and get
+  marked out of order. The UI offers to backfill earlier milestones when a later
+  one is checked, and warns before clearing an earlier one, but the schema
+  permits any combination.
+- **Derived status.** The badge comes from the billing track only:
+  `voidedAt` → Void, else `paidAt` → Paid, else `receivedAt` → Received, else
+  `sentAt` → Sent, else `verifiedAt` → Ready, else Draft. The fiscal track shows
+  as its own indicator and never as the badge.
+- **Uploading a CFDI sets `cfdiIssuedAt`** when it is unset. Deleting documents
+  never clears it — un-marking stays an explicit action.
+- **Void wins.** A voided invoice keeps its history but leaves every total.
+
+### Attention rules
+
+The tracking exists to drive one dashboard section listing what is unfinished:
+
+- Sent but unpaid, past the due date or a configurable age
+- Paid but no CFDI attached
+- Verified but never sent
+- A month with issued CFDIs but no filed `TaxPeriod`
+- A filed `TaxPeriod` with an unpaid tax amount
+
+Open question: the "past N days" thresholds should be per-user settings rather
+than constants, but constants are acceptable for the first version.
+
+### Invoice Document
+
+Attachments belonging to an invoice, stored through the existing `Upload` model
+so they inherit its storage keys, type sniffing, checksums, and per-user quota.
+
+Required fields:
+
+- Invoice
+- Upload (one upload belongs to exactly one attachment)
+- Kind: CFDI, payment proof, signed copy, other
+
+Optional fields:
+
+- Note
+
+Uploads created this way must carry a `kind` that keeps them out of the account
+attachments list — invoice documents are invoice-scoped, not account-scoped.
+
+### Tax Period
+
+One record per user per calendar month.
+
+Required fields:
+
+- Owning user
+- Year
+- Month
+- Currency
+
+Optional fields:
+
+- Tax amount due
+- Filed date
+- Paid date
+- Notes
+- Documents: the declaration PDF, the payment receipt
+
+Decisions:
+
+- One combined tax amount for the first version. Splitting into ISR and IVA is a
+  later change and the schema should not make it painful.
+- The period defaults to the currency the tax is actually paid in (MXN), which is
+  independent of the currency any given invoice was issued in.
+- A period's invoices are derived from `invoiceDate` falling in that month. No
+  foreign key from invoice to period yet.
+
 ## Main Flows
 
 ### Onboarding
@@ -293,7 +408,9 @@ The dashboard should show:
 - Open invoice count and total
 - Paid invoice count and total
 - Next invoice number
+- Needs attention, from the attention rules above
 - Recent invoices
+- This month's tax period status
 - Bank accounts
 - Client companies
 - Primary action to create an invoice
@@ -303,7 +420,8 @@ Invoice cards should expose:
 - Invoice number
 - Client
 - Date
-- Status
+- Derived status
+- Fiscal indicator: whether a CFDI is attached
 - Total
 - Quick access to view or edit
 
@@ -329,9 +447,10 @@ User chooses:
 - Bank account
 - Invoice number
 - Invoice date
-- Status
 - Currency
 - Line items
+
+A new invoice starts with every milestone unset, which renders as Draft.
 
 Defaults:
 
@@ -352,11 +471,40 @@ User can edit:
 - Client selection
 - Bank account selection
 - Line items
-- Status
 - Notes
 
 Billow records a revision after each save. Existing invoices keep a frozen copy
 of the sender, client, and bank details used when the invoice was saved.
+
+### Track an Invoice
+
+The invoice detail page shows both tracks as a checklist. For each milestone the
+user can:
+
+- Mark it done, which stores today's date by default
+- Adjust the stored date
+- Clear it
+
+Checking a later milestone offers to backfill the earlier ones with the same
+date. Clearing an earlier milestone that has later ones set asks for
+confirmation. Every change appends an invoice revision with a readable summary
+("Marked paid, 3 Jan 2026").
+
+CFDI attachment lives on the same page: upload the accountant's document, and
+the CFDI milestone marks itself if it was not already set.
+
+### Monthly Tax Report
+
+A month view lists, for the selected month:
+
+- The invoices dated in that month, with their totals and CFDI state
+- The tax amount due
+- Whether the report was filed
+- Whether the tax was paid
+- The attached declaration and payment receipt
+
+Editing any of these creates the `TaxPeriod` record on demand — the user should
+never have to "create a month" before filling it in.
 
 ### Preview and Print
 
@@ -372,6 +520,14 @@ Invoice preview should include:
 - Remittance email
 
 MVP should support browser print and downloadable PDF export.
+
+Decision: the download is generated server-side with `@react-pdf/renderer`. It
+is pure JavaScript, so it adds no native dependency and no Chromium to an image
+that has to build for Umbrel's architecture. The accepted cost is a second
+implementation of the invoice layout in its primitives — the HTML preview and the
+PDF must be kept visually in step by hand, and a change to one is not a change to
+the other. Browser print keeps working off the existing CSS and stays the
+pixel-faithful path.
 
 ### Import and Export
 
@@ -392,66 +548,125 @@ Export requirements:
 - Admin users can export their own data. Cross-user export is out of scope for
   the MVP.
 - Include profiles, bank accounts, client companies, invoices, line items,
-  invoice snapshots, and revisions.
+  invoice snapshots, revisions, milestone dates, tax periods, and the metadata
+  for invoice and tax-period documents.
 - Use a stable JSON format first.
 - CSV export can be added for invoices and line items.
 
+Open question: whether an export carries the uploaded document **bytes** or only
+their metadata. Metadata-only keeps the JSON small and human-readable but makes
+an export insufficient to rebuild an install, which is the main reason to have
+one. The existing backup archive already moves upload bytes; export should
+probably defer to it rather than grow a second mechanism.
+
 ## Technical Plan
 
-### Phase 1: Requirements and Data Shape
+### Already shipped
 
-- Finalize this document.
-- Confirm onboarding fields and invoice numbering rules.
-- Confirm BetterAuth registration and password-reset behavior.
-- Confirm admin setting UX for opening and closing registration.
-- Confirm import/export file format.
-- Add Prisma models and migrations for profiles, banks, clients, invoices,
-  line items, and revisions.
-- Add auth tables and user ownership.
-- Add per-user settings for default currency and invoice numbering.
-- Keep `AppMetadata` for the Umbrel package.
+Do not rebuild these. Grep before trusting any checkbox — `TODO.md` records
+three items that were marked todo while already implemented and were nearly
+rebuilt from scratch as a result.
 
-### Phase 2: Persistence
+- Auth end to end: sign-up, sign-in, sign-out, sessions, two-factor, usernames,
+  password reset, first-user-admin, registration mode, admin user list.
+- The per-user data-key hierarchy and field encryption. `UserProfile.taxId`,
+  `UserProfile.address`, and nine `BankAccount` columns are already encrypted at
+  rest, reached through `getWorkspacePrisma()`.
+- Uploads: storage keys, type sniffing, checksums, a 100 MB per-user quota, and
+  download routes (`/api/v1/uploads`).
+- Admin backup and restore, including upload bytes.
+- The invoice **preview** and browser print, and a dashboard with
+  month/open/paid totals computed in SQL.
+- Prisma models for profiles, banks, clients, invoices, line items, revisions.
+- **Phases 2 and 3 below**: full CRUD for sender profiles, bank accounts,
+  clients and invoices, with the setup gate on invoice creation.
 
-- Add server-side repository functions for listing workspace data.
-- Add server actions for onboarding, creating bank accounts, creating clients,
-  creating invoices, and updating invoices.
-- Add BetterAuth sign-up, sign-in, sign-out, and session handling.
-- Scope all workspace reads and writes to the signed-in user.
-- Promote the first registered user to admin.
-- Add admin-only registration mode controls.
-- Add an admin-only user list.
-- Make the app tolerate an empty database.
-- Keep production startup limited to `prisma migrate deploy` and starting the
-  server (`apps/web/server.js`, from Next's standalone output).
+### Phase 1: Schema
 
-### Phase 3: User Interface
+One migration, additive except for the status column.
 
-- Replace the metadata placeholder home page with the invoice workspace.
-- Add sign-in and sign-up screens.
-- Add password reset screens using BetterAuth's flow.
-- Add onboarding state for empty databases.
-- Add profile, bank, client, and invoice panels.
-- Add admin settings with registration mode and user list.
-- Add invoice list and latest invoice preview.
-- Add invoice detail/edit route after the dashboard works.
-- Use the time-based dashboard grouping for the first version.
+- Add the billing milestones (`verifiedAt`, `sentAt`, `receivedAt`, `paidAt`,
+  `voidedAt`) and `cfdiIssuedAt` to `Invoice`.
+- Backfill from `status`: `SENT` → `sentAt`, `PAID` → `paidAt` **and** `sentAt`,
+  `VOID` → `voidedAt`, `DRAFT` → all null. Use `updatedAt` as the date, since it
+  is the only evidence the old schema kept.
+- Drop the `status` column and the `InvoiceStatus` enum from the database.
+  `InvoiceStatus` becomes a TypeScript union produced by a pure
+  `deriveInvoiceStatus()`; `@billow/db/enums` stops exporting it.
+- Add `InvoiceDocument` and `InvoiceDocumentKind`.
+- Add `TaxPeriod`, `TaxPeriodDocument`, and `TaxPeriodDocumentKind`.
+- Rewrite the dashboard aggregates: open is `voidedAt: null, paidAt: null`,
+  paid is `paidAt: { not: null }`.
+- Update `InvoiceStatusBadge`, the seed, and the backup/restore shape.
+- Run the `data-classification` skill: three new models need inventory rows and
+  an encryption-boundary decision.
 
-### Phase 4: Import, Export, and PDF
+### Phase 2: Records CRUD — **done**
 
-- Keep seed data for local development only.
-- Add JSON export for a signed-in user's workspace.
-- Add JSON import with validation and error reporting.
-- Add browser print support.
-- Add downloadable PDF generation.
+The prerequisite for everything else being usable.
 
-### Phase 5: Verification
+- ~~Workspace onboarding~~ — delivered as per-record create screens reached from
+  the dashboard's setup list and from a gate on the new-invoice page, rather
+  than as one onboarding wizard. Same rule: sections are skippable, and the
+  records are required before an invoice can be saved.
+- Full CRUD for profiles (`/senders`), bank accounts (`/banks`), and client
+  companies (`/clients`).
+- All writes go through `getWorkspacePrisma()` — the plain client rejects
+  plaintext writes to encrypted columns by design, and the repo-wide source
+  check in `encrypted-writes.test.ts` fails the build if a call site drifts.
+- Deleting a record still referenced by an invoice is refused with an
+  explanation rather than a Prisma error.
+- **Still open:** per-user settings for default currency and numbering mode.
+  New invoices currently infer both from the most recent invoice.
 
-- Run `pnpm run db:generate`.
-- Run `pnpm run db:validate`.
-- Run `pnpm run lint`.
-- Run `pnpm run build`.
-- Start the app locally and check desktop/mobile layouts.
+### Phase 3: Invoice CRUD — **done**
+
+- Create and edit invoices with line items, defaulting sender, bank, client,
+  number, month-end date, and currency.
+- Duplicate invoice-number validation per user, surfaced as a form message.
+- An invoice revision appended on every save, with a readable change summary.
+- "Duplicate" as the fast path for the recurring monthly case: copies the line
+  items, takes the next number and this month's end date, opens the editor.
+- **Still open:** frozen sender/bank/client snapshots. Invoices reference the
+  live records today, so editing a client's address changes how an old invoice
+  renders. The snapshot columns land with the Phase 1 migration.
+
+### Phase 4: Tracking
+
+The point of the whole exercise.
+
+- The two-track checklist on the invoice detail page, with editable dates.
+- Backfill-earlier and confirm-before-clearing behavior.
+- Milestone changes appended to the revision log with readable summaries.
+- Invoice list filters and the dashboard "needs attention" section.
+
+### Phase 5: Documents
+
+- CFDI upload on the invoice page, wired to the existing upload pipeline with an
+  invoice-scoped `kind`.
+- Payment proof and signed-copy attachments.
+- Deleting an attachment deletes its `Upload` and its bytes.
+
+### Phase 6: Tax periods
+
+- Month view: the month's invoices with CFDI state, tax amount, filed and paid
+  marks, declaration and receipt uploads.
+- Records created on demand.
+- A year overview showing which months are unfinished.
+
+### Phase 7: PDF, import, export
+
+- `@react-pdf/renderer` download route for a single invoice.
+- JSON export of a signed-in user's whole workspace, tracking included.
+- JSON import with per-row validation and an error report.
+
+### Verification, every phase
+
+- `pnpm run db:generate`, `pnpm run db:validate`
+- `pnpm lint`, `pnpm test:run`, `pnpm build`
+- Start the app locally and check desktop and mobile layouts.
+- Before a release, verify on the real Umbrel install — plain HTTP behind
+  `app_proxy` breaks things a green pipeline never sees.
 
 ## Migration Questions
 
@@ -486,13 +701,44 @@ Answered:
 - Include USD, MXN, CAD, and EUR in the first currency picker.
 - Use time-based dashboard grouping for the MVP.
 - Use BetterAuth's password reset flow.
+- Track six milestones per invoice across a billing track and a fiscal track.
+- Milestones are nullable dates and replace the stored status column; the badge
+  is derived from them.
+- Milestone dates are business dates and stay editable; the revision log is the
+  audit trail.
+- The database enforces no milestone ordering; the UI nudges.
+- Label the fiscal document "Fiscal invoice (CFDI)" in the UI.
+- One CFDI per invoice.
+- The monthly tax report is its own per-month record, not an invoice field.
+- One combined tax amount per month for now, not an ISR/IVA split.
+- Generate the PDF download with `@react-pdf/renderer`, and keep browser print.
 
 Open:
 
-- No product questions remain for the MVP requirements draft.
+- **CFDI XML.** A real CFDI is an XML file plus a PDF rendering, and the upload
+  pipeline accepts only PNG, JPEG, GIF, WEBP, and PDF today. Accepting XML means
+  extending the type sniffing, where XML is genuinely harder to identify than the
+  formats already handled. Storing only the PDF loses the authoritative document.
+- **Which month owns an invoice.** Derived from `invoiceDate` for now, but a CFDI
+  issued in the following month is normally declared in that following month, so
+  the derivation will be wrong at every month boundary. An explicit override on
+  the invoice is the likely fix.
+- **Foreign-currency tax.** An invoice in USD is declared in MXN at the SAT rate
+  for the day. Nothing currently captures that rate, so a USD invoice cannot be
+  reconciled against a MXN tax period. Probably an `fxRate` and `fxRateDate` on
+  the invoice, captured when the CFDI is marked.
+- **Encryption boundary for the new models.** Milestone dates on `Invoice` reveal
+  payment behaviour; `TaxPeriod.taxDue` reveals income. Neither is searched or
+  sorted in SQL today, so both could be encrypted — but the attention rules and
+  the dashboard aggregates want to filter on exactly these columns, and an
+  encrypted column cannot be filtered. Resolve with the `data-classification`
+  skill before Phase 1 lands, not after.
+- **Attachment bytes in export**, per the import/export section above.
+- **Attention thresholds** as per-user settings rather than constants.
 
 ## Current Repository Note
 
-Implementation started before this document request and then stopped. The
-working tree may contain partial Prisma and server-action files. Treat those as
-draft implementation artifacts until this requirements document is confirmed.
+The invoicing models, the read-only dashboard, and the invoice preview are real
+and working. Everything that writes invoicing data is missing. Treat the docs
+site as the source of truth for how the platform pieces behave, and this file as
+the source of truth for what the product should do.
