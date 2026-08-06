@@ -1,9 +1,12 @@
 # Billow
 
-Billow is a base setup for self-hosted apps, packaged for Umbrel. It exists so
-that the parts every such app needs — accounts, two-factor, an API, migrations,
-backups, a Docker image, a release pipeline — are already built and tested, and
-the only thing left is the domain you actually care about.
+Billow is a self-hosted invoice manager, packaged for Umbrel. It generates
+invoices, exports them as PDFs, and tracks what happens to each one afterwards:
+sent, received, paid, turned into a CFDI by the accountant, and included in a
+filed monthly tax report.
+
+Writing the invoice is the short part of the job. Knowing months later which
+ones are unfinished is the long part, and that is what Billow is for.
 
 ## Stack
 
@@ -15,9 +18,11 @@ the only thing left is the domain you actually care about.
 | Platform | next-intl, next-themes, Resend email, file uploads, workspace backup/restore, health endpoint, persisted error log |
 | Build and ship | pnpm workspaces, Turborepo, Vitest, Playwright, Biome, Docker on Node 26, GitHub Actions publishing to GHCR |
 
-The signed-in app ships a small invoicing workspace. It is a worked example of
-the platform rather than the point — a real domain wired through the same auth,
-validation, backup and API conventions, there to be replaced by yours.
+Underneath the invoicing sits a full platform layer — accounts, two-factor, an
+API, per-user field encryption, migrations, backups, a Docker image, a release
+pipeline. It began life as a general-purpose base setup and is still worth
+reading as one, but it now exists to serve invoicing rather than to be replaced
+by another domain.
 
 ## Local Development
 
