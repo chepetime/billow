@@ -75,6 +75,9 @@ importers:
       '@billow/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@billow/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@billow/db':
         specifier: workspace:*
         version: link:../../packages/db

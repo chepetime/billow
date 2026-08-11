@@ -600,6 +600,31 @@ export async function issueRecoveryKeyFor(
 }
 
 /**
+ * Whether `candidate` is this account's current recovery key.
+ *
+ * Answered by using it — unwrapping the data key — because the recovery key is
+ * the one thing never stored, so there is nothing to compare against. False
+ * covers an account with no keyset and one that never finished onboarding as
+ * well as a wrong key: which of those is true is not worth reporting to
+ * whoever is guessing.
+ */
+export async function holdsRecoveryKey(
+  userId: string,
+  candidate: string,
+): Promise<boolean> {
+  const stored = await getPrisma().userKeyset.findUnique({ where: { userId } });
+  if (!stored) return false;
+
+  try {
+    await unlockWithRecoveryKey(userId, stored as UserKeyset, candidate);
+    return true;
+  } catch (error) {
+    if (error instanceof KeyHierarchyError) return false;
+    throw error;
+  }
+}
+
+/**
  * Confirms the user actually holds the key, by using it.
  *
  * The whole key is required rather than a few groups of it. A partial check
@@ -613,18 +638,9 @@ export async function confirmRecoveryKeySaved(
   userId: string,
   candidate: string,
 ): Promise<boolean> {
-  const prisma = getPrisma();
-  const stored = await prisma.userKeyset.findUnique({ where: { userId } });
-  if (!stored) return false;
+  if (!(await holdsRecoveryKey(userId, candidate))) return false;
 
-  try {
-    await unlockWithRecoveryKey(userId, stored as UserKeyset, candidate);
-  } catch (error) {
-    if (error instanceof KeyHierarchyError) return false;
-    throw error;
-  }
-
-  await prisma.userOnboarding.upsert({
+  await getPrisma().userOnboarding.upsert({
     where: { userId },
     create: {
       userId,

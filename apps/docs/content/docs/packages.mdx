@@ -59,6 +59,11 @@ password-derived KEK, a recovery-key KEK, and a session key, plus the
 field-encryption primitives that `@billow/db/field-encryption` calls. Pure —
 it operates on buffers and has no dependency on `@billow/db` or Prisma.
 
+`backup-envelope.ts` reuses the same KDF and wrap format for the opt-in
+encrypted backup export, but binds no owner: a backup is restored into an
+account that may not exist yet. It is the one place the wrap deliberately
+travels outside the installation.
+
 ## `packages/email` — `@billow/email`
 
 The Resend integration, a provider abstraction, and the transactional

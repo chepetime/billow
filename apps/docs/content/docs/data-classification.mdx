@@ -110,6 +110,76 @@ or sorted in SQL, and a list view cannot render it without the signed-in user's
 key. Sensitivity is a property of the data; encryption is a tradeoff against
 those behaviours, and the two decisions are separate.
 
+## Backups leave the encryption boundary
+
+`GET /api/admin/backup` builds its manifest with the encrypted-aware client, so
+**a backup is decrypted by default**: `backup.json` contains real account
+numbers, IBANs and tax IDs as plain text.
+
+That is a decision, not an oversight. A backup that only the installation which
+produced it can read is not a backup — the file has to survive the database it
+came from, and the whole point of restoring is doing it somewhere the original
+user key no longer exists. Field encryption protects a stolen database dump or
+volume snapshot; it was never going to protect a file the user deliberately
+carried out of the app.
+
+The consequence has to be stated in the same breath: an export lands in a
+Downloads folder, gets synced to whatever cloud drive is mounted there, and
+occasionally gets attached to a support thread. In every one of those places it
+is as sensitive as the columns it came from and none of the protection those
+columns had.
+
+### The encrypted export
+
+Sending the account's recovery key in `x-billow-recovery-key` on that request
+seals the archive instead. The scheme is in
+`packages/crypto/src/backup-envelope.ts`:
+
+- A random 256-bit **content key** encrypts the archive entries; the recovery
+  key only wraps that key, so scrypt runs once per backup rather than per file.
+- The wrap and its salt travel in one cleartext entry, `backup-envelope.json`.
+  Its presence is how a restore knows the archive is encrypted — both kinds are
+  a gzipped tar with the same extension, so the format has to be decidable from
+  the bytes.
+- Entries are sealed **individually**, each binding its own archive entry name
+  as associated data. Bytes cannot be moved between `files/NNNN` entries and no
+  file can be substituted for the manifest. Individually rather than as one
+  stream because the export reads one upload at a time on purpose — a
+  single-stream cipher would put the whole archive back on a 128 MB heap.
+
+Three properties of this envelope are worth knowing before changing it.
+
+**It is not bound to a user id**, unlike every wrap in the key hierarchy below.
+A backup exists to be restored elsewhere — a rebuilt install, a new account —
+and `importWorkspace` already refuses to take ownership from the file, assigning
+every row to the importing session. An owner in the associated data would add no
+authorization and would guarantee failure in the one situation the feature is
+for.
+
+**Export verifies the key; restore cannot.** On export the recovery key is
+checked against the account first (`holdsRecoveryKey`), because a typo would
+otherwise produce a file that looks like a backup and can never be opened. On
+restore there is nothing to check it against — that is the disaster the backup
+is for — so the envelope vouches for itself and a wrong key simply fails to
+unwrap.
+
+**Losing the key loses the backup.** There is no second arm on this envelope
+and no server-side copy. That is the same bargain as the recovery key itself,
+and the settings UI says so where the choice is made.
+
+The recovery key is typed into a form and sent in a request header, so on a
+plain-HTTP install it crosses the network in the clear — the same transport
+limitation described under the vault lab below, and the same answer: reach
+Billow over HTTPS before treating that as private.
+
+### What a backup never contains
+
+Independently of encryption, some rows are excluded from the format outright:
+users, sessions, accounts, API keys, two-factor records, `UserKeyset`, error
+logs, and `VaultEntry`. Those are credentials or infrastructure, and importing
+them would either be meaningless or would let a file forge identity. See the
+header comment in `apps/web/src/lib/backup.ts`.
+
 ## Key hierarchy
 
 `@billow/crypto` holds the key lifecycle that field-level encryption will use.

@@ -109,6 +109,12 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       against the manifest, re-sniff the type, regenerate storage keys scoped
       to the importing user, and report every skipped file. Version 1 exports
       (JSON, no files) still restore.
+- [x] **Encrypted backups are opt-in, and the default is documented** — an
+      export decrypts to plaintext on purpose (a backup only its own install
+      can read is not a backup), which the UI and the data-classification docs
+      now say out loud. Sending the account's recovery key seals every archive
+      entry under a wrapped content key instead; export verifies that key
+      against the account first, restore cannot and does not.
 - [ ] SMTP provider alongside Resend — Resend is a hosted API needing outbound
       internet and an account, which not every self-hosted install wants. The
       seam is in place (`packages/email/src/provider.ts`); this is a new file

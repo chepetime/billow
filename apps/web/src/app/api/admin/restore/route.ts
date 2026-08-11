@@ -1,10 +1,21 @@
 import { gunzipSync } from "node:zlib";
 import { getAdminSession } from "@billow/auth";
+import {
+  KeyHierarchyError,
+  openBackupEntry,
+  openBackupWithRecoveryKey,
+  parseBackupEnvelope,
+} from "@billow/crypto";
 import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error, validationError } from "@/lib/api/respond";
 import { importWorkspace, parseBackupPayload } from "@/lib/backup";
-import { readTar } from "@/lib/backup-archive";
+import { readTar, type TarEntry } from "@/lib/backup-archive";
+import {
+  ENVELOPE_ENTRY,
+  MANIFEST_ENTRY,
+  RECOVERY_KEY_HEADER,
+} from "@/lib/backup-format";
 import { restoreUploads } from "@/lib/backup-uploads";
 import { recordError } from "@/lib/error-log";
 import { MAX_UPLOADS_PER_USER_BYTES } from "@/lib/uploads";
@@ -34,6 +45,13 @@ const MAX_ARCHIVE_BYTES = MAX_UPLOADS_PER_USER_BYTES + 16 * 1024 * 1024;
  * a version 1 export. Those older backups are still complete records of
  * everything they ever held, so they restore normally and simply carry no
  * files.
+ *
+ * An archive carrying a `backup-envelope.json` entry is an encrypted export
+ * and needs the recovery key it was sealed with, in `x-billow-recovery-key`.
+ * That key is not checked against this account, unlike on export: a backup is
+ * restored into a rebuilt install or a new account precisely when the original
+ * account no longer exists, so the only thing that can vouch for the key is
+ * the envelope itself.
  */
 export async function POST(request: Request) {
   if (!isSameOriginRequest(request))
@@ -54,21 +72,10 @@ export async function POST(request: Request) {
   const isGzip = raw[0] === 0x1f && raw[1] === 0x8b;
 
   if (isGzip) {
+    let entries: TarEntry[] = [];
     try {
       const tarBytes = gunzipSync(raw, { maxOutputLength: MAX_ARCHIVE_BYTES });
-      const entries = readTar(tarBytes, MAX_ARCHIVE_BYTES);
-
-      const manifest = entries.find((entry) => entry.name === "backup.json");
-      if (!manifest) {
-        return error("Backup archive has no backup.json manifest.", 400);
-      }
-      manifestJson = JSON.parse(manifest.body.toString("utf8"));
-
-      for (const entry of entries) {
-        if (entry.name !== "backup.json") {
-          files.set(entry.name, entry.body);
-        }
-      }
+      entries = readTar(tarBytes, MAX_ARCHIVE_BYTES);
     } catch (archiveError) {
       await recordError("admin.backup.import.archive", archiveError);
       return error(
@@ -77,6 +84,85 @@ export async function POST(request: Request) {
           : "Could not read the backup archive.",
         400,
       );
+    }
+
+    const manifest = entries.find((entry) => entry.name === MANIFEST_ENTRY);
+    if (!manifest) {
+      return error(`Backup archive has no ${MANIFEST_ENTRY} manifest.`, 400);
+    }
+
+    const header = entries.find((entry) => entry.name === ENVELOPE_ENTRY);
+    let contentKey: Buffer | null = null;
+
+    if (header) {
+      const recoveryKey =
+        request.headers.get(RECOVERY_KEY_HEADER)?.trim() ?? "";
+      if (!recoveryKey) {
+        return error(
+          "This backup is encrypted. Enter the recovery key it was exported with.",
+          400,
+        );
+      }
+
+      let envelope: ReturnType<typeof parseBackupEnvelope>;
+      try {
+        envelope = parseBackupEnvelope(
+          JSON.parse(header.body.toString("utf8")),
+        );
+      } catch {
+        envelope = null;
+      }
+      if (!envelope) {
+        return error(
+          "This backup is encrypted in a format this version cannot read.",
+          400,
+        );
+      }
+
+      try {
+        contentKey = await openBackupWithRecoveryKey(envelope, recoveryKey);
+      } catch (unlockError) {
+        if (unlockError instanceof KeyHierarchyError) {
+          return error("That recovery key does not open this backup.", 400);
+        }
+        throw unlockError;
+      }
+    }
+
+    /**
+     * Every entry is authenticated to its own name, so a failure here means
+     * the archive was edited after it was sealed — not that the key is wrong,
+     * which `openBackupWithRecoveryKey` has already settled.
+     */
+    const open = (name: string, body: Buffer): Buffer | null => {
+      if (!contentKey) return body;
+      try {
+        return openBackupEntry(contentKey, name, body);
+      } catch {
+        return null;
+      }
+    };
+
+    const manifestBytes = open(MANIFEST_ENTRY, manifest.body);
+    if (!manifestBytes) {
+      return error("This backup's manifest failed its integrity check.", 400);
+    }
+
+    try {
+      manifestJson = JSON.parse(manifestBytes.toString("utf8"));
+    } catch {
+      return error("Backup archive manifest is not valid JSON.", 400);
+    }
+
+    for (const entry of entries) {
+      if (entry.name === MANIFEST_ENTRY || entry.name === ENVELOPE_ENTRY) {
+        continue;
+      }
+      // A file that fails to decrypt is left out rather than failing the whole
+      // restore, and its absence is then reported by restoreUploads as a
+      // missing entry — the same visible outcome as a file the export skipped.
+      const bytes = open(entry.name, entry.body);
+      if (bytes) files.set(entry.name, bytes);
     }
   } else {
     try {

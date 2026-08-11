@@ -1,6 +1,17 @@
+import { gunzipSync, gzipSync } from "node:zlib";
+import {
+  openBackupEntry,
+  openBackupWithRecoveryKey,
+  parseBackupEnvelope,
+  sealBackupEntry,
+  sealBackupWithRecoveryKey,
+} from "@billow/crypto";
 import { describe, expect, it } from "vitest";
 
 import { readTar, type TarEntrySource, writeTar } from "./backup-archive";
+import { ENVELOPE_ENTRY, MANIFEST_ENTRY } from "./backup-format";
+
+const RECOVERY_KEY = "K9F2-3JQM-7ZTB-XW04-HN5R-P8VC-2DGY-6SAE";
 
 async function collect(entries: TarEntrySource[]): Promise<Buffer> {
   const chunks: Uint8Array[] = [];
@@ -92,5 +103,45 @@ describe("backup archive", () => {
     // not be read back as further entries.
     const padded = Buffer.concat([archive, Buffer.alloc(4096)]);
     expect(readTar(padded, LIMIT)).toHaveLength(1);
+  });
+
+  it("carries sealed entries through gzip unchanged", async () => {
+    const { contentKey, envelope } =
+      await sealBackupWithRecoveryKey(RECOVERY_KEY);
+    const manifest = Buffer.from(JSON.stringify({ formatVersion: 2 }), "utf8");
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+    const header = Buffer.from(JSON.stringify(envelope), "utf8");
+
+    // The whole export path in miniature: seal each entry, write the tar,
+    // gzip, then read it back the way the restore endpoint does. Ciphertext is
+    // arbitrary binary of an odd length, which is exactly what a hand-written
+    // tar's 512-byte padding gets wrong if it gets anything wrong.
+    const archive = gzipSync(
+      await collect([
+        entry(ENVELOPE_ENTRY, header),
+        entry(
+          MANIFEST_ENTRY,
+          sealBackupEntry(contentKey, MANIFEST_ENTRY, manifest),
+        ),
+        entry("files/0000", sealBackupEntry(contentKey, "files/0000", png)),
+      ]),
+    );
+
+    const read = readTar(gunzipSync(archive), LIMIT);
+    const byName = new Map(read.map((e) => [e.name, e.body]));
+
+    const parsed = parseBackupEnvelope(
+      JSON.parse(byName.get(ENVELOPE_ENTRY)!.toString("utf8")),
+    );
+    expect(parsed).not.toBeNull();
+
+    const recovered = await openBackupWithRecoveryKey(parsed!, RECOVERY_KEY);
+
+    expect(
+      openBackupEntry(recovered, MANIFEST_ENTRY, byName.get(MANIFEST_ENTRY)!),
+    ).toEqual(manifest);
+    expect(
+      openBackupEntry(recovered, "files/0000", byName.get("files/0000")!),
+    ).toEqual(png);
   });
 });
