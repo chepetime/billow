@@ -15,6 +15,7 @@ import {
 import { getPrisma } from "@billow/db";
 import { backfillEncryptedFields } from "@billow/db/field-encryption";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 /**
  * The session key. httpOnly so no script can read it, and paired with a wrap
@@ -374,6 +375,34 @@ export async function dataKeyFromSessionKey(
 }
 
 /**
+ * The session row's wrapped data key, fetched once per render.
+ *
+ * One dashboard render asks for this same column three times: `getDataKey`
+ * from the workspace client, `getDataKey` again from `getRecoveryKeyState`
+ * (which the app layout calls for the onboarding gate), and
+ * `getRecoveryKeyState` itself, which only needs to know whether a wrap
+ * exists. `cache` collapses them into one round trip, on the same terms as
+ * `getSession` — the memo hangs off the in-flight RSC request and is reached
+ * only through React's AsyncLocalStorage, so concurrent renders never see
+ * each other's entry and route handlers, which have no in-flight request,
+ * go straight through uncached. See ../session for the longer note.
+ *
+ * The cached value is the stored wrap, not the opened data key: it is inert
+ * without the cookie, so two callers sharing one string share nothing a
+ * request did not already have. Handing out one shared `Buffer` instead
+ * would hand every caller the same mutable key material.
+ */
+const sessionDataKeyWrap = cache(async function sessionDataKeyWrap(
+  sessionId: string,
+): Promise<string | null> {
+  const session = await getPrisma().session.findUnique({
+    where: { id: sessionId },
+    select: { dataKeyWrappedBySessionKey: true },
+  });
+  return session?.dataKeyWrappedBySessionKey ?? null;
+});
+
+/**
  * The data key for the signed-in request, or null when there is none to be
  * had — no cookie, a session predating the keyset, or an API-key caller, which
  * has no cookie by definition and so cannot decrypt.
@@ -388,18 +417,11 @@ export async function getDataKey(
   const sessionKey = (await cookies()).get(DATA_KEY_COOKIE)?.value;
   if (!sessionKey) return null;
 
-  const session = await getPrisma().session.findUnique({
-    where: { id: sessionId },
-    select: { dataKeyWrappedBySessionKey: true },
-  });
-  if (!session?.dataKeyWrappedBySessionKey) return null;
+  const wrap = await sessionDataKeyWrap(sessionId);
+  if (!wrap) return null;
 
   try {
-    return await resumeSession(
-      userId,
-      session.dataKeyWrappedBySessionKey,
-      sessionKey,
-    );
+    return await resumeSession(userId, wrap, sessionKey);
   } catch (error) {
     if (error instanceof KeyHierarchyError) return null;
     throw error;
@@ -531,19 +553,16 @@ export async function getRecoveryKeyState(
   sessionId?: string,
 ): Promise<RecoveryKeyState> {
   const prisma = getPrisma();
-  const [keyset, onboarding, dataKey, session, orphaned] = await Promise.all([
+  const [keyset, onboarding, dataKey, wrap, orphaned] = await Promise.all([
     prisma.userKeyset.findUnique({
       where: { userId },
       select: { recoverySalt: true },
     }),
     prisma.userOnboarding.findUnique({ where: { userId } }),
     sessionId ? getDataKey(userId, sessionId) : Promise.resolve(null),
-    sessionId
-      ? prisma.session.findUnique({
-          where: { id: sessionId },
-          select: { dataKeyWrappedBySessionKey: true },
-        })
-      : Promise.resolve(null),
+    // Same row `getDataKey` above is reading; `sessionDataKeyWrap` is what
+    // keeps that one query rather than two.
+    sessionId ? sessionDataKeyWrap(sessionId) : Promise.resolve(null),
     prisma.verification.findFirst({
       where: { identifier: orphanIdentifier(userId) },
     }),
@@ -555,7 +574,7 @@ export async function getRecoveryKeyState(
     generatedAt: onboarding?.recoveryKeyGeneratedAt ?? null,
     savedAt: onboarding?.recoveryKeySavedAt ?? null,
     dataKeyAvailable: Boolean(dataKey),
-    sessionHasDataKeyWrap: Boolean(session?.dataKeyWrappedBySessionKey),
+    sessionHasDataKeyWrap: Boolean(wrap),
     keysetOrphaned: Boolean(orphaned),
   };
 }
