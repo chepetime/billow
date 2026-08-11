@@ -131,8 +131,11 @@ remains is the flow:
 - The admin "set a password directly" feature would orphan a user's encrypted
   data — decide whether it survives.
 - Encrypted columns are unsearchable and unsortable in SQL.
-- Backup export runs as the user, so it writes plaintext — intended, but say
-  so in the docs.
+- ~~Backup export runs as the user, so it writes plaintext — intended, but say
+  so in the docs.~~ **Done.** Stated under "Backups leave the encryption
+  boundary" in the data-classification docs and in the export UI, and an opt-in
+  recovery-key-sealed export now exists beside the plaintext one
+  (`packages/crypto/src/backup-envelope.ts`).
 
 ## 2. Finish i18n
 

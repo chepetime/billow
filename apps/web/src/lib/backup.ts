@@ -1,6 +1,7 @@
 import { type ExtendedPrismaClient, getPrisma } from "@billow/db";
 import type { Prisma } from "@billow/db/client";
 import { z } from "zod";
+import { uploadEntryName } from "@/lib/backup-format";
 
 // Deliberately no "server-only" import: the payload schema in this module
 // (backupPayloadSchema / parseBackupPayload) is unit tested directly in
@@ -201,11 +202,6 @@ export type ImportSummary = {
   skippedInvoices: number;
 };
 
-/** Archive entry name for the Nth exported upload. Generated, never user text. */
-export function uploadEntryName(index: number): string {
-  return `files/${String(index).padStart(4, "0")}`;
-}
-
 /**
  * Reads the signed-in user's domain data into a JSON-serialisable snapshot.
  *
@@ -213,9 +209,12 @@ export function uploadEntryName(index: number): string {
  * dependency on the auth stack — it is pure enough to unit-test, and importing
  * the session machinery to fetch a client would have made that impossible.
  *
- * Callers should pass the encrypted-aware client: a user-initiated export is
- * plaintext by design, which the data-classification docs state, and the plain
- * client would write ciphertext nobody can restore from.
+ * Callers should pass the encrypted-aware client: a user-initiated export
+ * decrypts by design — see "Backups leave the encryption boundary" in the
+ * data-classification docs — and the plain client would write ciphertext that
+ * nobody, including the user, can restore from. Protecting the *file* is a
+ * separate, opt-in layer: `@billow/crypto`'s backup envelope seals this
+ * payload under the account's recovery key on its way into the archive.
  */
 export async function exportWorkspace(
   userId: string,

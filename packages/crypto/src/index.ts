@@ -1,4 +1,12 @@
 export {
+  type BackupEnvelope,
+  openBackupEntry,
+  openBackupWithRecoveryKey,
+  parseBackupEnvelope,
+  sealBackupEntry,
+  sealBackupWithRecoveryKey,
+} from "./backup-envelope";
+export {
   beginSession,
   changePassword,
   createUserKeyset,

@@ -5,11 +5,19 @@ import {
   scrypt as scryptCallback,
 } from "node:crypto";
 
-const ALGORITHM = "aes-256-gcm";
-const KEY_BYTES = 32;
-const SALT_BYTES = 16;
-const IV_BYTES = 12;
-const TAG_BYTES = 16;
+/**
+ * The parameters and the wrap format below are exported for
+ * `backup-envelope.ts`, which needs exactly this KDF and exactly this envelope
+ * but binds different associated data. They are deliberately absent from
+ * `index.ts`: nothing outside `@billow/crypto` should be able to derive a KEK
+ * or open a raw wrap, and a second copy of these constants in another file is
+ * how the two halves drift apart.
+ */
+export const ALGORITHM = "aes-256-gcm";
+export const KEY_BYTES = 32;
+export const SALT_BYTES = 16;
+export const IV_BYTES = 12;
+export const TAG_BYTES = 16;
 const VERSION = "v1";
 const SCRYPT_N = 32_768;
 const SCRYPT_R = 8;
@@ -95,7 +103,10 @@ function context(userId: string, purpose: string): Buffer {
   return Buffer.from(`billow:keyset:${purpose}:${VERSION}:${userId}`, "utf8");
 }
 
-function deriveKeyEncryptionKey(secret: string, salt: Buffer): Promise<Buffer> {
+export function deriveKeyEncryptionKey(
+  secret: string,
+  salt: Buffer,
+): Promise<Buffer> {
   if (!secret || secret.length > 1024) throw new KeyHierarchyError();
 
   return new Promise<Buffer>((resolve, reject) => {
@@ -116,7 +127,11 @@ function deriveKeyEncryptionKey(secret: string, salt: Buffer): Promise<Buffer> {
 }
 
 /** Returns `v1.iv.tag.ciphertext`, each binary segment base64url. */
-function wrap(dataKey: Buffer, keyEncryptionKey: Buffer, aad: Buffer): string {
+export function wrap(
+  dataKey: Buffer,
+  keyEncryptionKey: Buffer,
+  aad: Buffer,
+): string {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, keyEncryptionKey, iv);
   cipher.setAAD(aad);
@@ -130,7 +145,11 @@ function wrap(dataKey: Buffer, keyEncryptionKey: Buffer, aad: Buffer): string {
   ].join(".");
 }
 
-function unwrap(stored: string, keyEncryptionKey: Buffer, aad: Buffer): Buffer {
+export function unwrap(
+  stored: string,
+  keyEncryptionKey: Buffer,
+  aad: Buffer,
+): Buffer {
   const parts = stored.split(".");
   if (parts.length !== 4 || parts[0] !== VERSION) throw new KeyHierarchyError();
 
