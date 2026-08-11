@@ -76,12 +76,21 @@ A plaintext write to a listed field is refused, not silently stored.
 including a nested relation write, which reports the *parent* model to
 Prisma's `$allOperations` and so cannot be caught by the sealer alone — and
 throws `PlaintextEncryptedWriteError` if a listed field is not already in the
-`encv1.` envelope. `encryptedPrisma()` seals a payload and then checks it;
-`guardedPrisma()`, for callers that have no data key and so cannot seal
-anything, only checks. Either way, a caller cannot land plaintext in a column
-the rest of the system believes is encrypted — the failure mode this closed
-was `createBankAccount` and `importWorkspace` writing cleartext account
-numbers into a table that onboarding was already sealing.
+`encv1.` envelope. `encryptedPrisma()` seals a payload and then checks it.
+`getPrisma()` — the client every other caller imports — only checks, so a
+caller with no data key can still read and delete, and cannot store a value
+the rest of the system believes is encrypted. The failure mode this closed was
+`createBankAccount` and `importWorkspace` writing cleartext account numbers
+into a table that onboarding was already sealing; the guard sits on the shared
+client rather than only on the encrypted one because an opt-in control
+protects exactly the call sites that already remembered to opt in.
+
+One ordering detail constrains where the guard may live: Prisma runs the
+*first*-applied extension first, so a guard added inside `createPrismaClient()`
+would run ahead of the sealer stacked above it and reject every legitimate
+encrypted write. `encryptedPrisma()` therefore builds on an unguarded base
+client (`getUnguardedPrisma()`, package-internal and fenced off by a test) and
+runs the check itself, after sealing.
 
 Three consequences worth stating plainly:
 

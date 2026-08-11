@@ -36,13 +36,14 @@ Exports:
 - `@billow/db` → `getPrisma()`, `createPrismaClient()`, enums
 - `@billow/db/client` → generated client types (including the `Prisma` namespace)
 - `@billow/db/enums` → generated enums
-- `@billow/db/field-encryption` → `encryptedPrisma()`, `guardedPrisma()`, and
-  `ENCRYPTED_FIELDS` — see [Data classification](/docs/data-classification)
+- `@billow/db/field-encryption` → `encryptedPrisma()` and `ENCRYPTED_FIELDS` —
+  see [Data classification](/docs/data-classification)
 
 <Callout>
-`getPrisma()` returns an **extended** client (it adds retry behaviour). Type it
-with `ExtendedPrismaClient` rather than `PrismaClient` when you need an
-annotation.
+`getPrisma()` returns an **extended** client: it adds retry behaviour, and it
+refuses to write plaintext into an encrypted column. Type it with
+`GuardedPrismaClient` rather than `PrismaClient` when you need an annotation —
+`ExtendedPrismaClient` is the retry-only client underneath it.
 </Callout>
 
 ## `packages/auth` — `@billow/auth`
