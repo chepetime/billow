@@ -345,13 +345,14 @@ function clientOrigin(source: string, name: string, depth = 0): string {
  * Nothing outside the encryption mechanism itself may write an encrypted
  * column through the plain client.
  *
- * A source check rather than a runtime one because the runtime guard can only
- * reach clients that carry the extension, and `getPrisma()` is exported to the
- * whole repo. Wiring the guard into `createPrismaClient()` would close that for
- * every consumer; until then this covers the gap, at the cost of being a
- * heuristic — it follows one `$transaction` hop and reads object literals, so
- * it recognises the two bypasses that shipped and the obvious ways to write
- * them again, not every possible one.
+ * `getPrisma()` now carries the guard, so a bypass of this kind fails at
+ * runtime rather than reaching a column. This check stays because a runtime
+ * refusal is a broken feature discovered in production, and this is the same
+ * mistake caught at `pnpm test` with the call site named. It is a heuristic —
+ * it follows one `$transaction` hop and reads object literals, so it
+ * recognises the two bypasses that shipped and the obvious ways to write them
+ * again, not every possible one; the runtime guard is what makes that
+ * acceptable.
  */
 function plainClientWrites(source: string) {
   const offenders: string[] = [];
@@ -407,5 +408,25 @@ describe("no encrypted-column write through the plain client", () => {
     );
 
     expect(offenders).toEqual([]);
+  });
+
+  it("keeps the unguarded client inside the mechanism", () => {
+    // `getUnguardedPrisma()` is the one client with no plaintext-write guard.
+    // It exists only so the sealing client can be built on top of it — Prisma
+    // runs the first-applied extension first, so a guard underneath the sealer
+    // would reject the writes the sealer is about to encrypt. Anywhere else it
+    // is simply the hole this closed, reopened, so the name is fenced off here
+    // rather than left to review.
+    const offenders = [
+      ...sourceFiles(join(REPO_ROOT, "apps")),
+      ...sourceFiles(join(REPO_ROOT, "packages")),
+    ].filter(
+      (path) =>
+        !path.endsWith(join("db", "src", "index.ts")) &&
+        !path.endsWith(join("db", "src", "field-encryption.ts")) &&
+        readFileSync(path, "utf8").includes("getUnguardedPrisma"),
+    );
+
+    expect(offenders.map((path) => path.slice(REPO_ROOT.length))).toEqual([]);
   });
 });

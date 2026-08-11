@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../generated/prisma/client";
+import { createEncryptedWriteGuardExtension } from "./encrypted-write-guard";
 
 export type { PrismaClient } from "../generated/prisma/client";
 export * from "../generated/prisma/enums";
@@ -123,14 +124,63 @@ export function createPrismaClient() {
 
 export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
 
+function guardEncryptedWrites(client: ExtendedPrismaClient) {
+  return client.$extends(createEncryptedWriteGuardExtension());
+}
+
+export type GuardedPrismaClient = ReturnType<typeof guardEncryptedWrites>;
+
 const globalForPrisma = globalThis as unknown as {
   prisma?: ExtendedPrismaClient;
+  guardedPrisma?: GuardedPrismaClient;
 };
 
-export function getPrisma(): ExtendedPrismaClient {
+/**
+ * The client without the plaintext-write guard. **Not for general use** — the
+ * only sanctioned caller is `field-encryption.ts`, which builds the sealing
+ * client on top of it.
+ *
+ * It has to exist, and it has to be reachable from that one module, because
+ * Prisma runs the first-applied extension first: a guard applied here would
+ * run before the sealer above it and reject the very writes the sealer is
+ * about to encrypt. So the sealing client starts from an unguarded base and
+ * runs the check itself, after sealing.
+ *
+ * It is not reachable from outside this package — `package.json` exports only
+ * `.`, `./client`, `./enums`, and `./field-encryption`, so no deep import can
+ * pick it up — and `encrypted-writes.test.ts` fails the build if a file
+ * outside the mechanism names it.
+ */
+export function getUnguardedPrisma(): ExtendedPrismaClient {
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
   }
 
   return globalForPrisma.prisma;
+}
+
+/**
+ * The application's Prisma client.
+ *
+ * It refuses to write plaintext into a column listed in `ENCRYPTED_FIELDS`,
+ * throwing `PlaintextEncryptedWriteError` before anything is sent to Postgres.
+ * Reads, deletes, and every unlisted column are untouched — what a caller
+ * without a data key loses is only the ability to store a value the rest of
+ * the system believes is encrypted. Those writes belong on
+ * `getWorkspacePrisma()`.
+ *
+ * The guard lives here, on the client the whole repository imports, rather
+ * than only on the encrypted client, because that was the actual hole: the
+ * mechanism was opt-in per client, so it protected exactly the call sites that
+ * had already remembered to opt in.
+ *
+ * Wraps the same cached base client, so this adds a proxy and not a second
+ * connection pool.
+ */
+export function getPrisma(): GuardedPrismaClient {
+  if (!globalForPrisma.guardedPrisma) {
+    globalForPrisma.guardedPrisma = guardEncryptedWrites(getUnguardedPrisma());
+  }
+
+  return globalForPrisma.guardedPrisma;
 }
