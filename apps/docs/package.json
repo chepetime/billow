@@ -9,9 +9,9 @@
     "start": "next start --port 3001"
   },
   "dependencies": {
-    "fumadocs-core": "^16.14.0",
-    "fumadocs-mdx": "^15.2.2",
-    "fumadocs-ui": "^16.14.0",
+    "fumadocs-core": "^16.14.3",
+    "fumadocs-mdx": "^15.2.3",
+    "fumadocs-ui": "^16.14.3",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -19,7 +19,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "tailwindcss": "^4.3.3",
