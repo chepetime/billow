@@ -96,7 +96,10 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
 - [x] Persistent error log in the database, surfaced through the API
 - [x] Migrations run automatically at container start, with retry
 - [x] Transient DB connection retries; auth failures fail fast
-- [x] Memory capped (`--max-old-space-size=128`; ~60 MiB idle)
+- [x] V8 old space capped (`--max-old-space-size=128`; ~60 MiB idle) — the flag
+      bounds the old generation, not the process: scrypt's 64 MB comes from
+      OpenSSL and file buffers from Node, both outside it. What bounds RSS is
+      the container memory limit.
 - [x] **Backup / restore** — admin export/import of workspace data, one
       transaction, ownership forced to the importer, ids remapped
 - [x] **Backup covers uploaded files** — the export is a gzipped tar
