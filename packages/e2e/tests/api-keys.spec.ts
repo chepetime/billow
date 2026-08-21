@@ -24,9 +24,9 @@ test("a created API key authenticates /api/v1/me as the owning account", async (
   await page.getByRole("button", { name: "Create key" }).click();
 
   await expect(
-    page.getByText("Copy your key now — it won't be shown again."),
+    page.getByText("Save your key now — it won't be shown again."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Copy key" }).click();
+  await page.getByRole("button", { name: "Copy api key" }).click();
   const key = await page.evaluate(() => navigator.clipboard.readText());
   expect(key.length).toBeGreaterThan(10);
 

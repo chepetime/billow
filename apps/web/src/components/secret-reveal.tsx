@@ -69,7 +69,7 @@ export function SecretReveal({
     // Anyone without the extension simply never sees it, so a failure to load
     // is not worth surfacing — the copy button already covers them.
     void import("@1password/save-button")
-      .then(({ activateOPButton, encodeOPSaveRequest }) => {
+      .then(({ encodeOPSaveRequest }) => {
         if (cancelled) return;
 
         const fields: SaveRequestField[] = [

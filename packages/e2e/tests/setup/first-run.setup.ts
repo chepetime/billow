@@ -5,6 +5,7 @@ import {
   test as setup,
 } from "@playwright/test";
 
+import { completeRecoveryKeyOnboarding } from "../fixtures/onboarding";
 import {
   OWNER_STORAGE_STATE_PATH,
   saveOwnerCredentials,
@@ -34,7 +35,8 @@ setup(
   "register the owner account and confirm registration then closes",
   async ({ page, request }) => {
     await landingPageOffersRegistration(page);
-    await registerLandsOnDashboard(page);
+    await registerLandsOnRecoveryKey(page);
+    await recoveryKeyConfirmationLandsOnDashboard(page);
     await secondSignUpIsRejected(request);
 
     await page.context().storageState({ path: OWNER_STORAGE_STATE_PATH });
@@ -57,13 +59,19 @@ async function landingPageOffersRegistration(page: Page) {
   await expect(page).toHaveURL(/\/register$/);
 }
 
-async function registerLandsOnDashboard(page: Page) {
+async function registerLandsOnRecoveryKey(page: Page) {
   await page.getByLabel("Name").fill(ownerName);
   await page.getByLabel("Email").fill(ownerEmail);
   await page.getByLabel("Password").fill(ownerPassword);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page).toHaveURL(/\/dashboard$/);
+  // Not the dashboard: a new account owes us a confirmed recovery key first,
+  // and OnboardingGate redirects everything under (app) until it has one.
+  await expect(page).toHaveURL(/\/onboarding\/recovery-key$/);
+}
+
+async function recoveryKeyConfirmationLandsOnDashboard(page: Page) {
+  await completeRecoveryKeyOnboarding(page);
   await expect(
     page.getByRole("heading", { name: `Welcome back, ${ownerName}` }),
   ).toBeVisible();
