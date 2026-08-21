@@ -5,7 +5,6 @@ import {
 } from "@billow/email";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { BackupSection } from "@/app/(app)/settings/_components/backup-section";
 import { EmailSection } from "@/app/(app)/settings/_components/email-section";
 import {
   type AdminUser,
@@ -94,8 +93,6 @@ export default async function AdminPage() {
       {emailSettings ? <EmailSection settings={emailSettings} /> : null}
 
       <UsersSection users={users} currentUserId={session.user.id} />
-
-      <BackupSection />
     </div>
   );
 }

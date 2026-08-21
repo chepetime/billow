@@ -114,7 +114,9 @@ those behaviours, and the two decisions are separate.
 
 `GET /api/admin/backup` builds its manifest with the encrypted-aware client, so
 **a backup is decrypted by default**: `backup.json` contains real account
-numbers, IBANs and tax IDs as plain text.
+numbers, IBANs and tax IDs as plain text. The route now refuses (409) rather
+than export when the session has no data key to decrypt with, instead of
+silently writing `encv1.` envelopes into the archive with no warning.
 
 That is a decision, not an oversight. A backup that only the installation which
 produced it can read is not a backup — the file has to survive the database it
@@ -179,6 +181,18 @@ users, sessions, accounts, API keys, two-factor records, `UserKeyset`, error
 logs, and `VaultEntry`. Those are credentials or infrastructure, and importing
 them would either be meaningless or would let a file forge identity. See the
 header comment in `apps/web/src/lib/backup.ts`.
+
+### The CSV export is not a backup
+
+`GET /api/admin/invoices/export` (`/settings/backup` in the UI) is a separate,
+narrower export: one row per invoice, for a spreadsheet or accounting tool,
+not the full workspace archive above. It reads through the plain client, not
+the encrypted-aware one — none of its columns (invoice number, date, client
+name, currency, status, total) are in `ENCRYPTED_FIELDS`
+(`packages/db/src/field-encryption.ts`), so there is nothing to decrypt and no
+data-key dependency to refuse on. It has no matching import: a CSV round-trip
+would need to re-derive every foreign key from free text, which the tar
+export's id remapping does not need to.
 
 ## Key hierarchy
 

@@ -163,3 +163,35 @@ test("an encrypted backup hides its contents and restores with the recovery key"
   expect(body.uploads.skippedUploads, body.uploads.reasons.join("; ")).toBe(0);
   expect(body.uploads.uploads).toBeGreaterThan(0);
 });
+
+/**
+ * Flow #10c: Backup moved out of the generic Administration page into its
+ * own Settings tab, and the CSV export that lives beside it there.
+ *
+ * The CSV assertion only pins down structure (header row, content type), not
+ * a specific invoice: this spec's serial group does not create one, and
+ * asserting on invoicing.spec.ts's rows would couple two independent files
+ * through execution order rather than through anything either declares.
+ */
+test("the Backup settings page offers both the archive and a CSV export", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/settings/backup");
+  await expect(
+    page.getByRole("heading", { name: "Backup", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Download backup" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Download invoices.csv" }),
+  ).toBeVisible();
+
+  const csv = await request.get("/api/admin/invoices/export");
+  expect(csv.status()).toBe(200);
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+  expect((await csv.body()).toString("utf8")).toMatch(
+    /^Invoice Number,Date,Client,Currency,Status,Total\r\n/,
+  );
+});

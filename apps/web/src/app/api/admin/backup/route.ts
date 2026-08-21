@@ -41,6 +41,13 @@ export const dynamic = "force-dynamic";
  * leave the encryption boundary" in the data-classification docs), and the
  * file must be treated as sensitive wherever it is stored.
  *
+ * That decryption needs a data key, which a request is not guaranteed to
+ * have (predates keysets, missing cookie). Rather than let `exportWorkspace`
+ * fall back to the plain client and write `encv1.` envelopes into the
+ * archive with no warning, this refuses the export outright — the same
+ * "refused, not silently stored" posture the write-side guard already takes
+ * in `packages/db/src/field-encryption.ts`.
+ *
  * Send the account's recovery key in `x-billow-recovery-key` to get the sealed
  * form instead: same archive, every entry encrypted under a content key
  * wrapped by that recovery key. The key is *verified against the account*
@@ -53,6 +60,16 @@ export async function GET(request: Request) {
   const { session, admin } = await getAdminSession();
   if (!session) return error("Authentication required.", 401);
   if (!admin) return error("Administrator access required.", 403);
+
+  const { prisma, encrypted } = await getWorkspacePrisma();
+  if (!encrypted) {
+    return error(
+      "This session cannot reach your encryption key, so tax IDs, addresses, " +
+        "and bank details would export unreadable. Sign out and back in, " +
+        "then try again.",
+      409,
+    );
+  }
 
   const userId = session.user.id;
   const recoveryKey = request.headers.get(RECOVERY_KEY_HEADER)?.trim() ?? "";
@@ -74,7 +91,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { prisma } = await getWorkspacePrisma();
     const payload = await exportWorkspace(userId, prisma);
     const records = await exportUploadRecords(userId);
     const manifest = entryBody(

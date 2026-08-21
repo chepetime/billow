@@ -120,6 +120,14 @@ Legend: `[x]` done · `[ ]` todo · `[~]` partially done
       now say out loud. Sending the account's recovery key seals every archive
       entry under a wrapped content key instead; export verifies that key
       against the account first, restore cannot and does not.
+- [x] **Export refuses rather than exports ciphertext** — `/api/admin/backup`
+      checks the `encrypted` flag `getWorkspacePrisma()` already returns and
+      refuses (409) when the session has no data key, instead of silently
+      writing `encv1.` envelopes into the archive. Backup has its own Settings
+      tab now (`/settings/backup`), split out of the general Administration
+      page. A separate CSV export (`/api/admin/invoices/export`, one row per
+      invoice) needs no data key — invoice/client columns aren't encrypted —
+      and isn't restorable; it's for a spreadsheet, not a backup.
 - [ ] SMTP provider alongside Resend — Resend is a hosted API needing outbound
       internet and an account, which not every self-hosted install wants. The
       seam is in place (`packages/email/src/provider.ts`); this is a new file

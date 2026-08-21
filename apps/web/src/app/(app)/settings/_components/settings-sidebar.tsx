@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  DatabaseBackup,
   KeyRound,
   LockKeyhole,
   Paperclip,
@@ -51,6 +52,13 @@ const sections = [
     label: "Access",
     description: "Registration controls",
     icon: UserPlus,
+  },
+  {
+    href: "/settings/backup",
+    label: "Backup",
+    description: "Export and restore your data",
+    icon: DatabaseBackup,
+    adminOnly: true,
   },
   {
     href: "/settings/admin",
