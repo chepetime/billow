@@ -2,13 +2,22 @@ import { Prisma } from "@billow/db/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getWorkspacePrisma = vi.fn();
+const getPrisma = vi.fn();
 
 vi.mock("@/lib/workspace-prisma", () => ({
   getWorkspacePrisma: () => getWorkspacePrisma(),
 }));
 
-const { RECENT_INVOICE_LIMIT, currentMonthRange, getInvoiceWorkspace } =
-  await import("@/lib/invoice-workspace");
+vi.mock("@billow/db", () => ({
+  getPrisma: () => getPrisma(),
+}));
+
+const {
+  RECENT_INVOICE_LIMIT,
+  currentMonthRange,
+  getInvoiceById,
+  getInvoiceWorkspace,
+} = await import("@/lib/invoice-workspace");
 
 type Status = "DRAFT" | "SENT" | "PAID" | "VOID";
 
@@ -155,6 +164,71 @@ function install(seeds: Seed[]) {
 
 beforeEach(() => {
   getWorkspacePrisma.mockReset();
+  getPrisma.mockReset();
+});
+
+describe("getInvoiceById", () => {
+  it("reads through the session's data key, not the plain client", async () => {
+    // If getInvoiceById fell back to the plain client, this is what it would
+    // see: the raw encv1. envelope Postgres actually holds, undecrypted.
+    getPrisma.mockReturnValue({
+      invoice: {
+        findFirst: async () => ({
+          id: 1,
+          userId: "user-1",
+          userProfile: { taxId: "encv1.raw-ciphertext" },
+          bankAccount: { accountNumber: "encv1.raw-ciphertext" },
+          clientCompany: { name: "Wrong Co" },
+          lineItems: [],
+          revisions: [],
+        }),
+      },
+    });
+    getWorkspacePrisma.mockResolvedValue({
+      encrypted: true,
+      prisma: {
+        invoice: {
+          findFirst: async () => ({
+            id: 1,
+            userId: "user-1",
+            userProfile: { taxId: "decrypted-tax-id" },
+            bankAccount: { accountNumber: "decrypted-account-number" },
+            clientCompany: { name: "Acme Co" },
+            lineItems: [],
+            revisions: [],
+          }),
+        },
+      },
+    });
+
+    const invoice = await getInvoiceById(1, "user-1");
+
+    expect(invoice?.userProfile.taxId).toBe("decrypted-tax-id");
+    expect(invoice?.bankAccount.accountNumber).toBe("decrypted-account-number");
+  });
+
+  it("surfaces encrypted: false so the page can warn instead of printing ciphertext", async () => {
+    getWorkspacePrisma.mockResolvedValue({
+      encrypted: false,
+      prisma: {
+        invoice: {
+          findFirst: async () => ({
+            id: 1,
+            userId: "user-1",
+            userProfile: { taxId: "encv1.locked" },
+            bankAccount: { accountNumber: "encv1.locked" },
+            clientCompany: { name: "Acme Co" },
+            lineItems: [],
+            revisions: [],
+          }),
+        },
+      },
+    });
+
+    const invoice = await getInvoiceById(1, "user-1");
+
+    expect(invoice?.encrypted).toBe(false);
+  });
 });
 
 describe("currentMonthRange", () => {

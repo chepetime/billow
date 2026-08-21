@@ -2,6 +2,7 @@ import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EncryptionNotice } from "@/app/(app)/_components/encryption-notice";
 import { DuplicateButton } from "@/app/(app)/invoices/_components/duplicate-button";
 import { InvoicePreview } from "@/app/(app)/invoices/_components/invoice-preview";
 import { PrintButton } from "@/app/(app)/invoices/_components/print-button";
@@ -48,6 +49,7 @@ export default async function InvoiceDetailPage({
           <PrintButton />
         </div>
       </div>
+      <EncryptionNotice encrypted={invoice.encrypted} />
       <InvoicePreview invoice={invoice} />
     </div>
   );

@@ -181,44 +181,72 @@ export function assertEncryptedFieldsSealed(
  * ciphertext) and delete; what they can no longer do is write a value that
  * everything else in the system believes is encrypted.
  */
-export function guardedPrisma() {
-  return getPrisma().$extends({
+export function createGuardedExtension() {
+  return {
     name: "reject-plaintext-encrypted-writes",
     query: {
       $allModels: {
-        async $allOperations({ operation, args, query }) {
+        async $allOperations({
+          operation,
+          args,
+          query,
+        }: {
+          operation: string;
+          args: unknown;
+          query: (args: unknown) => Promise<unknown>;
+        }) {
           assertEncryptedFieldsSealed(operation, args);
           return query(args);
         },
       },
     },
-  });
+  };
 }
 
-function openRead(
-  model: string,
-  fields: readonly string[],
-  dataKey: Buffer,
-  row: unknown,
-): unknown {
-  if (!row || typeof row !== "object") return row;
-  if (Array.isArray(row))
-    return row.map((item) => openRead(model, fields, dataKey, item));
-  const record = row as Record<string, unknown>;
+export function guardedPrisma() {
+  return getPrisma().$extends(createGuardedExtension());
+}
 
-  for (const field of fields) {
-    const value = record[field];
-    // Plaintext written before this shipped stays readable as itself. Enabling
-    // encryption must not make existing rows unreadable.
-    if (!isEncryptedField(value)) continue;
-    try {
-      record[field] = decryptField(dataKey, `${model}.${field}`, value);
-    } catch {
-      // Wrong key, or a value tampered with. Report it as absent rather than
-      // throwing: one unreadable column should not take down the page, and a
-      // blank field is an honest description of what the caller can see.
-      record[field] = null;
+/**
+ * Decrypts every encrypted field anywhere in a query result, not just on the
+ * model that was directly queried.
+ *
+ * This has to walk the whole tree rather than key off the queried model's own
+ * field list: `$allOperations` only reports the *root* model (`invoice.
+ * findFirst({ include: { userProfile: true, bankAccount: true } })` reports
+ * "Invoice", which has no encrypted fields of its own), so a decrypt keyed on
+ * that model would silently skip every included relation. Keying on the field
+ * *name* instead — the same `ENCRYPTED_FIELD_PATHS` map the write-side guard
+ * already walks a payload with — finds a `userProfile.taxId` or
+ * `bankAccount.accountNumber` no matter how deep the include nested it in.
+ * The tradeoff is the same one that map already accepts: two models sharing a
+ * field name would decrypt under the wrong one's associated data and fail.
+ */
+function openRead(dataKey: Buffer, node: unknown): unknown {
+  if (Array.isArray(node)) {
+    for (const item of node) openRead(dataKey, item);
+    return node;
+  }
+  if (!node || typeof node !== "object") return node;
+  const record = node as Record<string, unknown>;
+
+  for (const [key, value] of Object.entries(record)) {
+    const path = ENCRYPTED_FIELD_PATHS.get(key);
+    // Plaintext written before this shipped stays readable as itself.
+    // Enabling encryption must not make existing rows unreadable.
+    if (path && typeof value === "string" && isEncryptedField(value)) {
+      try {
+        record[key] = decryptField(dataKey, path, value);
+      } catch {
+        // Wrong key, or a value tampered with. Report it as absent rather
+        // than throwing: one unreadable column should not take down the
+        // page, and a blank field is an honest description of what the
+        // caller can see.
+        record[key] = null;
+      }
+      continue;
     }
+    if (value && typeof value === "object") openRead(dataKey, value);
   }
 
   return record;
@@ -236,12 +264,27 @@ function openRead(
  * keyset) must use the plain client and treat encrypted columns as
  * unavailable. That is deliberate: a key stored in a script is not the
  * signed-in user, and silently decrypting for one would defeat the design.
+ *
+ * Extracted from `encryptedPrisma` so the seal/guard/decrypt sequence can be
+ * exercised directly in tests against a fake `query`, without constructing a
+ * real PrismaClient or reaching a database — the same reason
+ * `createRetryExtension` (./index.ts) is its own function.
  */
-export function encryptedPrisma(dataKey: Buffer) {
-  return getPrisma().$extends({
+export function createEncryptedExtension(dataKey: Buffer) {
+  return {
     query: {
       $allModels: {
-        async $allOperations({ model, operation, args, query }) {
+        async $allOperations({
+          model,
+          operation,
+          args,
+          query,
+        }: {
+          model?: string;
+          operation: string;
+          args: unknown;
+          query: (args: unknown) => Promise<unknown>;
+        }) {
           const fields = fieldsFor(model);
 
           const input = args as Record<string, unknown>;
@@ -266,7 +309,6 @@ export function encryptedPrisma(dataKey: Buffer) {
           assertEncryptedFieldsSealed(operation, args);
 
           const result = await query(args);
-          if (fields.length === 0) return result;
           // Counts and aggregates come back as numbers; leave them alone.
           if (
             operation.startsWith("count") ||
@@ -274,11 +316,15 @@ export function encryptedPrisma(dataKey: Buffer) {
           )
             return result;
 
-          return openRead(model!, fields, dataKey, result);
+          return openRead(dataKey, result);
         },
       },
     },
-  });
+  };
+}
+
+export function encryptedPrisma(dataKey: Buffer) {
+  return getPrisma().$extends(createEncryptedExtension(dataKey));
 }
 
 /**

@@ -1,3 +1,26 @@
 @import "@billow/shadcn/globals.css";
 
 @source "../";
+
+/*
+ * The browser's default print margin (~1in on every side) is the biggest
+ * reason an invoice that fits comfortably on screen spills onto a second
+ * printed page. Shrinking it here, once, does more for "stays on one page"
+ * than any amount of padding trimmed off the invoice card itself.
+ */
+@media print {
+  @page {
+    margin: 0.4in;
+  }
+
+  /*
+   * Browsers drop background colors on print by default to save ink, which
+   * is why the table header's bg-muted looked fine on screen and vanished in
+   * the PDF. This is the standard opt-back-in; -webkit- is still required in
+   * Chromium, which is what actually renders "Print / Save PDF" here.
+   */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

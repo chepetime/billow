@@ -4,43 +4,63 @@ import type { getInvoiceById } from "@/lib/invoice-workspace";
 
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoiceById>>>;
 
+/** A payment-detail row rendered only when the bank account has a value for it. */
+function PaymentRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+
+  return (
+    <div className="grid grid-cols-3 gap-4 px-4 py-1.5 text-sm leading-tight print:gap-2 print:px-3 print:py-1">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="col-span-2 font-medium">{value}</dd>
+    </div>
+  );
+}
+
 export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const { userProfile, clientCompany, bankAccount } = invoice;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border bg-card p-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-normal">
-            Invoice #{invoice.invoiceNumber}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {formatInvoiceDate(invoice.invoiceDate)}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="mx-auto w-full max-w-3xl rounded-xl border bg-card p-6 shadow-sm sm:p-10 print:m-0 print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
+      <div className="flex flex-wrap items-start justify-between gap-4 leading-tight print:justify-end">
+        <div className="flex items-center gap-2 print:hidden">
+          <InvoiceStatusBadge status={invoice.status} />
           <span className="text-sm text-muted-foreground">
             {invoice.currency}
           </span>
-          <InvoiceStatusBadge status={invoice.status} />
+        </div>
+        <div className="text-right">
+          <h1 className="text-xl font-bold leading-none tracking-tight">
+            #{invoice.invoiceNumber}
+          </h1>
+          <p className="mt-0.5 text-sm leading-none text-muted-foreground">
+            {formatInvoiceDate(invoice.invoiceDate)}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="text-sm font-medium text-muted-foreground">From</h2>
-          <div className="mt-2 space-y-0.5 text-sm">
-            <p className="font-medium">{userProfile.displayName}</p>
-            <p>{userProfile.legalName}</p>
-            <p>{userProfile.email}</p>
-            {userProfile.taxId && (
-              <p className="text-muted-foreground">
-                Tax ID: {userProfile.taxId}
-              </p>
+      <div className="mt-16 grid gap-8 leading-tight sm:grid-cols-2 print:mt-10 print:gap-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            From
+          </p>
+          <div className="mt-2 text-sm leading-tight">
+            <p className="font-semibold">{userProfile.displayName}</p>
+            {userProfile.legalName !== userProfile.displayName && (
+              <p>{userProfile.legalName}</p>
             )}
             <p className="whitespace-pre-line text-muted-foreground">
               {userProfile.address}
             </p>
+            <p className="text-muted-foreground">{userProfile.email}</p>
+            {userProfile.taxId && (
+              <p className="text-muted-foreground">{userProfile.taxId}</p>
+            )}
             {userProfile.department && (
               <p className="text-muted-foreground">{userProfile.department}</p>
             )}
@@ -50,12 +70,14 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
               </p>
             )}
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="text-sm font-medium text-muted-foreground">Bill To</h2>
-          <div className="mt-2 space-y-0.5 text-sm">
-            <p className="font-medium">{clientCompany.name}</p>
+        <div className="sm:text-right">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Bill to
+          </p>
+          <div className="mt-2 text-sm leading-tight">
+            <p className="font-semibold">{clientCompany.name}</p>
             {clientCompany.legalName && <p>{clientCompany.legalName}</p>}
             {clientCompany.attentionTo && (
               <p className="text-muted-foreground">
@@ -70,27 +92,34 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
               {clientCompany.cityStatePostal}
             </p>
             <p className="text-muted-foreground">{clientCompany.country}</p>
-            <p>{clientCompany.email}</p>
+            <p className="text-muted-foreground">{clientCompany.email}</p>
           </div>
-        </section>
+        </div>
       </div>
 
-      <section className="rounded-lg border bg-card p-5">
-        <h2 className="text-sm font-medium">Line items</h2>
-        <div className="mt-3 overflow-x-auto">
+      <div className="mt-16 overflow-hidden rounded-lg border print:mt-10">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 pr-4 font-medium">Description</th>
-                <th className="py-2 pr-4 text-right font-medium">Qty</th>
-                <th className="py-2 pr-4 text-right font-medium">Rate</th>
-                <th className="py-2 text-right font-medium">Amount</th>
+              <tr className="border-b bg-muted/50 text-left">
+                <th className="px-4 py-2 font-semibold print:py-1.5">
+                  Description
+                </th>
+                <th className="px-4 py-2 text-right font-semibold print:py-1.5">
+                  Qty
+                </th>
+                <th className="px-4 py-2 text-right font-semibold print:py-1.5">
+                  Rate ({invoice.currency})
+                </th>
+                <th className="px-4 py-2 text-right font-semibold print:py-1.5">
+                  Total ({invoice.currency})
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {invoice.lineItems.map((lineItem) => (
                 <tr key={lineItem.id}>
-                  <td className="py-2 pr-4">
+                  <td className="px-4 py-1.5 leading-tight print:py-1">
                     <p>{lineItem.description}</p>
                     {lineItem.note && (
                       <p className="text-xs text-muted-foreground">
@@ -98,132 +127,81 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
                       </p>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-right">
+                  <td className="px-4 py-1.5 text-right leading-tight print:py-1">
                     {Number(lineItem.quantity)}
                   </td>
-                  <td className="py-2 pr-4 text-right">
+                  <td className="px-4 py-1.5 text-right leading-tight print:py-1">
                     {formatCurrency(Number(lineItem.rate), invoice.currency)}
                   </td>
-                  <td className="py-2 text-right">
+                  <td className="px-4 py-1.5 text-right font-semibold leading-tight print:py-1">
                     {formatCurrency(Number(lineItem.amount), invoice.currency)}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr className="border-t font-medium">
-                <td className="py-2 pr-4" colSpan={3}>
-                  Total
-                </td>
-                <td className="py-2 text-right">
-                  {formatCurrency(invoice.total, invoice.currency)}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
-      </section>
-
-      <section className="rounded-lg border bg-card p-5">
-        <h2 className="text-sm font-medium">Payment instructions</h2>
-        <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Account</p>
-            <p className="text-sm font-medium">{bankAccount.label}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Bank</p>
-            <p className="text-sm font-medium">{bankAccount.bankName}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Account holder</p>
-            <p className="text-sm font-medium">
-              {bankAccount.accountHolderName}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Account number</p>
-            <p className="text-sm font-medium">{bankAccount.accountNumber}</p>
-          </div>
-          {bankAccount.accountType && (
-            <div>
-              <p className="text-xs text-muted-foreground">Account type</p>
-              <p className="text-sm font-medium">{bankAccount.accountType}</p>
-            </div>
-          )}
-          {bankAccount.routingNumber && (
-            <div>
-              <p className="text-xs text-muted-foreground">Routing number</p>
-              <p className="text-sm font-medium">{bankAccount.routingNumber}</p>
-            </div>
-          )}
-          {bankAccount.institutionNumber && (
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Institution number
-              </p>
-              <p className="text-sm font-medium">
-                {bankAccount.institutionNumber}
-              </p>
-            </div>
-          )}
-          {bankAccount.transitNumber && (
-            <div>
-              <p className="text-xs text-muted-foreground">Transit number</p>
-              <p className="text-sm font-medium">{bankAccount.transitNumber}</p>
-            </div>
-          )}
-          {bankAccount.swift && (
-            <div>
-              <p className="text-xs text-muted-foreground">SWIFT</p>
-              <p className="text-sm font-medium">{bankAccount.swift}</p>
-            </div>
-          )}
-          {bankAccount.iban && (
-            <div>
-              <p className="text-xs text-muted-foreground">IBAN</p>
-              <p className="text-sm font-medium">{bankAccount.iban}</p>
-            </div>
-          )}
-          {bankAccount.clabe && (
-            <div>
-              <p className="text-xs text-muted-foreground">CLABE</p>
-              <p className="text-sm font-medium">{bankAccount.clabe}</p>
-            </div>
-          )}
-          {bankAccount.accountHolderAddress && (
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Account holder address
-              </p>
-              <p className="text-sm font-medium">
-                {bankAccount.accountHolderAddress}
-              </p>
-            </div>
-          )}
-          {bankAccount.bankAddress && (
-            <div>
-              <p className="text-xs text-muted-foreground">Bank address</p>
-              <p className="text-sm font-medium">{bankAccount.bankAddress}</p>
-            </div>
-          )}
-          {bankAccount.bankPhone && (
-            <div>
-              <p className="text-xs text-muted-foreground">Bank phone</p>
-              <p className="text-sm font-medium">{bankAccount.bankPhone}</p>
-            </div>
-          )}
+        <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2 text-sm font-semibold print:py-1.5">
+          <span>Total</span>
+          <span>{formatCurrency(invoice.total, invoice.currency)}</span>
         </div>
-      </section>
+      </div>
+
+      <div className="mt-16 overflow-hidden rounded-lg border print:mt-10">
+        <div className="border-b bg-muted/50 px-4 py-2 text-sm font-semibold print:px-3 print:py-1.5">
+          Bank information
+        </div>
+        <dl className="divide-y divide-border">
+          <PaymentRow label="Account" value={bankAccount.label} />
+          <PaymentRow label="Bank" value={bankAccount.bankName} />
+          <PaymentRow label="Bank address" value={bankAccount.bankAddress} />
+          <PaymentRow label="Bank phone" value={bankAccount.bankPhone} />
+          <PaymentRow
+            label="Account holder"
+            value={bankAccount.accountHolderName}
+          />
+          <PaymentRow
+            label="Account holder address"
+            value={bankAccount.accountHolderAddress}
+          />
+          <PaymentRow
+            label="Account number"
+            value={bankAccount.accountNumber}
+          />
+          <PaymentRow label="Account type" value={bankAccount.accountType} />
+          <PaymentRow
+            label="Routing number"
+            value={bankAccount.routingNumber}
+          />
+          <PaymentRow
+            label="Institution number"
+            value={bankAccount.institutionNumber}
+          />
+          <PaymentRow
+            label="Transit number"
+            value={bankAccount.transitNumber}
+          />
+          <PaymentRow label="SWIFT" value={bankAccount.swift} />
+          <PaymentRow label="IBAN" value={bankAccount.iban} />
+          <PaymentRow label="CLABE" value={bankAccount.clabe} />
+        </dl>
+      </div>
 
       {invoice.notes && (
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="text-sm font-medium">Notes</h2>
+        <div className="mt-14 print:mt-10">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Notes
+          </p>
           <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
             {invoice.notes}
           </p>
-        </section>
+        </div>
       )}
+
+      <p className="mt-16 text-center text-sm text-muted-foreground print:mt-10">
+        Please send remittance advice to{" "}
+        <span className="font-medium text-foreground">{userProfile.email}</span>
+      </p>
     </div>
   );
 }

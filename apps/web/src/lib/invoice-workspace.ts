@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getPrisma } from "@billow/db";
 import type { Prisma } from "@billow/db/client";
 import { recordError } from "@/lib/error-log";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
@@ -52,7 +51,10 @@ export type WorkspaceInvoice = Awaited<
 
 export async function getInvoiceById(id: number, userId: string) {
   try {
-    const prisma = getPrisma();
+    // Encrypted-aware, like getInvoiceWorkspace below: userProfile and
+    // bankAccount come back readable when this request can reach the data
+    // key, and as ciphertext (with `encrypted: false`) when it cannot.
+    const { prisma, encrypted } = await getWorkspacePrisma();
     const invoice = await prisma.invoice.findFirst({
       where: { id, userId },
       include: {
@@ -72,7 +74,7 @@ export async function getInvoiceById(id: number, userId: string) {
       return sum + Number(lineItem.amount);
     }, 0);
 
-    return { ...invoice, total };
+    return { ...invoice, total, encrypted };
   } catch (error) {
     console.error("Failed to load invoice", error);
     return null;
