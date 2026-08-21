@@ -1,9 +1,12 @@
 import { requireSession } from "@billow/auth";
+import { buttonVariants } from "@billow/shadcn/components/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DuplicateButton } from "@/app/(app)/invoices/_components/duplicate-button";
 import { InvoicePreview } from "@/app/(app)/invoices/_components/invoice-preview";
 import { PrintButton } from "@/app/(app)/invoices/_components/print-button";
 import { getInvoiceById } from "@/lib/invoice-workspace";
+import { cn } from "@/lib/utils";
 
 export default async function InvoiceDetailPage({
   params,
@@ -27,14 +30,23 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex items-center justify-between gap-4 print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4 print:hidden">
         <Link
-          href="/dashboard"
+          href="/invoices"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Back to dashboard
+          ← Invoices
         </Link>
-        <PrintButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/invoices/${invoice.id}/edit`}
+            className={cn(buttonVariants())}
+          >
+            Edit
+          </Link>
+          <DuplicateButton id={invoice.id} />
+          <PrintButton />
+        </div>
       </div>
       <InvoicePreview invoice={invoice} />
     </div>

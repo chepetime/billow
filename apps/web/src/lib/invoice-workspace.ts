@@ -46,37 +46,9 @@ export function sumToNumber(sum: Prisma.Decimal | null) {
   return sum === null ? 0 : sum.toNumber();
 }
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "MXN",
-  currencyDisplay: "code",
-});
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
 export type WorkspaceInvoice = Awaited<
   ReturnType<typeof getInvoiceWorkspace>
 >["recentInvoices"][number];
-
-export function formatMoney(value: number) {
-  return currencyFormatter.format(value);
-}
-
-export function formatInvoiceDate(value: Date) {
-  return dateFormatter.format(value);
-}
-
-export function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    currencyDisplay: "code",
-  }).format(value);
-}
 
 export async function getInvoiceById(id: number, userId: string) {
   try {

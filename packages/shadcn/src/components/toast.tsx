@@ -2,14 +2,14 @@
 
 import { Toast as ToastPrimitive } from "@base-ui/react/toast";
 import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-  XIcon,
-} from "lucide-react";
-import type * as React from "react";
+  RiCheckboxCircleLine,
+  RiCloseCircleLine,
+  RiCloseLine,
+  RiErrorWarningLine,
+  RiInformationLine,
+  RiLoaderLine,
+} from "@remixicon/react";
+import * as React from "react";
 import { Button } from "#components/button";
 import { cn } from "#lib/utils";
 
@@ -131,7 +131,7 @@ function ToastClose({
       )}
       {...props}
     >
-      {children ?? <XIcon aria-hidden="true" />}
+      {children ?? <RiCloseLine aria-hidden="true" />}
     </ToastPrimitive.Close>
   );
 }
@@ -140,23 +140,25 @@ function ToastIcon({ type }: { type: string | undefined }) {
   let icon: React.ReactNode = null;
 
   if (type === "success") {
-    icon = <CircleCheckIcon aria-hidden="true" />;
+    icon = <RiCheckboxCircleLine aria-hidden="true" />;
   }
 
   if (type === "info") {
-    icon = <InfoIcon aria-hidden="true" />;
+    icon = <RiInformationLine aria-hidden="true" />;
   }
 
   if (type === "warning") {
-    icon = <TriangleAlertIcon aria-hidden="true" />;
+    icon = <RiErrorWarningLine aria-hidden="true" />;
   }
 
   if (type === "error") {
-    icon = <OctagonXIcon className="text-destructive" aria-hidden="true" />;
+    icon = (
+      <RiCloseCircleLine className="text-destructive" aria-hidden="true" />
+    );
   }
 
   if (type === "loading") {
-    icon = <Loader2Icon className="animate-spin" aria-hidden="true" />;
+    icon = <RiLoaderLine className="animate-spin" aria-hidden="true" />;
   }
 
   if (!icon) {

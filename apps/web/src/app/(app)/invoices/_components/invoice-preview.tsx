@@ -1,9 +1,6 @@
 import { InvoiceStatusBadge } from "@/components/ui/badge";
-import {
-  formatCurrency,
-  formatInvoiceDate,
-  type getInvoiceById,
-} from "@/lib/invoice-workspace";
+import { formatCurrency, formatInvoiceDate } from "@/lib/format";
+import type { getInvoiceById } from "@/lib/invoice-workspace";
 
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoiceById>>>;
 

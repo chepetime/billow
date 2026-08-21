@@ -69,7 +69,7 @@ export function SecretReveal({
     // Anyone without the extension simply never sees it, so a failure to load
     // is not worth surfacing — the copy button already covers them.
     void import("@1password/save-button")
-      .then(({ activateOPButton, encodeOPSaveRequest }) => {
+      .then(({ encodeOPSaveRequest }) => {
         if (cancelled) return;
 
         const fields: SaveRequestField[] = [
@@ -96,9 +96,6 @@ export function SecretReveal({
         if (!encoded) return;
 
         setSaveRequest(encoded);
-        // Next routes on the client, so the extension needs telling that a
-        // button appeared without a page load.
-        activateOPButton();
       })
       .catch(() => {});
 
@@ -106,6 +103,40 @@ export function SecretReveal({
       cancelled = true;
     };
   }, [autoComplete, notes, secret, title, username]);
+
+  /**
+   * Tell the extension the button exists — *after* React has rendered it.
+   *
+   * `activateOPButton()` dispatches `OPButtonAdded`, and the extension
+   * responds by scanning the DOM for save buttons and removing the `disabled`
+   * attribute the package hard-codes onto the real button inside its shadow
+   * root. Nothing else ever removes it.
+   *
+   * This used to run in the same statement block as `setSaveRequest`, which
+   * meant the event fired before the element it was announcing existed: React
+   * batches the update from a promise callback, so the commit happens after
+   * the current block finishes. The extension scanned, found nothing, and the
+   * button rendered a moment later and stayed disabled forever — on every
+   * screen, for everyone who had the extension installed.
+   *
+   * Keyed on `saveRequest` so it runs in the commit that puts the element in
+   * the DOM. The dynamic import is already resolved by now, so this costs a
+   * microtask rather than a second fetch.
+   */
+  useEffect(() => {
+    if (!saveRequest) return;
+
+    let cancelled = false;
+    void import("@1password/save-button")
+      .then(({ activateOPButton }) => {
+        if (!cancelled) activateOPButton();
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [saveRequest]);
 
   return (
     <div className="space-y-3">

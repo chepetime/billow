@@ -8,8 +8,8 @@ describe("isEmailIdentifier", () => {
   });
 
   it("treats plain handles as usernames", () => {
-    expect(isEmailIdentifier("jose")).toBe(false);
-    expect(isEmailIdentifier("jose.lugo_1")).toBe(false);
+    expect(isEmailIdentifier("alex")).toBe(false);
+    expect(isEmailIdentifier("alex.doe_1")).toBe(false);
   });
 
   it("handles the empty string as a username", () => {

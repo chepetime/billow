@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { validPngFile } from "./fixtures/files";
+import { completeRecoveryKeyOnboarding } from "./fixtures/onboarding";
 import {
   readOwnerCredentials,
   uniqueEmail,
@@ -78,7 +79,9 @@ test.describe
         await colleaguePage
           .getByRole("button", { name: "Create account" })
           .click();
-        await expect(colleaguePage).toHaveURL(/\/dashboard$/);
+        // A second account faces the same recovery-key gate the owner did,
+        // and nothing under (app) is reachable until it is through.
+        await completeRecoveryKeyOnboarding(colleaguePage);
 
         // Visibility: a non-admin's settings sidebar has no Administration
         // link, and navigating there directly redirects away rather than

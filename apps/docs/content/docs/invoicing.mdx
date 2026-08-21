@@ -1,0 +1,207 @@
+---
+title: Invoicing
+description: The invoicing domain — the two tracking tracks, the milestone model that replaces invoice status, documents, and tax periods.
+---
+
+<Callout type="warn">
+This page describes the **target** domain model. The models marked *planned*
+below are designed but not migrated yet — see the phased plan in
+`REQUIREMENTS.md` at the repository root. Everything marked *shipped* is in
+`packages/db/prisma/schema/invoicing.prisma` today.
+</Callout>
+
+Billow is an invoice manager. Writing the invoice is the short part of the job;
+the long part is knowing months later what happened to it. The domain model is
+shaped around that second part.
+
+## Two tracks
+
+An invoice progresses along two tracks that run at different speeds and must not
+be collapsed into one status field.
+
+```text
+Billing track  ──  Draft → Ready → Sent → Received → Paid        (→ Void)
+                   about getting paid by the client
+
+Fiscal track   ──  CFDI issued → month filed → tax paid
+                   about staying compliant with the SAT
+```
+
+An invoice is routinely paid weeks before its CFDI exists, and a CFDI can sit for
+a month before the tax report covering it is filed. A single linear status cannot
+express "paid, but the accountant still owes me the CFDI" — which is exactly the
+state a user needs to see.
+
+## Milestones replace status *(planned)*
+
+`Invoice.status` goes away. In its place, each milestone is a nullable date.
+
+```prisma
+model Invoice {
+  // …identity, amounts, relations unchanged
+
+  verifiedAt   DateTime?   // 1. the user checked it and it is correct
+  sentAt       DateTime?   // 2. delivered to the client
+  receivedAt   DateTime?   // 3. the client confirmed receipt
+  paidAt       DateTime?   // 4. the money arrived
+  cfdiIssuedAt DateTime?   // 5. the accountant issued the CFDI
+  voidedAt     DateTime?   // cancelled; excluded from every total
+}
+```
+
+Status becomes a pure function over those dates, in `lib/invoice-status.ts`:
+
+```ts
+voidedAt   -> "Void"
+paidAt     -> "Paid"
+receivedAt -> "Received"
+sentAt     -> "Sent"
+verifiedAt -> "Ready"
+otherwise  -> "Draft"
+```
+
+Only the billing track feeds the badge. The fiscal track renders as its own
+indicator — a paid invoice missing its CFDI must not read as finished.
+
+### Why dates, not a status column
+
+- **They cannot disagree.** A stored status plus six checkboxes is two sources of
+  truth for the same fact, and they drift the first time a write path forgets
+  one.
+- **They answer "when".** "Paid" tells you nothing useful in March about an
+  invoice from October.
+- **They filter in SQL.** `paidAt IS NULL AND voidedAt IS NULL` is the open
+  total, on an indexed column, with no enum to keep in step.
+- **New milestones are additive.** A seventh step is a nullable column, not a
+  migration of every existing row's enum value.
+
+### Rules that are easy to get wrong
+
+- **Milestone dates are business dates, not audit timestamps.** The user marks
+  "paid" on the 10th for money that arrived on the 3rd; the stored value is the
+  3rd. Never write `now()` and treat it as fact — default to today and leave it
+  editable. `InvoiceRevision` is what records who changed the mark and when.
+- **The database enforces no ordering.** Real invoices get marked out of order.
+  The UI offers to backfill earlier milestones and confirms before clearing one,
+  but any combination is a legal row.
+- **Uploading a CFDI sets `cfdiIssuedAt`** if it is unset. Deleting the document
+  never clears it; un-marking stays deliberate.
+- **Void wins**, whatever else is set.
+
+### Migrating existing rows
+
+The backfill has to invent dates, because the old schema kept no evidence beyond
+`updatedAt`:
+
+| Old status | Becomes |
+| --- | --- |
+| `DRAFT` | all null |
+| `SENT` | `sentAt = updatedAt` |
+| `PAID` | `paidAt = updatedAt` **and** `sentAt = updatedAt` |
+| `VOID` | `voidedAt = updatedAt` |
+
+`PAID` sets `sentAt` too: an invoice cannot have been paid without having been
+sent, and leaving the gap would make every migrated invoice show up in the
+"verified but never sent" attention list.
+
+## Documents *(planned)*
+
+Invoice and tax-period attachments reuse the existing `Upload` model rather than
+growing a second storage path. `Upload` already owns generated storage keys,
+content-type sniffing, checksums, and the 100 MB per-user quota — see
+[Architecture](/docs/architecture).
+
+```prisma
+model InvoiceDocument {
+  invoiceId Int
+  uploadId  String @unique   // one upload, one attachment
+  kind      InvoiceDocumentKind  // CFDI | PAYMENT_PROOF | SIGNED_COPY | OTHER
+  note      String?
+}
+```
+
+Set `Upload.kind` to an invoice-scoped value so these files do not surface in the
+account attachments list. Deleting an attachment must delete the `Upload` row and
+its bytes; the orphan-avoidance ordering in `lib/uploads.ts` already documents
+which of the two goes first and why.
+
+<Callout>
+A real CFDI is an XML document plus a PDF rendering of it, and the upload
+pipeline accepts only PNG, JPEG, GIF, WEBP, and PDF today. Accepting the XML
+means extending the sniffing in `lib/storage.ts`, where XML is meaningfully
+harder to identify than the formats already handled. Unresolved.
+</Callout>
+
+## Tax periods *(planned)*
+
+The monthly tax report is the one tracked item that belongs to no invoice, so it
+gets its own record — one per user per calendar month, created on demand when the
+user first fills anything in.
+
+```prisma
+model TaxPeriod {
+  userId    String
+  year      Int
+  month     Int        // 1-12
+  currency  String     // what the tax is paid in, normally MXN
+  taxDue    Decimal?
+  filedAt   DateTime?  // the report was generated
+  paidAt    DateTime?  // the tax was paid
+  notes     String?
+  documents TaxPeriodDocument[]   // DECLARATION | PAYMENT_RECEIPT | OTHER
+
+  @@unique([userId, year, month])
+}
+```
+
+A period's currency is deliberately independent of any invoice's. Tax is paid in
+MXN whether or not the work was billed in USD.
+
+Which invoices belong to a period is **derived** from `invoiceDate` falling in
+that month, with no foreign key. That is a simplification with a known failure
+mode: a CFDI issued in the first days of the following month is normally declared
+in that following month, so the derivation is wrong at every month boundary. An
+explicit per-invoice override is the expected fix.
+
+## Attention rules
+
+The tracking exists to drive one dashboard section that lists unfinished work.
+Each rule is a query over milestone columns:
+
+| Rule | Query |
+| --- | --- |
+| Sent but unpaid | `sentAt` set, `paidAt` null, past due |
+| Paid but no CFDI | `paidAt` set, `cfdiIssuedAt` null |
+| Verified but never sent | `verifiedAt` set, `sentAt` null |
+| Month unfiled | CFDIs issued in a month with no `TaxPeriod.filedAt` |
+| Tax unpaid | `TaxPeriod.filedAt` set, `paidAt` null |
+
+This is the product thesis in one table: the dashboard is a to-do list, not a
+report.
+
+## Encryption boundary
+
+`UserProfile` and `BankAccount` already have encrypted columns, reached through
+`getWorkspacePrisma()` — see [Data classification](/docs/data-classification).
+
+The new fields sit on the wrong side of a real tension. Milestone dates reveal
+payment behaviour and `taxDue` reveals income, which argues for encrypting them.
+But every attention rule and dashboard aggregate above filters on exactly those
+columns, and an encrypted column cannot be filtered or sorted in SQL. Resolve
+this with the `data-classification` skill before the Phase 1 migration lands —
+the answer changes the migration, and changing it afterwards means re-encrypting
+live rows.
+
+## PDF export
+
+Two paths, deliberately:
+
+- **Browser print** — the existing `@page` CSS over the real preview component.
+  Pixel-faithful by construction, zero dependencies.
+- **Download** — `@react-pdf/renderer`, server-side. Pure JavaScript, so it adds
+  no native dependency and no Chromium to an image that has to build for Umbrel.
+
+The accepted cost is that the invoice layout exists twice, in HTML and in
+`@react-pdf` primitives. They do not share code and a change to one is not a
+change to the other. Headless Chromium would have removed the duplication at the
+price of roughly 400 MB in the image; that trade was rejected.

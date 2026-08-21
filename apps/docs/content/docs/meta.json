@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "architecture",
+    "invoicing",
     "packages",
     "conventions",
     "data-classification",

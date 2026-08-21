@@ -75,7 +75,7 @@ if (existingProfiles.rows[0]?.count === 0) {
       RETURNING "id"
     `,
     [
-      "Jose",
+      "Alex Doe",
       "Alex Doe",
       "alex@example.com",
       "XAXX010101000",
@@ -138,7 +138,7 @@ if (existingProfiles.rows[0]?.count === 0) {
     `,
     [
       "Acme Corporation",
-      "Acme Corporation",
+      "Acme Corporation, Inc.",
       "123 Market Street, Suite 100",
       "Attn: Accounts Payable",
       "San Francisco, CA 94105",
@@ -164,7 +164,7 @@ if (existingProfiles.rows[0]?.count === 0) {
       RETURNING "id"
     `,
     [
-      63,
+      1,
       "2026-07-31T00:00:00.000Z",
       userProfile.rows[0].id,
       bankAccount.rows[0].id,
@@ -173,12 +173,11 @@ if (existingProfiles.rows[0]?.count === 0) {
   );
 
   const lineItems = [
-    ["Monthly Salary", 1, 192313],
-    ["Healthcare support for private healthcare", 1, 2000],
-    ["Pension support", 1, 3846.26],
-    ["Accounting support", 1, 1000],
-    ["Hardware support", 1, 540],
-    ["End of year support", 1, 7396.65],
+    ["Monthly retainer", 1, 50000],
+    ["Healthcare stipend", 1, 2000],
+    ["Pension contribution", 1, 1500],
+    ["Accounting services", 1, 1000],
+    ["Hardware allowance", 1, 500],
   ];
 
   for (const [index, item] of lineItems.entries()) {
@@ -221,7 +220,7 @@ if (existingProfiles.rows[0]?.count === 0) {
     [
       invoice.rows[0].id,
       JSON.stringify({
-        invoiceNumber: 63,
+        invoiceNumber: 1,
         source: "prisma/seed.mjs",
       }),
     ],

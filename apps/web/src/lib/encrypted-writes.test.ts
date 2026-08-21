@@ -10,8 +10,9 @@ import {
 } from "@billow/db/field-encryption";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBankAccount } from "@/app/actions";
+import { createBankAccount } from "@/lib/actions/bank-accounts";
 import { importWorkspace } from "@/lib/backup";
+import { bankAccountSchema } from "@/lib/schemas/workspace";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 // The plain client must be unreachable from either write path. Throwing from
@@ -100,19 +101,25 @@ function useFakeWorkspacePrisma() {
   return written;
 }
 
-function bankAccountForm() {
-  const form = new FormData();
-  form.set("userProfileId", "1");
-  form.set("label", "Savings");
-  form.set("bankName", "Bank of Test");
-  form.set("accountHolderName", "Alex Doe");
-  form.set("accountHolderAddress", "123 Main St");
-  form.set("accountNumber", "4444555566");
-  form.set("iban", "MX0000000000000001");
-  form.set("clabe", "012345678901234567");
-  form.set("swift", "TESTMXMM");
-  form.set("routingNumber", "021000021");
-  return form;
+function bankAccountInput() {
+  return bankAccountSchema.parse({
+    userProfileId: 1,
+    label: "Savings",
+    bankName: "Bank of Test",
+    accountHolderName: "Alex Doe",
+    accountHolderAddress: "123 Main St",
+    accountNumber: "4444555566",
+    iban: "MX0000000000000001",
+    clabe: "012345678901234567",
+    swift: "TESTMXMM",
+    routingNumber: "021000021",
+    bankAddress: "",
+    bankPhone: "",
+    accountType: "",
+    institutionNumber: "",
+    transitNumber: "",
+    isDefault: false,
+  });
 }
 
 describe("the plaintext-write guard", () => {
@@ -207,7 +214,11 @@ describe("write paths that reach encrypted columns", () => {
   it("createBankAccount seals every encrypted column", async () => {
     const written = useFakeWorkspacePrisma();
 
-    await createBankAccount(bankAccountForm());
+    const result = await createBankAccount(bankAccountInput());
+
+    // Asserted so a rejected write fails here rather than as an undefined
+    // row below, which reads like a missing fixture instead of a real bug.
+    expect(result.ok).toBe(true);
 
     const row = written["bankAccount"]![0]!;
     for (const field of ENCRYPTED_FIELDS["BankAccount"]!) {

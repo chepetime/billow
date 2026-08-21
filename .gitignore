@@ -33,3 +33,7 @@ yarn-error.log*
 # Ephemeral git worktrees created for background agents. Untracked, and Biome
 # must not treat each one as a second root configuration.
 .claude/worktrees/
+
+# Local uploads root (BILLOW_STORAGE_DIR in apps/web/.env.example). The
+# container writes to a mounted /data/uploads instead.
+.uploads/

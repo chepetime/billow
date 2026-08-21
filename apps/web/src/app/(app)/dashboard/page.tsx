@@ -1,16 +1,11 @@
 import { requireSession } from "@billow/auth";
+import { buttonVariants } from "@billow/shadcn/components/button";
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/ui/badge";
-import {
-  formatInvoiceDate,
-  formatMoney,
-  getInvoiceWorkspace,
-} from "@/lib/invoice-workspace";
-
-function maskAccountNumber(accountNumber: string) {
-  const last4 = accountNumber.slice(-4);
-  return `•••• ${last4}`;
-}
+import { formatInvoiceDate, formatMoney } from "@/lib/format";
+import { getInvoiceWorkspace } from "@/lib/invoice-workspace";
+import { maskAccountNumber } from "@/lib/mask";
+import { cn } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const session = await requireSession();
@@ -18,13 +13,20 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-normal">
-          Welcome back, {session.user.name}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Here&apos;s what&apos;s happening with your invoices.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-semibold tracking-normal">
+            Welcome back, {session.user.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Here&apos;s what&apos;s happening with your invoices.
+          </p>
+        </div>
+        {workspace.hasWorkspace && (
+          <Link href="/invoices/new" className={cn(buttonVariants())}>
+            New invoice
+          </Link>
+        )}
       </div>
 
       {!workspace.databaseAvailable ? (
@@ -36,25 +38,53 @@ export default async function DashboardPage() {
         <div className="rounded-lg border bg-card p-5">
           <h2 className="text-sm font-medium">Set up your workspace</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Before you can create invoices, Billow needs a few things in place:
+            Before you can create invoices, Billow needs a few things in place.
           </p>
-          <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-            <li>
-              1. A sender profile (
-              {workspace.userProfiles.length > 0 ? "done" : "not set up"})
-            </li>
-            <li>
-              2. At least one bank account (
-              {workspace.bankAccounts.length > 0 ? "done" : "not set up"})
-            </li>
-            <li>
-              3. A client company (
-              {workspace.clientCompanies.length > 0 ? "done" : "not set up"})
-            </li>
+          <ul className="mt-4 space-y-3">
+            {[
+              {
+                label: "A sender profile",
+                done: workspace.userProfiles.length > 0,
+                href: "/senders/new",
+                cta: "Add a sender",
+              },
+              {
+                label: "At least one bank account",
+                done: workspace.bankAccounts.length > 0,
+                href: "/banks/new",
+                cta: "Add an account",
+              },
+              {
+                label: "A client company",
+                done: workspace.clientCompanies.length > 0,
+                href: "/clients/new",
+                cta: "Add a client",
+              },
+            ].map((step) => (
+              <li
+                key={step.href}
+                className="flex flex-wrap items-center justify-between gap-3 text-sm"
+              >
+                <span
+                  className={
+                    step.done ? "text-muted-foreground line-through" : undefined
+                  }
+                >
+                  {step.label}
+                </span>
+                {step.done ? (
+                  <span className="text-muted-foreground">Done</span>
+                ) : (
+                  <Link
+                    href={step.href}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {step.cta}
+                  </Link>
+                )}
+              </li>
+            ))}
           </ul>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Setup screens are coming soon.
-          </p>
         </div>
       ) : (
         <>
@@ -102,7 +132,15 @@ export default async function DashboardPage() {
           </div>
 
           <div className="rounded-lg border bg-card p-5">
-            <h2 className="text-sm font-medium">Recent invoices</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-medium">Recent invoices</h2>
+              <Link
+                href="/invoices"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                View all
+              </Link>
+            </div>
             {workspace.recentInvoices.length === 0 ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 No invoices yet.
@@ -143,7 +181,15 @@ export default async function DashboardPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg border bg-card p-5">
-              <h2 className="text-sm font-medium">Bank accounts</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium">Bank accounts</h2>
+                <Link
+                  href="/banks"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Manage
+                </Link>
+              </div>
               {workspace.bankAccounts.length === 0 ? (
                 <p className="mt-1 text-sm text-muted-foreground">
                   No bank accounts yet.
@@ -173,7 +219,15 @@ export default async function DashboardPage() {
             </div>
 
             <div className="rounded-lg border bg-card p-5">
-              <h2 className="text-sm font-medium">Client companies</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium">Client companies</h2>
+                <Link
+                  href="/clients"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Manage
+                </Link>
+              </div>
               {workspace.clientCompanies.length === 0 ? (
                 <p className="mt-1 text-sm text-muted-foreground">
                   No client companies yet.

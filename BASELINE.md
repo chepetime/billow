@@ -1,8 +1,13 @@
-# Billow baseline (self-hosted app starter)
+# Billow baseline (platform layer)
 
-Billow has become, in practice, a **base setup for self-hosted Umbrel apps**.
-This document tracks the *platform* layer only — everything a self-hosted app
-needs regardless of its domain.
+This document tracks the **platform** layer only — accounts, API, encryption,
+backups, image, release pipeline — the parts that would be needed regardless of
+domain. It is deliberately domain-free, which is why the invoicing product does
+not appear here.
+
+Billow itself is an invoice manager, not a starter kit; see `README.md` and
+`REQUIREMENTS.md`. This file survives as the platform checklist because that
+layer still has to be kept honest on its own terms.
 
 The invoicing domain checklist lives separately in [`progress.txt`](progress.txt).
 

@@ -4,6 +4,15 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
+import { cn } from "@billow/shadcn/lib/utils";
+import { Geist_Mono, Noto_Sans } from "next/font/google";
+
+const notoSansHeading = Noto_Sans({
+  subsets: ["latin"],
+  variable: "--font-heading",
+});
+
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: "Billow",
@@ -22,7 +31,16 @@ export default async function RootLayout({
   const locale = await getLocale();
 
   return (
-    <html lang={locale} className="h-full antialiased" suppressHydrationWarning>
+    <html
+      lang={locale}
+      className={cn(
+        "h-full antialiased",
+        "font-mono",
+        geistMono.variable,
+        notoSansHeading.variable,
+      )}
+      suppressHydrationWarning
+    >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider>
           <ThemeProvider>
