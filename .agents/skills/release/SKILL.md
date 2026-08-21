@@ -90,6 +90,30 @@ The fix was a one-time GHCR package setting change: grant `chepetime/billow`
 write access to the existing package. After that, workflow rerun `29778177872`
 completed successfully.
 
+**It is not permanently one-time.** The link is a property of the package
+pointing at a repository, so deleting the repository breaks it — and deleting
+and recreating `chepetime/billow` is exactly what the August 2026 personal-data
+purge did. The package survived (GHCR packages are namespaced to the user, not
+the repo, which is why the old images had to be deleted by hand), but it came
+back unlinked, and the 0.1.1 release failed to push with the same
+`write_package` error.
+
+Check for it before releasing:
+
+```bash
+gh api user/packages/container/billow -q '.repository.full_name // "NONE"'
+```
+
+`NONE` means the next publish will fail. There is no REST endpoint to repair
+it; it has to be the UI, at
+
+```text
+https://github.com/users/chepetime/packages/container/billow/settings
+```
+
+under **Manage Actions access** → **Add repository** → `chepetime/billow`,
+role **Write**. The same applies to `goose`.
+
 ## Umbrel store update flow
 
 Still manual after every release. The store metadata lives in a separate repo:
