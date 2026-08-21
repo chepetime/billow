@@ -11,8 +11,10 @@ updates:
       minor-and-patch:
         update-types: ["minor", "patch"]
     ignore:
-      # 1.7 renames Account.accountId and needs a data migration; upgrade
-      # deliberately, not automatically. See BASELINE.md.
+      # Minor/major bumps have shipped schema-affecting breaking changes
+      # before (1.7 added a required Account.issuer column and a compound
+      # unique index — see packages/db/prisma/migrations/*_account_issuer)
+      # and can again; upgrade deliberately; not automatically.
       - dependency-name: "better-auth"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "@better-auth/*"

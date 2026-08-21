@@ -62,8 +62,9 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   async function enable({ password }: TwoFactorPasswordInput) {
     const { data, error: enableError } = await authClient.twoFactor.enable({
       password,
+      method: "totp",
     });
-    if (enableError || !data) {
+    if (enableError || !data || data.method !== "totp") {
       notifyError("Two-factor setup failed", enableError?.message ?? undefined);
       return;
     }

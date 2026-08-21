@@ -13,19 +13,19 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@better-auth/api-key": "1.6.26",
+    "@better-auth/api-key": "1.7.1",
     "@billow/crypto": "workspace:*",
     "@billow/db": "workspace:*",
-    "better-auth": "~1.6.26"
+    "better-auth": "~1.7.1"
   },
   "peerDependencies": {
-    "next": "16.3.0",
+    "next": "16.3.1",
     "react": "19.2.8"
   },
   "devDependencies": {
     "@billow/vitest-config": "workspace:*",
     "@types/react": "^19.2.18",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

@@ -172,6 +172,12 @@ model Account {
   id                    String    @id @default(cuid())
   accountId             String
   providerId            String
+  /// better-auth 1.7 identifies an account by (issuer, accountId) rather than
+  /// accountId alone. This app only ever creates "credential" (email/password)
+  /// accounts, so "local:credential" — the synthetic issuer better-auth's own
+  /// credential provider uses — is correct for every row, not just a
+  /// migration placeholder.
+  issuer                String    @default("local:credential")
   userId                String
   accessToken           String?
   refreshToken          String?
@@ -184,6 +190,7 @@ model Account {
   updatedAt             DateTime  @updatedAt
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([issuer, accountId])
   @@index([userId])
   @@map("account")
 }
