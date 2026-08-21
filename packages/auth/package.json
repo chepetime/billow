@@ -13,10 +13,10 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@better-auth/api-key": "1.6.25",
+    "@better-auth/api-key": "1.6.26",
     "@billow/crypto": "workspace:*",
     "@billow/db": "workspace:*",
-    "better-auth": "~1.6.25"
+    "better-auth": "~1.6.26"
   },
   "peerDependencies": {
     "next": "16.3.0",

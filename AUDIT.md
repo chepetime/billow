@@ -43,6 +43,7 @@ will fail as this scales past one user with a handful of invoices.
 Separately, [R1](#r1--cache-export-costs-111s-and-runs-after-the-image-is-already-published)
 (release pipeline) is a one-line config change worth ~85s per release and
 carries no risk — worth taking whenever someone next touches `publish.yml`.
+**Taken in `8c04334`; see the release section for what R2 and R4 became.**
 
 [S4](#s4--csrf-origin-check-keys-off-header-presence-not-actual-credential-type)
 and the feature work can follow normally.
@@ -287,6 +288,12 @@ HTTPS-by-default is achievable.
 
 ## Release pipeline performance
 
+> **Status: closed in `8c04334` (2026-08-03).** R1 was applied as written; R2
+> and R4 were measured and rejected, with the reasoning recorded next to the
+> code they would have changed (`Dockerfile:31-44`, `.github/workflows/release.yml:96-117`).
+> Each finding below carries its own outcome. The measurements are kept as the
+> before-state — do not re-file these from this section without grepping first.
+
 Measured against run
 [`30879678765`](https://github.com/chepetime/billow/actions/runs/30879678765)
 (v0.1.42, successful): **8m 46s** wall clock. Four recent successful releases
@@ -318,7 +325,11 @@ Inside the amd64 Docker build (268s of that job's 295s):
 
 ### R1 — Cache export costs 111s and runs *after* the image is already published
 
-**Biggest single win. Expected saving: ~85s.**
+**Biggest single win. Expected saving: ~85s. — Done in `8c04334`**, applied
+exactly as proposed below; `publish.yml` now exports to `type=gha` and keeps the
+registry ref in `cache-from` as a floor. Expect the saving on the *second*
+release after that commit, not the first: the gha cache starts empty and has to
+import from the now-frozen `buildcache-*` refs once.
 
 `cache-to: type=registry,ref=...,mode=max`
 (`.github/workflows/publish.yml:115`) pushes every intermediate layer of every
@@ -346,7 +357,14 @@ than building from zero. If you would rather stay entirely on registry cache,
 
 ### R2 — The pnpm store cache mount is dead in CI
 
-**Expected saving: ~15s per architecture.**
+**Expected saving: ~15s per architecture. — Rejected in `8c04334`** after
+measuring the proposed fix. The diagnosis holds and the `Dockerfile` comment was
+corrected to say the mount helps local rebuilds only. The `pnpm fetch` split
+below does not survive contact: `pnpm fetch` takes no `--filter`, so it resolves
+the whole workspace lockfile (1070 packages, `apps/docs` and `packages/e2e`
+included) into a 1.3 GB store and a 2.8 GB `deps` stage. Exporting that per
+architecture would crowd the 10 GB per-repo gha cache and evict the image-layer
+cache R1 depends on — a far larger loss than the ~15s won.
 
 `Dockerfile:37` mounts a BuildKit cache at `/pnpm/store`. The build log shows
 what that is actually worth in CI:
@@ -407,7 +425,17 @@ Billow's. Bumping them is cosmetic. Restricting the bump to the root and
 
 ### R4 — `tag` re-verifies serially, with no turbo cache
 
-**Expected saving: ~65s.**
+**Expected saving: ~65s. — Partly done in `8c04334`; the bulk is not safely
+available.** `lint` now overlaps the test/build sequence (~5-10s). Both routes to
+the larger number were tried and rejected, and are documented in
+`release.yml` so they are not re-attempted: a `.turbo/cache` restore *cannot
+hit*, because the bump rewrites `version` in all nine manifests and turbo hashes
+each `package.json` as a task input (verified by diffing `turbo run build
+test:run --dry=json` across a simulated bump — every hash changes,
+`@billow/web#build` included); and merging `test:run` with `build` into one
+graph races `@billow/db#build` (`prisma generate`) against tests that import the
+generated client. The remaining option is the safety trade in the last paragraph
+of this finding, which is the user's call, not a pending task.
 
 `release.yml:93-98` runs `db:generate`, `lint`, `test:run` and `build` as four
 sequential commands in one step: 119s of the job's 151s. Two problems:
@@ -431,15 +459,19 @@ painful; R1 and R4 get most of the way without giving anything up.
 
 ### Projected result
 
-| Change | Saving |
-| ------ | ------ |
-| R1 — gha cache export | ~85s |
-| R4 — parallel verify + turbo cache | ~65s |
-| R2 — `pnpm fetch` layer split | ~15s |
+As projected at audit time, and what each item turned out to be worth:
 
-**8m 46s → roughly 5m 20s**, with no reduction in what the pipeline actually
-checks. Dropping the `tag` re-verification in favour of a CI-green gate would
-take it under 4 minutes, at a real cost in safety.
+| Change | Projected | Outcome |
+| ------ | --------- | ------- |
+| R1 — gha cache export | ~85s | taken as written |
+| R4 — parallel verify + turbo cache | ~65s | ~5-10s taken (lint overlap); the turbo cache cannot hit |
+| R2 — `pnpm fetch` layer split | ~15s | rejected; costs more cache than it saves time |
+
+The projection was **8m 46s → roughly 5m 20s**. Only R1 and a fraction of R4
+survived measurement, so the realistic landing point is closer to **7m 15s** —
+still the largest cut available without giving something up. Dropping the `tag`
+re-verification in favour of a CI-green gate remains the only way under 4
+minutes, at a real cost in safety.
 
 Note that `verify` (43s) is not on the cut list. It boots the published image,
 confirms both architectures resolve, and asserts the baked version — the checks

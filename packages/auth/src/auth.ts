@@ -158,6 +158,27 @@ export const auth = betterAuth({
       "/request-password-reset": { window: 60, max: 5 },
     },
   },
+  // There is deliberately no `session.cookieCache` here.
+  //
+  // It was considered as a second layer under the `cache()` on `getSession`
+  // (packages/auth/src/session.ts) and rejected on the arithmetic. That memo
+  // already collapses a render's four-to-five session reads into one; a
+  // cookie cache would remove that last one — a single primary-key lookup on
+  // a Postgres instance that, in this app's deployment, is a container away.
+  //
+  // What it costs is revocation latency, because a signed cookie is checked
+  // without asking the database whether the session still exists. For its TTL,
+  // a session stays valid after it has been revoked. That is exactly the
+  // property three things here depend on: `revokeSessionsOnPasswordReset`
+  // below, whose whole point is that a stolen session dies with the reset;
+  // "sign out other sessions"; and the admin plugin's ban and role checks,
+  // which `isAdmin` (./admin) reads straight off the session's user, so a
+  // demoted or banned account would keep its access until the cookie expired.
+  //
+  // Trading a bounded window on all three for one indexed query is the wrong
+  // side of the trade at this app's scale. Revisit if session reads ever show
+  // up in a real profile — not on the general principle that fewer queries is
+  // better.
   emailAndPassword: {
     enabled: true,
     // Every account's session is dropped when its password is reset, so a

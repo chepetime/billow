@@ -26,8 +26,8 @@
     "format": "biome format --write ."
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.6",
+    "@biomejs/biome": "2.5.7",
     "portless": "^0.15.5",
-    "turbo": "^2.10.8"
+    "turbo": "^2.10.9"
   }
 }

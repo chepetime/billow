@@ -8,6 +8,7 @@ export {
   dataKeyCookies,
   getDataKey,
   getRecoveryKeyState,
+  holdsRecoveryKey,
   issueRecoveryKeyFor,
   needsAccessRestored,
   needsRecoveryKey,

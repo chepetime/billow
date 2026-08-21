@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
 import { BASE_URL } from "./fixtures/base-url";
@@ -72,4 +73,93 @@ test("a backup round-trip restores uploaded files, not just rows", async ({
     const payload = (await response.json()) as { uploads: unknown[] };
     return payload.uploads.length;
   }
+});
+
+/**
+ * Flow #10b: the opt-in encrypted export, and the plaintext default it exists
+ * to make a choice rather than a surprise.
+ *
+ * The filename asserted on is the lever: it is written into `backup.json` as
+ * `uploads[].filename`, so a plain archive contains it in the clear and a
+ * sealed one must not contain it anywhere — which is the only way to tell
+ * "encrypted" from "the request happened to succeed".
+ *
+ * Minting a recovery key rotates whatever the account had and clears the
+ * "saved" confirmation, so this test confirms the new key immediately. Without
+ * that the owner would be left owing an onboarding step and every later spec
+ * would meet the gate.
+ */
+test("an encrypted backup hides its contents and restores with the recovery key", async ({
+  page,
+  request,
+}) => {
+  const filename = `billow-sealed-${uniqueSuffix()}.png`;
+  const sameOrigin = { Origin: BASE_URL };
+
+  await page.goto("/settings/files");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles(validPngFile(filename));
+  await expect(
+    page.getByRole("listitem").filter({ hasText: filename }),
+  ).toBeVisible();
+
+  const issued = await request.post("/api/v1/recovery-key", {
+    headers: sameOrigin,
+  });
+  expect(issued.status()).toBe(200);
+  const { recoveryKey } = (await issued.json()) as { recoveryKey: string };
+
+  const confirmed = await request.post("/api/v1/recovery-key/confirm", {
+    headers: sameOrigin,
+    data: { recoveryKey },
+  });
+  expect(confirmed.status()).toBe(200);
+
+  // The documented default: decrypted on purpose, and visibly so.
+  const plain = await request.get("/api/admin/backup");
+  expect(plain.status()).toBe(200);
+  expect(gunzipSync(await plain.body()).toString("binary")).toContain(filename);
+
+  // A key that is not this account's is refused before anything is built,
+  // rather than producing a file that could never be opened.
+  const wrongKey = await request.get("/api/admin/backup", {
+    headers: { "x-billow-recovery-key": "0000-0000-0000-0000" },
+  });
+  expect(wrongKey.status()).toBe(400);
+
+  const sealed = await request.get("/api/admin/backup", {
+    headers: { "x-billow-recovery-key": recoveryKey },
+  });
+  expect(sealed.status()).toBe(200);
+  expect(sealed.headers()["content-disposition"]).toContain("encrypted");
+
+  const archive = await sealed.body();
+  const unpacked = gunzipSync(archive).toString("binary");
+  expect(unpacked).toContain("backup-envelope.json");
+  expect(unpacked).not.toContain(filename);
+  // The manifest's own field names would survive any partial encryption.
+  expect(unpacked).not.toContain("formatVersion");
+
+  const withoutKey = await request.post("/api/admin/restore", {
+    headers: { "Content-Type": "application/octet-stream", ...sameOrigin },
+    data: archive,
+  });
+  expect(withoutKey.status()).toBe(400);
+
+  const restored = await request.post("/api/admin/restore", {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "x-billow-recovery-key": recoveryKey,
+      ...sameOrigin,
+    },
+    data: archive,
+  });
+  expect(restored.status()).toBe(200);
+
+  const body = (await restored.json()) as {
+    uploads: { uploads: number; skippedUploads: number; reasons: string[] };
+  };
+  expect(body.uploads.skippedUploads, body.uploads.reasons.join("; ")).toBe(0);
+  expect(body.uploads.uploads).toBeGreaterThan(0);
 });
