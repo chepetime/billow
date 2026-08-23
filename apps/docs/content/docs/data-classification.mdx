@@ -205,6 +205,13 @@ logs, and `VaultEntry`. Those are credentials or infrastructure, and importing
 them would either be meaningless or would let a file forge identity. See the
 header comment in `apps/web/src/lib/backup.ts`.
 
+The administrator workspace reset follows the same boundary. It deletes every
+importable invoicing and upload record plus the user's stored file directory,
+but never deletes the account, authentication records, key hierarchy, API
+keys, installation ownership, error logs, or vault entry. Every database
+delete is scoped to the signed-in administrator's user ID; the file deletion
+uses the storage layer's guarded per-user directory resolver.
+
 ### The CSV export is not a backup
 
 `GET /api/admin/invoices/export` (`/settings/backup` in the UI) is a separate,

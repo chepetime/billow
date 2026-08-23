@@ -134,6 +134,15 @@ public IDs and storage keys for the importing user, restores uploads first, and
 uses an internal ID map to reconnect invoice and tax-period documents in the
 domain transaction.
 
+Restore is additive. Before replacing an existing workspace with a complete
+backup, an administrator can reset the importable workspace through
+`DELETE /api/admin/workspace` with the explicit `DELETE WORKSPACE`
+confirmation. The reset removes invoices, sender profiles, bank accounts,
+clients, monthly tax periods, upload metadata, and that user's stored file
+bytes. It deliberately preserves the user account, sessions, password and
+recovery-key wraps, API keys, installation ownership, and other platform
+settings so the administrator remains signed in and can immediately restore.
+
 ## Encryption boundary
 
 `UserProfile` and `BankAccount` have encrypted columns, reached through
