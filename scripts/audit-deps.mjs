@@ -26,6 +26,8 @@ const ACKNOWLEDGED = {
   postcss:
     "A stale 8.4.31 copy in the build toolchain. Build-time CSS only; not served at runtime.",
   "brace-expansion": "Lint and glob tooling; not part of the running app.",
+  "deepmerge-ts":
+    "Used only by @prisma/config while loading the repository-owned prisma.config.ts for CLI/build commands; no request or user-controlled object reaches this merge.",
 };
 
 const FAIL_ON = new Set(["high", "critical"]);
