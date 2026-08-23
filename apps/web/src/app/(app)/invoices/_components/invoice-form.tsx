@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@billow/shadcn/components/button";
+import { Button, buttonVariants } from "@billow/shadcn/components/button";
 import { Input } from "@billow/shadcn/components/input";
 import {
   NativeSelect,
@@ -9,6 +9,7 @@ import {
 import { Textarea } from "@billow/shadcn/components/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
@@ -31,13 +32,6 @@ import {
 } from "@/lib/schemas/workspace";
 import type { InvoiceFormOptions } from "@/lib/workspace-records";
 
-const STATUSES = [
-  { value: "DRAFT", label: "Draft" },
-  { value: "SENT", label: "Sent" },
-  { value: "PAID", label: "Paid" },
-  { value: "VOID", label: "Void" },
-] as const;
-
 const EMPTY_LINE_ITEM = {
   description: "",
   note: "",
@@ -56,7 +50,7 @@ export function InvoiceForm({
   options,
   defaultValues,
 }: {
-  id?: number;
+  id?: string;
   options: InvoiceFormOptions;
   defaultValues: InvoiceFormValues;
 }) {
@@ -171,24 +165,6 @@ export function InvoiceForm({
               {currencyOptions.map((code) => (
                 <NativeSelectOption key={code} value={code}>
                   {code}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-
-          <Field
-            label="Status"
-            htmlFor="status"
-            error={form.formState.errors.status?.message}
-          >
-            <NativeSelect
-              className="w-full"
-              id="status"
-              {...form.register("status")}
-            >
-              {STATUSES.map((status) => (
-                <NativeSelectOption key={status.value} value={status.value}>
-                  {status.label}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
@@ -395,13 +371,12 @@ export function InvoiceForm({
               ? "Save invoice"
               : "Create invoice"}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => router.push(id ? `/invoices/${id}` : "/invoices")}
+        <Link
+          href={id ? `/invoices/${id}` : "/invoices"}
+          className={buttonVariants({ variant: "ghost" })}
         >
           Cancel
-        </Button>
+        </Link>
         {id !== undefined && (
           <div className="ml-auto">
             <DeleteRecordButton

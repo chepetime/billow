@@ -1,10 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { validCfdiXmlFile, validPdfFile, validPngFile } from "./fixtures/files";
 import { uniqueSuffix } from "./fixtures/users";
 
 /**
  * The invoicing workspace end to end: sender, bank account, client, then an
- * invoice through create → edit → duplicate.
+ * invoice through create → dated progress → monthly tax filing → duplicate.
  *
  * This is the path a real user takes on a fresh installation, and until this
  * file existed none of it had ever been exercised against a database. Three
@@ -67,7 +68,17 @@ test("the invoicing workspace, end to end", async ({ page }) => {
   await createBankAccount(page);
   await createClient(page);
   await createInvoice(page);
+  await recordMilestone(page, "Sent to client", "2026-08-01", "Sent");
+  await clearMilestone(page, "Sent to client", "Draft");
+  await recordMilestone(page, "Sent to client", "2026-08-01", "Sent");
   await editInvoice(page);
+  await recordMilestone(page, "Approved by client", "2026-08-02", "Approved");
+  await recordMilestone(page, "Payment received", "2026-08-03", "Paid");
+  await recordCfdi(page);
+  await clearCfdi(page);
+  await recordCfdi(page);
+  await recordMonthlyTaxFiling(page);
+  await recordMonthlyTaxPayment(page);
   await duplicateInvoice(page);
 });
 
@@ -160,9 +171,41 @@ async function createInvoice(page: Page) {
 
   await page.getByRole("button", { name: "Create invoice" }).click();
 
-  await expect(page).toHaveURL(/\/invoices\/\d+$/);
+  await expect(page).toHaveURL(
+    /\/invoices\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
   originalInvoiceUrl = page.url();
   await expect(page.getByText(client.name).first()).toBeVisible();
+}
+
+function progressRow(page: Page, title: string) {
+  return page.getByRole("listitem").filter({ hasText: title });
+}
+
+async function recordMilestone(
+  page: Page,
+  title: string,
+  date: string,
+  expectedStatus: string,
+) {
+  await page.goto(originalInvoiceUrl);
+  const row = progressRow(page, title);
+  await row.getByRole("button", { name: "Record" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Date").fill(date);
+  await dialog.getByRole("button", { name: "Save date" }).click();
+  await expect(page.getByText(expectedStatus, { exact: true })).toBeVisible();
+}
+
+async function clearMilestone(
+  page: Page,
+  title: string,
+  expectedStatus: string,
+) {
+  await page.goto(originalInvoiceUrl);
+  await progressRow(page, title).getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Clear date" }).click();
+  await expect(page.getByText(expectedStatus, { exact: true })).toBeVisible();
 }
 
 async function editInvoice(page: Page) {
@@ -172,14 +215,77 @@ async function editInvoice(page: Page) {
   // case that exercises the delete-and-recreate path rather than an in-place
   // column write.
   await page.getByLabel("Rate").fill("1000");
-  await page.getByLabel("Status").selectOption("SENT");
   await page.getByRole("button", { name: "Save invoice" }).click();
 
   await expect(page).toHaveURL(new RegExp(`${originalInvoiceUrl}$`));
+  await expect(page.getByText("Sent", { exact: true })).toBeVisible();
 
   await page.goto(`${originalInvoiceUrl}/edit`);
   await expect(page.getByLabel("Rate")).toHaveValue("1000");
-  await expect(page.getByLabel("Status")).toHaveValue("SENT");
+  await expect(page.getByLabel("Status")).toHaveCount(0);
+}
+
+async function recordCfdi(page: Page) {
+  await page.goto(originalInvoiceUrl);
+  await progressRow(page, "Fiscal invoice (CFDI)")
+    .getByRole("button", { name: "Record" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Issued date").fill("2026-08-04");
+  await dialog
+    .getByLabel("CFDI XML")
+    .setInputFiles(validCfdiXmlFile(`cfdi-${suffix}.xml`));
+  await dialog
+    .getByLabel("CFDI PDF")
+    .setInputFiles(validPdfFile(`cfdi-${suffix}.pdf`));
+  await dialog.getByRole("button", { name: "Save CFDI" }).click();
+
+  await expect(page.getByText("Done", { exact: true })).toBeVisible();
+  await expect(page.getByText(`cfdi-${suffix}.xml`)).toBeVisible();
+  await expect(page.getByText(`cfdi-${suffix}.pdf`)).toBeVisible();
+}
+
+async function clearCfdi(page: Page) {
+  await progressRow(page, "Fiscal invoice (CFDI)")
+    .getByRole("button", { name: "Edit" })
+    .click();
+  await page.getByRole("button", { name: "Clear CFDI" }).click();
+  await page.getByRole("button", { name: "Yes, clear CFDI" }).click();
+
+  await expect(page.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByText(`cfdi-${suffix}.xml`)).toHaveCount(0);
+  await expect(page.getByText(`cfdi-${suffix}.pdf`)).toHaveCount(0);
+}
+
+async function recordMonthlyTaxFiling(page: Page) {
+  const row = progressRow(page, "Tax return filed");
+  await row.getByRole("button", { name: "Record" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Filing date").fill("2026-08-10");
+  await dialog
+    .getByLabel("Tax return PDF")
+    .setInputFiles(validPdfFile(`tax-return-${suffix}.pdf`));
+  await dialog.getByRole("button", { name: "Save filing" }).click();
+
+  await expect(page.getByText(`tax-return-${suffix}.pdf`)).toBeVisible();
+}
+
+async function recordMonthlyTaxPayment(page: Page) {
+  const row = progressRow(page, "Tax payment confirmed");
+  await row.getByRole("button", { name: "Record" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Amount paid").fill("1234.56");
+  await dialog.getByLabel("Currency").selectOption("MXN");
+  await dialog.getByLabel("Payment date").fill("2026-08-12");
+  await dialog
+    .getByLabel("Payment confirmation")
+    .setInputFiles(validPngFile(`tax-payment-${suffix}.png`));
+  await dialog.getByRole("button", { name: "Save payment" }).click();
+
+  await expect(page.getByText(`tax-payment-${suffix}.png`)).toBeVisible();
+  await expect(progressRow(page, "Tax payment confirmed")).toContainText(
+    "MXN 1,234.56",
+  );
 }
 
 async function duplicateInvoice(page: Page) {
@@ -188,14 +294,18 @@ async function duplicateInvoice(page: Page) {
 
   // A copy opens the *new* draft's edit screen. Landing back on the original
   // would mean duplicate silently did nothing.
-  await expect(page).toHaveURL(/\/invoices\/\d+\/edit$/);
+  await expect(page).toHaveURL(
+    /\/invoices\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/edit$/,
+  );
   expect(page.url()).not.toBe(`${originalInvoiceUrl}/edit`);
 
-  // A duplicate is a fresh draft: next number, status reset, same lines.
-  await expect(page.getByLabel("Status")).toHaveValue("DRAFT");
+  // A duplicate is a fresh draft: next number, no progress dates, same lines.
   await expect(page.getByLabel("Description")).toHaveValue(
     "Consulting, October",
   );
   const copyNumber = await page.getByLabel("Invoice number").inputValue();
   expect(Number(copyNumber)).toBeGreaterThan(Number(invoiceNumber));
+
+  await page.getByRole("link", { name: "Cancel" }).click();
+  await expect(page.getByText("Draft", { exact: true })).toBeVisible();
 }

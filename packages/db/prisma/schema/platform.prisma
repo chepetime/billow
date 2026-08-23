@@ -53,8 +53,8 @@ model InstallationOwner {
 /// never the raw credential, and is never returned to a client. `apiKeyHint`
 /// is the only part safe to display.
 model EmailSettings {
-  id          Int      @id @default(1)
-  provider    String   @default("resend")
+  id          Int       @id @default(1)
+  provider    String    @default("resend")
   apiKey      String?
   apiKeyHint  String?
   fromEmail   String?
@@ -72,7 +72,7 @@ model EmailSettings {
   /// on email stay hidden until a real send has worked at least once. Cleared
   /// whenever the credentials or sender change, and when a live send fails.
   verifiedAt  DateTime?
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime  @updatedAt
   updatedById String?
 }
 
@@ -80,16 +80,18 @@ model EmailSettings {
 /// the mounted uploads volume; only metadata is stored here. `storageKey` is
 /// generated, never derived from the client's filename.
 model Upload {
-  id          String   @id @default(cuid())
-  userId      String
-  storageKey  String   @unique
-  filename    String
-  contentType String
-  size        Int
-  checksum    String
-  kind        String   @default("attachment")
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  userId             String
+  storageKey         String              @unique
+  filename           String
+  contentType        String
+  size               Int
+  checksum           String
+  kind               String              @default("attachment")
+  createdAt          DateTime            @default(now())
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoiceDocuments   InvoiceDocument[]
+  taxPeriodDocuments TaxPeriodDocument[]
 
   @@index([userId])
   @@index([userId, kind])

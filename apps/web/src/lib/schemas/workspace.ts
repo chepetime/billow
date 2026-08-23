@@ -91,6 +91,19 @@ export const currencySchema = z.enum(CURRENCIES, {
   error: "Choose a currency.",
 });
 
+export const invoicePublicIdSchema = z.uuid();
+
+export const invoiceStatusSchema = z.enum([
+  "DRAFT",
+  "SENT",
+  "APPROVED",
+  "PAID",
+  "TAX_RECEIPT",
+  "TAX_RETURN",
+  "DONE",
+  "VOID",
+]);
+
 export const senderProfileSchema = z.object({
   displayName: requiredText("Display name", 120),
   legalName: requiredText("Legal name", 160),
@@ -152,7 +165,7 @@ export const invoiceSchema = z.object({
   ),
   invoiceDate: dateOnlySchema,
   currency: currencySchema,
-  status: z.enum(["DRAFT", "SENT", "PAID", "VOID"]),
+  status: invoiceStatusSchema,
   notes: optionalText(2000),
   lineItems: z
     .array(invoiceLineItemSchema)

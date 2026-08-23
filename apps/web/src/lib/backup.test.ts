@@ -108,6 +108,68 @@ describe("parseBackupPayload", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts dated progress and month-level tax documents", () => {
+    const payload = validPayload();
+    const timestamp = "2026-01-31T00:00:00.000Z";
+    const result = parseBackupPayload({
+      ...payload,
+      data: {
+        ...payload.data,
+        invoices: [
+          {
+            ...payload.data.invoices[0],
+            status: "DONE",
+            sentAt: timestamp,
+            approvedAt: timestamp,
+            paidAt: timestamp,
+            cfdiIssuedAt: timestamp,
+            documents: [
+              {
+                uploadId: "cfdi-xml",
+                kind: "CFDI_XML",
+                note: null,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+              {
+                uploadId: "cfdi-pdf",
+                kind: "CFDI_PDF",
+                note: null,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+            ],
+          },
+        ],
+        taxPeriods: [
+          {
+            id: 60,
+            year: 2026,
+            month: 1,
+            currency: "MXN",
+            amountPaid: 1234.56,
+            filedAt: timestamp,
+            paidAt: timestamp,
+            notes: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            documents: [
+              {
+                uploadId: "tax-return",
+                kind: "TAX_RETURN",
+                note: null,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects an unknown format version", () => {
     const payload = validPayload();
     const result = parseBackupPayload({ ...payload, formatVersion: 99 });

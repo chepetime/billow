@@ -27,6 +27,29 @@ const ACCEPTED = [
   { mime: "application/pdf", ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
 ] as const;
 
+/**
+ * CFDI XML is text, so it has no fixed magic bytes. Accept only UTF-8 XML
+ * whose root element is the SAT CFDI `Comprobante`; this rejects arbitrary
+ * HTML/SVG/scripts renamed to `.xml` while admitting the authoritative file
+ * the invoice workflow needs.
+ */
+function isCfdiXml(bytes: Uint8Array): boolean {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return false;
+  }
+
+  const normalized = text.replace(/^\uFEFF/, "").trimStart();
+  if (normalized.includes("<!DOCTYPE")) return false;
+  const withoutDeclaration = normalized.replace(
+    /^<\?xml\s+[\s\S]*?\?>\s*/i,
+    "",
+  );
+  return /^<(?:cfdi:)?Comprobante(?:\s|>)/i.test(withoutDeclaration);
+}
+
 /** WEBP is RIFF....WEBP, so it needs a check at two offsets. */
 function isWebp(bytes: Uint8Array): boolean {
   const riff = [0x52, 0x49, 0x46, 0x46];
@@ -51,6 +74,7 @@ export function detectType(bytes: Uint8Array): DetectedType | null {
     }
   }
   if (isWebp(bytes)) return { mime: "image/webp", ext: "webp" };
+  if (isCfdiXml(bytes)) return { mime: "application/xml", ext: "xml" };
   return null;
 }
 
@@ -64,7 +88,16 @@ export function safeDisplayName(filename: string): string {
 }
 
 export function storageRoot(): string {
-  return process.env.BILLOW_STORAGE_DIR ?? "/data/uploads";
+  if (process.env.BILLOW_STORAGE_DIR) {
+    return process.env.BILLOW_STORAGE_DIR;
+  }
+
+  // `/data/uploads` is the mounted production volume, but it does not exist
+  // on a normal development host. Keep direct `next dev` launches usable even
+  // when an older local .env predates BILLOW_STORAGE_DIR.
+  return process.env.NODE_ENV === "development"
+    ? path.resolve(process.cwd(), "../../.uploads")
+    : "/data/uploads";
 }
 
 /**

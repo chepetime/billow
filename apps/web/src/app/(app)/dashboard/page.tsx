@@ -1,5 +1,12 @@
 import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@billow/shadcn/components/card";
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/ui/badge";
 import { formatInvoiceDate, formatMoney } from "@/lib/format";
@@ -130,6 +137,39 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Needs attention</CardTitle>
+              <CardDescription>
+                The next missing fact or document for each active invoice and
+                this month&apos;s tax filing.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {workspace.attention.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nothing needs attention right now.
+                </p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-border">
+                  {workspace.attention.map((item) => (
+                    <li key={item.key}>
+                      <Link
+                        href={item.href}
+                        className="flex min-h-11 items-center justify-between gap-4 py-3"
+                      >
+                        <span className="font-medium">{item.title}</span>
+                        <span className="text-right text-sm text-muted-foreground">
+                          {item.detail}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="rounded-lg border bg-card p-5">
             <div className="flex items-center justify-between gap-3">

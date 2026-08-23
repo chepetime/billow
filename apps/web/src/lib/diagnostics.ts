@@ -16,6 +16,7 @@ import {
 } from "@billow/email";
 import { getRecentErrors } from "@/lib/error-log";
 import { securityHeaders } from "@/lib/security-headers";
+import { storageRoot } from "@/lib/storage";
 
 /**
  * Diagnostics are only ever rendered behind a session: they include
@@ -679,7 +680,7 @@ export async function scanStorageUsage(
  * and can the unprivileged runtime user write to it?
  */
 export async function collectStorage(): Promise<Field[]> {
-  const dir = process.env.BILLOW_STORAGE_DIR ?? "/data/uploads";
+  const dir = storageRoot();
 
   const fields = [
     probe("Directory", () => dir),

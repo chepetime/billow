@@ -278,6 +278,7 @@ describe("write paths that reach encrypted columns", () => {
       ],
       clientCompanies: [],
       invoices: [],
+      taxPeriods: [],
       uploads: [],
     });
 

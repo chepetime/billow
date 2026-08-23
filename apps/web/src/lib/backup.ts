@@ -27,7 +27,7 @@ import { uploadEntryName } from "@/lib/backup-format";
  * never overwrites or deletes existing data.
  */
 
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 
 /**
  * Versions this build can restore.
@@ -37,7 +37,7 @@ export const BACKUP_FORMAT_VERSION = 2;
  * strand anyone who took one before this change — so v1 is accepted and
  * simply restores no files.
  */
-export const SUPPORTED_BACKUP_FORMAT_VERSIONS = [1, 2] as const;
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS = [1, 2, 3] as const;
 
 const isoDateString = z
   .string()
@@ -45,13 +45,24 @@ const isoDateString = z
     message: "Expected an ISO 8601 date string.",
   });
 
-const invoiceStatusSchema = z.enum(["DRAFT", "SENT", "PAID", "VOID"]);
+const invoiceStatusSchema = z.enum([
+  "DRAFT",
+  "SENT",
+  "APPROVED",
+  "PAID",
+  "TAX_RECEIPT",
+  "TAX_RETURN",
+  "DONE",
+  "VOID",
+]);
 
 // Every exported row keeps its original integer id so the payload can encode
 // relations (bank account -> profile, invoice -> profile/bank/client, line
 // items/revisions -> invoice). Import remaps every one of these to a freshly
 // created id; none of them are trusted as real primary keys on the way back
-// in. userId is intentionally never part of the payload: ownership is always
+// in. Invoice.publicId is omitted for the same reason: a restored invoice gets
+// a fresh public identity rather than retaining a URL from another install.
+// userId is intentionally never part of the payload: ownership is always
 // decided by the importing session, not by data in the file.
 
 const userProfileSchema = z.object({
@@ -125,11 +136,29 @@ const invoiceRevisionSchema = z.object({
   createdAt: isoDateString,
 });
 
+const invoiceDocumentSchema = z.object({
+  uploadId: z.string().min(1),
+  kind: z.enum([
+    "CFDI_XML",
+    "CFDI_PDF",
+    "PAYMENT_PROOF",
+    "SIGNED_COPY",
+    "OTHER",
+  ]),
+  note: z.string().nullable().optional(),
+  createdAt: isoDateString,
+  updatedAt: isoDateString,
+});
+
 const invoiceSchema = z.object({
   id: z.number().int(),
   invoiceNumber: z.number().int(),
   invoiceDate: isoDateString,
   status: invoiceStatusSchema,
+  sentAt: isoDateString.nullable().optional(),
+  approvedAt: isoDateString.nullable().optional(),
+  paidAt: isoDateString.nullable().optional(),
+  cfdiIssuedAt: isoDateString.nullable().optional(),
   currency: z.string().min(1),
   notes: z.string().nullable().optional(),
   userProfileId: z.number().int(),
@@ -139,6 +168,29 @@ const invoiceSchema = z.object({
   updatedAt: isoDateString,
   lineItems: z.array(invoiceLineItemSchema),
   revisions: z.array(invoiceRevisionSchema),
+  documents: z.array(invoiceDocumentSchema).default([]),
+});
+
+const taxPeriodDocumentSchema = z.object({
+  uploadId: z.string().min(1),
+  kind: z.enum(["TAX_RETURN", "PAYMENT_CONFIRMATION", "OTHER"]),
+  note: z.string().nullable().optional(),
+  createdAt: isoDateString,
+  updatedAt: isoDateString,
+});
+
+const taxPeriodSchema = z.object({
+  id: z.number().int(),
+  year: z.number().int(),
+  month: z.number().int().min(1).max(12),
+  currency: z.string().min(1),
+  amountPaid: z.number().nullable().optional(),
+  filedAt: isoDateString.nullable().optional(),
+  paidAt: isoDateString.nullable().optional(),
+  notes: z.string().nullable().optional(),
+  createdAt: isoDateString,
+  updatedAt: isoDateString,
+  documents: z.array(taxPeriodDocumentSchema).default([]),
 });
 
 /**
@@ -154,6 +206,7 @@ const invoiceSchema = z.object({
  * bytes that were exported, rather than trusting the archive.
  */
 const uploadSchema = z.object({
+  id: z.string().min(1).optional(),
   archiveEntry: z.string().min(1),
   filename: z.string().min(1),
   contentType: z.string().min(1),
@@ -168,6 +221,7 @@ export const backupDataSchema = z.object({
   bankAccounts: z.array(bankAccountSchema),
   clientCompanies: z.array(clientCompanySchema),
   invoices: z.array(invoiceSchema),
+  taxPeriods: z.array(taxPeriodSchema).default([]),
   // Absent in version 1 exports, which predate uploads being included.
   uploads: z.array(uploadSchema).default([]),
 });
@@ -198,8 +252,12 @@ export type ImportSummary = {
   invoices: number;
   lineItems: number;
   revisions: number;
+  invoiceDocuments: number;
+  taxPeriods: number;
+  taxPeriodDocuments: number;
   skippedBankAccounts: number;
   skippedInvoices: number;
+  skippedTaxPeriods: number;
 };
 
 /**
@@ -220,37 +278,54 @@ export async function exportWorkspace(
   userId: string,
   client: Pick<
     ReturnType<typeof getPrisma>,
-    "userProfile" | "bankAccount" | "clientCompany" | "invoice" | "upload"
+    | "userProfile"
+    | "bankAccount"
+    | "clientCompany"
+    | "invoice"
+    | "taxPeriod"
+    | "upload"
   > = getPrisma(),
 ): Promise<BackupPayload> {
   const prisma = client;
 
-  const [userProfiles, bankAccounts, clientCompanies, invoices, uploads] =
-    await Promise.all([
-      prisma.userProfile.findMany({
-        where: { userId },
-        orderBy: { id: "asc" },
-      }),
-      prisma.bankAccount.findMany({
-        where: { userProfile: { userId } },
-        orderBy: { id: "asc" },
-      }),
-      prisma.clientCompany.findMany({
-        where: { userId },
-        orderBy: { id: "asc" },
-      }),
-      prisma.invoice.findMany({
-        where: { userId },
-        include: {
-          lineItems: { orderBy: { position: "asc" } },
-          revisions: { orderBy: { revisionNumber: "asc" } },
-        },
-        orderBy: { id: "asc" },
-      }),
-      // Same ordering as exportUploadRecords, so the Nth manifest entry and
-      // the Nth archive entry describe the same file.
-      prisma.upload.findMany({ where: { userId }, orderBy: { id: "asc" } }),
-    ]);
+  const [
+    userProfiles,
+    bankAccounts,
+    clientCompanies,
+    invoices,
+    taxPeriods,
+    uploads,
+  ] = await Promise.all([
+    prisma.userProfile.findMany({
+      where: { userId },
+      orderBy: { id: "asc" },
+    }),
+    prisma.bankAccount.findMany({
+      where: { userProfile: { userId } },
+      orderBy: { id: "asc" },
+    }),
+    prisma.clientCompany.findMany({
+      where: { userId },
+      orderBy: { id: "asc" },
+    }),
+    prisma.invoice.findMany({
+      where: { userId },
+      include: {
+        lineItems: { orderBy: { position: "asc" } },
+        revisions: { orderBy: { revisionNumber: "asc" } },
+        documents: { orderBy: { kind: "asc" } },
+      },
+      orderBy: { id: "asc" },
+    }),
+    prisma.taxPeriod.findMany({
+      where: { userId },
+      include: { documents: { orderBy: { kind: "asc" } } },
+      orderBy: [{ year: "asc" }, { month: "asc" }],
+    }),
+    // Same ordering as exportUploadRecords, so the Nth manifest entry and
+    // the Nth archive entry describe the same file.
+    prisma.upload.findMany({ where: { userId }, orderBy: { id: "asc" } }),
+  ]);
 
   const data: BackupData = {
     userProfiles: userProfiles.map((profile) => ({
@@ -305,6 +380,10 @@ export async function exportWorkspace(
       invoiceNumber: invoice.invoiceNumber,
       invoiceDate: invoice.invoiceDate.toISOString(),
       status: invoice.status,
+      sentAt: invoice.sentAt?.toISOString() ?? null,
+      approvedAt: invoice.approvedAt?.toISOString() ?? null,
+      paidAt: invoice.paidAt?.toISOString() ?? null,
+      cfdiIssuedAt: invoice.cfdiIssuedAt?.toISOString() ?? null,
       currency: invoice.currency,
       notes: invoice.notes,
       userProfileId: invoice.userProfileId,
@@ -331,8 +410,35 @@ export async function exportWorkspace(
         payload: revision.payload,
         createdAt: revision.createdAt.toISOString(),
       })),
+      documents: invoice.documents.map((document) => ({
+        uploadId: document.uploadId,
+        kind: document.kind,
+        note: document.note,
+        createdAt: document.createdAt.toISOString(),
+        updatedAt: document.updatedAt.toISOString(),
+      })),
+    })),
+    taxPeriods: taxPeriods.map((period) => ({
+      id: period.id,
+      year: period.year,
+      month: period.month,
+      currency: period.currency,
+      amountPaid: period.amountPaid === null ? null : Number(period.amountPaid),
+      filedAt: period.filedAt?.toISOString() ?? null,
+      paidAt: period.paidAt?.toISOString() ?? null,
+      notes: period.notes,
+      createdAt: period.createdAt.toISOString(),
+      updatedAt: period.updatedAt.toISOString(),
+      documents: period.documents.map((document) => ({
+        uploadId: document.uploadId,
+        kind: document.kind,
+        note: document.note,
+        createdAt: document.createdAt.toISOString(),
+        updatedAt: document.updatedAt.toISOString(),
+      })),
     })),
     uploads: uploads.map((upload, index) => ({
+      id: upload.id,
       archiveEntry: uploadEntryName(index),
       filename: upload.filename,
       contentType: upload.contentType,
@@ -408,6 +514,7 @@ async function workspaceClient(): Promise<ImportClient> {
 export async function importWorkspace(
   userId: string,
   data: BackupData,
+  uploadIdMap: ReadonlyMap<string, string> = new Map(),
 ): Promise<ImportSummary> {
   const prisma = await workspaceClient();
 
@@ -422,6 +529,10 @@ export async function importWorkspace(
     let skippedInvoices = 0;
     let lineItemCount = 0;
     let revisionCount = 0;
+    let invoiceDocumentCount = 0;
+    let taxPeriodCount = 0;
+    let taxPeriodDocumentCount = 0;
+    let skippedTaxPeriods = 0;
 
     for (const profile of data.userProfiles) {
       const created = await tx.userProfile.create({
@@ -532,6 +643,12 @@ export async function importWorkspace(
           invoiceNumber,
           invoiceDate: new Date(invoice.invoiceDate),
           status: invoice.status,
+          sentAt: invoice.sentAt ? new Date(invoice.sentAt) : null,
+          approvedAt: invoice.approvedAt ? new Date(invoice.approvedAt) : null,
+          paidAt: invoice.paidAt ? new Date(invoice.paidAt) : null,
+          cfdiIssuedAt: invoice.cfdiIssuedAt
+            ? new Date(invoice.cfdiIssuedAt)
+            : null,
           currency: invoice.currency,
           notes: invoice.notes ?? null,
           userProfileId: newProfileId,
@@ -568,6 +685,73 @@ export async function importWorkspace(
         });
         revisionCount += 1;
       }
+
+      for (const document of invoice.documents ?? []) {
+        const uploadId = uploadIdMap.get(document.uploadId);
+        if (!uploadId) continue;
+        await tx.upload.update({
+          where: { id: uploadId },
+          data: { kind: "invoice_document" },
+        });
+        await tx.invoiceDocument.create({
+          data: {
+            invoiceId: createdInvoice.id,
+            uploadId,
+            kind: document.kind,
+            note: document.note ?? null,
+          },
+        });
+        invoiceDocumentCount += 1;
+      }
+    }
+
+    for (const period of data.taxPeriods ?? []) {
+      const existing = await tx.taxPeriod.findUnique({
+        where: {
+          userId_year_month: {
+            userId,
+            year: period.year,
+            month: period.month,
+          },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        skippedTaxPeriods += 1;
+        continue;
+      }
+
+      const createdPeriod = await tx.taxPeriod.create({
+        data: {
+          userId,
+          year: period.year,
+          month: period.month,
+          currency: period.currency,
+          amountPaid: period.amountPaid ?? null,
+          filedAt: period.filedAt ? new Date(period.filedAt) : null,
+          paidAt: period.paidAt ? new Date(period.paidAt) : null,
+          notes: period.notes ?? null,
+        },
+      });
+      taxPeriodCount += 1;
+
+      for (const document of period.documents) {
+        const uploadId = uploadIdMap.get(document.uploadId);
+        if (!uploadId) continue;
+        await tx.upload.update({
+          where: { id: uploadId },
+          data: { kind: "tax_period_document" },
+        });
+        await tx.taxPeriodDocument.create({
+          data: {
+            taxPeriodId: createdPeriod.id,
+            uploadId,
+            kind: document.kind,
+            note: document.note ?? null,
+          },
+        });
+        taxPeriodDocumentCount += 1;
+      }
     }
 
     return {
@@ -577,8 +761,12 @@ export async function importWorkspace(
       invoices: invoiceCount,
       lineItems: lineItemCount,
       revisions: revisionCount,
+      invoiceDocuments: invoiceDocumentCount,
+      taxPeriods: taxPeriodCount,
+      taxPeriodDocuments: taxPeriodDocumentCount,
       skippedBankAccounts,
       skippedInvoices,
+      skippedTaxPeriods,
     };
   });
 }

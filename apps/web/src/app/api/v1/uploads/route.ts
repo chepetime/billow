@@ -6,7 +6,12 @@ import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage";
-import { createUpload, listUploads, UploadRejectedError } from "@/lib/uploads";
+import {
+  createUpload,
+  listUploads,
+  toUploadResponse,
+  UploadRejectedError,
+} from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
       name: file.name,
       bytes,
     });
-    return NextResponse.json(upload, { status: 201 });
+    return NextResponse.json(toUploadResponse(upload), { status: 201 });
   } catch (err) {
     if (err instanceof UploadRejectedError) {
       return error(err.message, err.status);
@@ -84,7 +89,7 @@ export async function GET() {
     identity.userId,
   );
   return NextResponse.json({
-    uploads,
+    uploads: uploads.map(toUploadResponse),
     usage: { bytes: usageBytes, limitBytes },
   });
 }

@@ -47,9 +47,12 @@ documented next to the field and reviewed.
 | invoicing | `UserProfile` | Sensitive | Legal identity, address, tax ID, work identity, and contact information. |
 | invoicing | `BankAccount` | Sensitive | Bank account, routing, SWIFT/IBAN/CLABE, holder, and bank-contact data. |
 | invoicing | `ClientCompany` | Sensitive | Client identity, billing address, email, contact, and notes reveal a user's commercial relationships. |
-| invoicing | `Invoice` | Sensitive | Client, bank account, date, currency, status, and notes together reveal billing activity. |
+| invoicing | `Invoice` | Sensitive | Its opaque public ID, client, bank account, dates (`invoiceDate`, `sentAt`, `approvedAt`, `paidAt`, `cfdiIssuedAt`), currency, status, and notes together identify and reveal billing and payment activity. |
 | invoicing | `InvoiceLineItem` | Sensitive | Description, quantities, rates, and amounts reveal the work performed and its price. |
 | invoicing | `InvoiceRevision` | Sensitive | Historical invoice payload and editor/summary preserve prior sensitive billing data. |
+| invoicing | `InvoiceDocument` | Sensitive | Its invoice/upload relation, kind, and note reveal which fiscal or payment records exist; the related `Upload` metadata and bytes are sensitive user content. |
+| invoicing | `TaxPeriod` | Sensitive | Year/month, filing and payment dates, currency, amount paid, and notes reveal the user's tax activity and finances. |
+| invoicing | `TaxPeriodDocument` | Sensitive | Its period/upload relation, kind, and note reveal filed returns and payment confirmations; the related file is sensitive user content. |
 
 ## Encryption boundary
 
@@ -95,9 +98,23 @@ Three consequences worth stating plainly:
   A value that fails to decrypt is reported as `null` rather than throwing, so
   one unreadable column cannot take down a page.
 
-`User.email`, `username`, foreign keys, timestamps, `Invoice.invoiceNumber`,
-and installation configuration remain plaintext because they are needed for
-identity, constraints, or operation before a user key is available.
+`User.email`, `username`, foreign keys, timestamps, `Invoice.publicId`,
+`Invoice.invoiceNumber`, `Invoice.status`, its four progress dates,
+`TaxPeriod.year`, `month`, `currency`, `amountPaid`, `filedAt`, and `paidAt`,
+document kinds, and installation configuration remain plaintext. They are
+needed for identity, route lookup, uniqueness, owner/month constraints, SQL
+filtering, status derivation, dashboard attention rules, or operation before a
+user key is available. `Invoice.publicId` is opaque but not a secret: invoice,
+tax-period, document, and upload reads and writes still require an owner-scoped
+query.
+
+This is an explicit plaintext exception, not a lower classification. In
+particular, progress and tax dates reveal behaviour and `amountPaid` reveals a
+financial obligation. Encrypting them would prevent the database from finding
+unfinished invoices and month records without loading and decrypting every row.
+Internal upload storage keys and checksums are never returned by the upload API;
+invoice- and tax-scoped uploads are also excluded from its generic attachment
+list.
 
 Client names and invoice amounts are classified **sensitive** because plaintext
 disclosure is harmful, but whether they are encrypted is not this repository's
@@ -130,6 +147,12 @@ Downloads folder, gets synced to whatever cloud drive is mounted there, and
 occasionally gets attached to a support thread. In every one of those places it
 is as sensitive as the columns it came from and none of the protection those
 columns had.
+
+Backup format version 3 includes invoice progress dates, monthly tax records,
+document relations, upload metadata, and the CFDI, tax-return, and payment-
+confirmation bytes. Those records follow the same decrypted/plaintext export
+rule as the rest of the workspace and materially increase the archive's
+sensitivity.
 
 ### The encrypted export
 

@@ -3,7 +3,11 @@
 enum InvoiceStatus {
   DRAFT
   SENT
+  APPROVED
   PAID
+  TAX_RECEIPT
+  TAX_RETURN
+  DONE
   VOID
 }
 
@@ -67,16 +71,21 @@ model ClientCompany {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   invoices        Invoice[]
-  user            User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model Invoice {
   id              Int               @id @default(autoincrement())
+  publicId        String            @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   invoiceNumber   Int
   invoiceDate     DateTime
   status          InvoiceStatus     @default(DRAFT)
+  sentAt          DateTime?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  cfdiIssuedAt    DateTime?
   currency        String            @default("MXN")
   notes           String?
   userId          String?
@@ -90,15 +99,43 @@ model Invoice {
   clientCompany   ClientCompany     @relation(fields: [clientCompanyId], references: [id], onDelete: Restrict)
   lineItems       InvoiceLineItem[]
   revisions       InvoiceRevision[]
-  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       InvoiceDocument[]
+  user            User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, invoiceNumber])
   @@index([invoiceDate])
   @@index([userId])
   @@index([status])
+  @@index([userId, sentAt])
+  @@index([userId, approvedAt])
+  @@index([userId, paidAt])
+  @@index([userId, cfdiIssuedAt])
   @@index([userProfileId])
   @@index([bankAccountId])
   @@index([clientCompanyId])
+}
+
+enum InvoiceDocumentKind {
+  CFDI_XML
+  CFDI_PDF
+  PAYMENT_PROOF
+  SIGNED_COPY
+  OTHER
+}
+
+model InvoiceDocument {
+  id        Int                 @id @default(autoincrement())
+  invoiceId Int
+  uploadId  String              @unique
+  kind      InvoiceDocumentKind
+  note      String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  invoice   Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  upload    Upload              @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, kind])
+  @@index([invoiceId])
 }
 
 model InvoiceLineItem {
@@ -129,4 +166,45 @@ model InvoiceRevision {
 
   @@unique([invoiceId, revisionNumber])
   @@index([invoiceId])
+}
+
+enum TaxPeriodDocumentKind {
+  TAX_RETURN
+  PAYMENT_CONFIRMATION
+  OTHER
+}
+
+model TaxPeriod {
+  id         Int                 @id @default(autoincrement())
+  userId     String
+  year       Int
+  month      Int
+  currency   String              @default("MXN")
+  amountPaid Decimal?            @db.Decimal(12, 2)
+  filedAt    DateTime?
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  documents  TaxPeriodDocument[]
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, year, month])
+  @@index([userId, filedAt])
+  @@index([userId, paidAt])
+}
+
+model TaxPeriodDocument {
+  id          Int                   @id @default(autoincrement())
+  taxPeriodId Int
+  uploadId    String                @unique
+  kind        TaxPeriodDocumentKind
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  taxPeriod   TaxPeriod             @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+  upload      Upload                @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@unique([taxPeriodId, kind])
+  @@index([taxPeriodId])
 }

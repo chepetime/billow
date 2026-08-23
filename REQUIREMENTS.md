@@ -45,8 +45,8 @@ Billow target behavior:
 - User creates invoices from reusable profile, bank, and client records.
 - Each invoice saves its own snapshot-worthy data and line items.
 - Each invoice keeps revision history.
-- Each invoice tracks its own progress through a billing track and a fiscal
-  track, so nothing silently stalls.
+- Each invoice tracks its progress from draft through payment and the related
+  tax work, so nothing silently stalls.
 - Each month tracks whether the tax report was filed and paid, and for how much.
 - The dashboard surfaces what is unfinished, not just what exists.
 - Multiple users can sign in and manage their own invoice workspace.
@@ -207,6 +207,7 @@ Stores one invoice record.
 Required fields:
 
 - Owning user
+- Opaque invoice ID
 - Invoice number
 - Invoice date
 - Currency
@@ -217,9 +218,10 @@ Required fields:
 - Frozen sender snapshot
 - Frozen bank snapshot
 - Frozen client snapshot
+- Status
 
-Status is **not** a stored field. See "Lifecycle Tracking" below: an invoice
-carries a set of milestone dates, and the displayed status is derived from them.
+The invoice ID is a generated, non-sequential UUID used in URLs and actions.
+It is distinct from the user-controlled invoice number printed on the invoice.
 
 Optional fields:
 
@@ -274,59 +276,34 @@ also store a concise changed-field summary for display.
 
 ## Lifecycle Tracking
 
-An invoice moves along two independent tracks. Separating them matters: the
-client-facing track is about getting paid, the fiscal track is about staying
-compliant, and they progress at different speeds. An invoice can be paid weeks
-before its CFDI exists, and a CFDI can exist for months before the tax report
-covering it is filed.
+Invoice progress is a set of dated business facts rather than a forward-only
+state machine:
 
-### Billing track (per invoice)
+```text
+Sent → Approved → Paid → Fiscal invoice (CFDI date + XML + PDF)
+```
 
-| # | Milestone | Field | Means |
-| --- | --- | --- | --- |
-| 1 | Verified | `verifiedAt` | The user checked the invoice and it is correct |
-| 2 | Sent | `sentAt` | Delivered to the client |
-| 3 | Received | `receivedAt` | The client confirmed receipt |
-| 4 | Paid | `paidAt` | The money arrived |
-| — | Void | `voidedAt` | Cancelled; excluded from every total |
+Each date remains independently editable so a mistaken click can be corrected
+without erasing later work. `Invoice.status` is recalculated as a query-friendly
+summary after each write; it is not the source of truth. Void remains an
+explicit terminal exception. Every successful invoice-progress change appends a
+full before/after revision.
 
-### Fiscal track
-
-| # | Milestone | Where it lives | Means |
-| --- | --- | --- | --- |
-| 5 | Fiscal invoice (CFDI) issued | `Invoice.cfdiIssuedAt` + a CFDI document | The accountant issued the CFDI; the PDF is attached |
-| 6 | Monthly tax report | `TaxPeriod.filedAt`, `TaxPeriod.paidAt`, `TaxPeriod.taxDue` | The month's report was generated and the tax paid |
-
-Step 6 is **per month, not per invoice** — it is the one item on the user's list
-that does not belong to an invoice at all. It gets its own record.
-
-### Rules
-
-- **Milestone dates are business dates, not audit timestamps.** The user marks
-  "paid" on the 10th for money that arrived on the 3rd, and the stored date must
-  be the 3rd. Each milestone defaults to today and stays editable. The revision
-  log is what records who changed the mark and when.
-- **No ordering enforced in the database.** Real invoices skip steps and get
-  marked out of order. The UI offers to backfill earlier milestones when a later
-  one is checked, and warns before clearing an earlier one, but the schema
-  permits any combination.
-- **Derived status.** The badge comes from the billing track only:
-  `voidedAt` → Void, else `paidAt` → Paid, else `receivedAt` → Received, else
-  `sentAt` → Sent, else `verifiedAt` → Ready, else Draft. The fiscal track shows
-  as its own indicator and never as the badge.
-- **Uploading a CFDI sets `cfdiIssuedAt`** when it is unset. Deleting documents
-  never clears it — un-marking stays an explicit action.
-- **Void wins.** A voided invoice keeps its history but leaves every total.
+Dashboard totals treat Draft, Sent, and Approved as open; Paid, Tax receipt,
+legacy Tax return, and Done as paid; and Void as neither. Monthly filing belongs
+to `TaxPeriod`, so it does not advance an individual invoice.
 
 ### Attention rules
 
-The tracking exists to drive one dashboard section listing what is unfinished:
+The tracking drives one dashboard section listing the first missing fact or
+document:
 
-- Sent but unpaid, past the due date or a configurable age
-- Paid but no CFDI attached
-- Verified but never sent
-- A month with issued CFDIs but no filed `TaxPeriod`
-- A filed `TaxPeriod` with an unpaid tax amount
+- Sent date
+- Client approval date
+- Payment date
+- CFDI issue date, XML, and PDF
+- Current-month tax-return filing date and PDF
+- Current-month tax amount, payment date, and confirmation
 
 Open question: the "past N days" thresholds should be per-user settings rather
 than constants, but constants are acceptable for the first version.
@@ -340,7 +317,7 @@ Required fields:
 
 - Invoice
 - Upload (one upload belongs to exactly one attachment)
-- Kind: CFDI, payment proof, signed copy, other
+- Kind: CFDI XML, CFDI PDF, payment proof, signed copy, other
 
 Optional fields:
 
@@ -362,7 +339,7 @@ Required fields:
 
 Optional fields:
 
-- Tax amount due
+- Tax amount paid
 - Filed date
 - Paid date
 - Notes
@@ -450,7 +427,7 @@ User chooses:
 - Currency
 - Line items
 
-A new invoice starts with every milestone unset, which renders as Draft.
+A new invoice starts in Draft.
 
 Defaults:
 
@@ -478,27 +455,17 @@ of the sender, client, and bank details used when the invoice was saved.
 
 ### Track an Invoice
 
-The invoice detail page shows both tracks as a checklist. For each milestone the
-user can:
-
-- Mark it done, which stores today's date by default
-- Adjust the stored date
-- Clear it
-
-Checking a later milestone offers to backfill the earlier ones with the same
-date. Clearing an earlier milestone that has later ones set asks for
-confirmation. Every change appends an invoice revision with a readable summary
-("Marked paid, 3 Jan 2026").
-
-CFDI attachment lives on the same page: upload the accountant's document, and
-the CFDI milestone marks itself if it was not already set.
+The invoice detail page presents the four invoice milestones as a progress
+checklist. Each row records or edits its own date; the CFDI row also owns the XML
+and PDF. The status badge follows the furthest completed fact, while the
+dashboard continues to surface any earlier fact the user left blank.
 
 ### Monthly Tax Report
 
 A month view lists, for the selected month:
 
 - The invoices dated in that month, with their totals and CFDI state
-- The tax amount due
+- The tax amount paid
 - Whether the report was filed
 - Whether the tax was paid
 - The attached declaration and payment receipt
@@ -548,7 +515,7 @@ Export requirements:
 - Admin users can export their own data. Cross-user export is out of scope for
   the MVP.
 - Include profiles, bank accounts, client companies, invoices, line items,
-  invoice snapshots, revisions, milestone dates, tax periods, and the metadata
+  invoice snapshots, revisions, lifecycle status, tax periods, and the metadata
   for invoice and tax-period documents.
 - Use a stable JSON format first.
 - CSV export can be added for invoices and line items.
@@ -581,25 +548,15 @@ rebuilt from scratch as a result.
 - **Phases 2 and 3 below**: full CRUD for sender profiles, bank accounts,
   clients and invoices, with the setup gate on invoice creation.
 
-### Phase 1: Schema
+### Phase 1: Invoice identity and initial lifecycle — **done**
 
-One migration, additive except for the status column.
-
-- Add the billing milestones (`verifiedAt`, `sentAt`, `receivedAt`, `paidAt`,
-  `voidedAt`) and `cfdiIssuedAt` to `Invoice`.
-- Backfill from `status`: `SENT` → `sentAt`, `PAID` → `paidAt` **and** `sentAt`,
-  `VOID` → `voidedAt`, `DRAFT` → all null. Use `updatedAt` as the date, since it
-  is the only evidence the old schema kept.
-- Drop the `status` column and the `InvoiceStatus` enum from the database.
-  `InvoiceStatus` becomes a TypeScript union produced by a pure
-  `deriveInvoiceStatus()`; `@billow/db/enums` stops exporting it.
-- Add `InvoiceDocument` and `InvoiceDocumentKind`.
-- Add `TaxPeriod`, `TaxPeriodDocument`, and `TaxPeriodDocumentKind`.
-- Rewrite the dashboard aggregates: open is `voidedAt: null, paidAt: null`,
-  paid is `paidAt: { not: null }`.
-- Update `InvoiceStatusBadge`, the seed, and the backup/restore shape.
-- Run the `data-classification` skill: three new models need inventory rows and
-  an encryption-boundary decision.
+- Add an opaque UUID public ID without changing the internal relational keys.
+- Extend the stored status through Tax receipt, Tax return, and Done.
+- Route invoice reads and writes by public ID plus the owning user.
+- Add lifecycle revision history (the original one-step action was later
+  replaced by dated facts in Phase 4).
+- Update dashboard aggregates, backup validation, CSV labels, and status badges.
+- Record the UUID and status encryption boundary in the data inventory.
 
 ### Phase 2: Records CRUD — **done**
 
@@ -631,28 +588,30 @@ The prerequisite for everything else being usable.
   live records today, so editing a client's address changes how an old invoice
   renders. The snapshot columns land with the Phase 1 migration.
 
-### Phase 4: Tracking
+### Phase 4: Tracking — **done**
 
 The point of the whole exercise.
 
-- The two-track checklist on the invoice detail page, with editable dates.
-- Backfill-earlier and confirm-before-clearing behavior.
-- Milestone changes appended to the revision log with readable summaries.
-- Invoice list filters and the dashboard "needs attention" section.
+- Dated Sent, Approved, Paid, and CFDI milestones on the invoice detail page.
+- Every date independently editable, with derived status and readable
+  revisions.
+- Dashboard "Needs attention" section driven by missing facts and documents.
+- **Still open:** invoice-list filters and configurable attention thresholds.
 
-### Phase 5: Documents
+### Phase 5: Documents — **partially done**
 
-- CFDI upload on the invoice page, wired to the existing upload pipeline with an
-  invoice-scoped `kind`.
-- Payment proof and signed-copy attachments.
-- Deleting an attachment deletes its `Upload` and its bytes.
+- CFDI XML and PDF upload on the invoice page, wired to strict content sniffing
+  and invoice-scoped upload kinds.
+- Replacing a workflow document deletes its old `Upload` and bytes.
+- **Still open:** general payment-proof and signed-copy attachment management.
 
-### Phase 6: Tax periods
+### Phase 6: Tax periods — **partially done**
 
-- Month view: the month's invoices with CFDI state, tax amount, filed and paid
-  marks, declaration and receipt uploads.
-- Records created on demand.
-- A year overview showing which months are unfinished.
+- Records created on demand from an invoice in the relevant month.
+- Filing date plus tax-return PDF, and amount paid plus payment date and
+  confirmation file.
+- Current-month filing/payment shown in dashboard attention.
+- **Still open:** dedicated month and year overview pages.
 
 ### Phase 7: PDF, import, export
 
@@ -701,12 +660,10 @@ Answered:
 - Include USD, MXN, CAD, and EUR in the first currency picker.
 - Use time-based dashboard grouping for the MVP.
 - Use BetterAuth's password reset flow.
-- Track six milestones per invoice across a billing track and a fiscal track.
-- Milestones are nullable dates and replace the stored status column; the badge
-  is derived from them.
-- Milestone dates are business dates and stay editable; the revision log is the
-  audit trail.
-- The database enforces no milestone ordering; the UI nudges.
+- Give every invoice an opaque UUID distinct from its printed invoice number.
+- Track dated Sent → Approved → Paid → CFDI facts, with a derived stored status
+  and Void as an exceptional terminal state.
+- Append a revision for every invoice-progress edit.
 - Label the fiscal document "Fiscal invoice (CFDI)" in the UI.
 - One CFDI per invoice.
 - The monthly tax report is its own per-month record, not an invoice field.
@@ -715,10 +672,6 @@ Answered:
 
 Open:
 
-- **CFDI XML.** A real CFDI is an XML file plus a PDF rendering, and the upload
-  pipeline accepts only PNG, JPEG, GIF, WEBP, and PDF today. Accepting XML means
-  extending the type sniffing, where XML is genuinely harder to identify than the
-  formats already handled. Storing only the PDF loses the authoritative document.
 - **Which month owns an invoice.** Derived from `invoiceDate` for now, but a CFDI
   issued in the following month is normally declared in that following month, so
   the derivation will be wrong at every month boundary. An explicit override on
@@ -727,18 +680,12 @@ Open:
   for the day. Nothing currently captures that rate, so a USD invoice cannot be
   reconciled against a MXN tax period. Probably an `fxRate` and `fxRateDate` on
   the invoice, captured when the CFDI is marked.
-- **Encryption boundary for the new models.** Milestone dates on `Invoice` reveal
-  payment behaviour; `TaxPeriod.taxDue` reveals income. Neither is searched or
-  sorted in SQL today, so both could be encrypted — but the attention rules and
-  the dashboard aggregates want to filter on exactly these columns, and an
-  encrypted column cannot be filtered. Resolve with the `data-classification`
-  skill before Phase 1 lands, not after.
-- **Attachment bytes in export**, per the import/export section above.
 - **Attention thresholds** as per-user settings rather than constants.
 
 ## Current Repository Note
 
-The invoicing models, the read-only dashboard, and the invoice preview are real
-and working. Everything that writes invoicing data is missing. Treat the docs
-site as the source of truth for how the platform pieces behave, and this file as
-the source of truth for what the product should do.
+The invoicing CRUD, dated progress workflow, CFDI documents, monthly tax filing,
+dashboard attention, backup/restore, invoice preview, and browser print are real
+and working. Treat the docs site as the source of truth for how the platform
+pieces behave, and this file as the source of truth for what the product should
+do next.

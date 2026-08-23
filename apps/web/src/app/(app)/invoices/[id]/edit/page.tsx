@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { InvoiceForm } from "@/app/(app)/invoices/_components/invoice-form";
 import type { InvoiceFormValues } from "@/lib/schemas/workspace";
+import { invoicePublicIdSchema } from "@/lib/schemas/workspace";
 import {
   getInvoiceForEdit,
   getInvoiceFormOptions,
@@ -18,12 +19,10 @@ export default async function EditInvoicePage({
 }) {
   const session = await requireSession();
   const { id } = await params;
-  const invoiceId = Number.parseInt(id, 10);
-
-  if (Number.isNaN(invoiceId)) notFound();
+  if (!invoicePublicIdSchema.safeParse(id).success) notFound();
 
   const [invoice, options] = await Promise.all([
-    getInvoiceForEdit(invoiceId, session.user.id),
+    getInvoiceForEdit(id, session.user.id),
     getInvoiceFormOptions(session.user.id),
   ]);
 

@@ -14,7 +14,7 @@ import { notifyError, notifySuccess } from "@/lib/notify";
  * lands on the edit screen rather than the preview: the user came here to
  * change the dates and send it, not to admire it.
  */
-export function DuplicateButton({ id }: { id: number }) {
+export function DuplicateButton({ id }: { id: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 

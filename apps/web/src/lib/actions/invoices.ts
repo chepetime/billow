@@ -9,13 +9,15 @@ import {
   ok,
   toActionError,
 } from "@/lib/actions/result";
-import { parseDateOnly, toDateInputValue } from "@/lib/date-only";
+import { parseDateOnly } from "@/lib/date-only";
 import {
   type InvoiceSnapshot,
   summarizeInvoiceChanges,
+  toStoredInvoiceSnapshot,
 } from "@/lib/invoice-revision";
 import {
   type InvoiceInput,
+  invoicePublicIdSchema,
   invoiceSchema,
   lineItemAmount,
 } from "@/lib/schemas/workspace";
@@ -32,7 +34,7 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 const DUPLICATE_NUMBER =
   "You already have an invoice with that number. Pick another.";
 
-function revalidate(id?: number) {
+function revalidate(id?: string) {
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
   if (id !== undefined) {
@@ -56,12 +58,22 @@ function toLineItemRows(lineItems: InvoiceInput["lineItems"]) {
 function toSnapshot(
   input: InvoiceInput,
   rows: ReturnType<typeof toLineItemRows>,
+  progress: Pick<
+    InvoiceSnapshot,
+    "sentAt" | "approvedAt" | "paidAt" | "cfdiIssuedAt"
+  > = {
+    sentAt: null,
+    approvedAt: null,
+    paidAt: null,
+    cfdiIssuedAt: null,
+  },
 ): InvoiceSnapshot {
   return {
     invoiceNumber: input.invoiceNumber,
     invoiceDate: input.invoiceDate,
     currency: input.currency,
     status: input.status,
+    ...progress,
     notes: input.notes,
     userProfileId: input.userProfileId,
     bankAccountId: input.bankAccountId,
@@ -72,7 +84,7 @@ function toSnapshot(
 
 export async function createInvoice(
   input: InvoiceInput,
-): Promise<ActionResult<{ id: number }>> {
+): Promise<ActionResult<{ id: string }>> {
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) return fail("Check the highlighted fields.");
 
@@ -113,14 +125,14 @@ export async function createInvoice(
           invoiceNumber: parsed.data.invoiceNumber,
           invoiceDate,
           currency: parsed.data.currency,
-          status: parsed.data.status,
+          status: "DRAFT",
           notes: parsed.data.notes,
           userProfileId: profile.id,
           bankAccountId: bankAccount.id,
           clientCompanyId: client.id,
           lineItems: { create: rows },
         },
-        select: { id: true },
+        select: { id: true, publicId: true },
       });
 
       await tx.invoiceRevision.create({
@@ -131,12 +143,12 @@ export async function createInvoice(
           summary: "Created invoice.",
           payload: {
             before: null,
-            after: toSnapshot(parsed.data, rows),
+            after: toSnapshot({ ...parsed.data, status: "DRAFT" }, rows),
           },
         },
       });
 
-      return invoice.id;
+      return invoice.publicId;
     });
 
     if (id === null) {
@@ -153,9 +165,13 @@ export async function createInvoice(
 }
 
 export async function updateInvoice(
-  id: number,
+  id: string,
   input: InvoiceInput,
 ): Promise<ActionResult> {
+  if (!invoicePublicIdSchema.safeParse(id).success) {
+    return fail("That invoice is no longer in your workspace.");
+  }
+
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) return fail("Check the highlighted fields.");
 
@@ -171,7 +187,7 @@ export async function updateInvoice(
 
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.invoice.findFirst({
-        where: { id, userId },
+        where: { publicId: id, userId },
         include: {
           lineItems: { orderBy: { position: "asc" } },
           revisions: {
@@ -199,38 +215,33 @@ export async function updateInvoice(
       ]);
       if (!profile || !bankAccount || !client) return "foreign" as const;
 
-      const before: InvoiceSnapshot = {
-        invoiceNumber: existing.invoiceNumber,
-        invoiceDate: toDateInputValue(existing.invoiceDate),
-        currency: existing.currency,
-        status: existing.status,
-        notes: existing.notes,
-        userProfileId: existing.userProfileId,
-        bankAccountId: existing.bankAccountId,
-        clientCompanyId: existing.clientCompanyId,
-        lineItems: existing.lineItems.map((item) => ({
-          description: item.description,
-          note: item.note,
-          quantity: Number(item.quantity),
-          rate: Number(item.rate),
-          amount: Number(item.amount),
-        })),
-      };
-      const after = toSnapshot(parsed.data, rows);
+      const before = toStoredInvoiceSnapshot(existing);
+      const after = toSnapshot(
+        { ...parsed.data, status: existing.status },
+        rows,
+        {
+          sentAt: before.sentAt,
+          approvedAt: before.approvedAt,
+          paidAt: before.paidAt,
+          cfdiIssuedAt: before.cfdiIssuedAt,
+        },
+      );
 
       // Replace rather than reconcile: line items have no identity a user
       // would recognise across a save — reordering two rows is
       // indistinguishable from editing both — and the revision payload is
       // what preserves the old set.
-      await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
+      await tx.invoiceLineItem.deleteMany({
+        where: { invoiceId: existing.id },
+      });
 
       await tx.invoice.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           invoiceNumber: parsed.data.invoiceNumber,
           invoiceDate,
           currency: parsed.data.currency,
-          status: parsed.data.status,
+          status: existing.status,
           notes: parsed.data.notes,
           userProfileId: profile.id,
           bankAccountId: bankAccount.id,
@@ -241,7 +252,7 @@ export async function updateInvoice(
 
       await tx.invoiceRevision.create({
         data: {
-          invoiceId: id,
+          invoiceId: existing.id,
           revisionNumber: (existing.revisions[0]?.revisionNumber ?? 0) + 1,
           editor: session.user.name || session.user.email,
           summary: summarizeInvoiceChanges(before, after),
@@ -268,13 +279,17 @@ export async function updateInvoice(
   }
 }
 
-export async function deleteInvoice(id: number): Promise<ActionResult> {
+export async function deleteInvoice(id: string): Promise<ActionResult> {
+  if (!invoicePublicIdSchema.safeParse(id).success) {
+    return fail("That invoice is no longer in your workspace.");
+  }
+
   try {
     const { prisma } = await getWorkspacePrisma();
     const session = await requireSession();
 
     const { count } = await prisma.invoice.deleteMany({
-      where: { id, userId: session.user.id },
+      where: { publicId: id, userId: session.user.id },
     });
 
     if (count === 0)
@@ -295,8 +310,12 @@ export async function deleteInvoice(id: number): Promise<ActionResult> {
  * six line items every month is the part of the old app worth deleting.
  */
 export async function duplicateInvoice(
-  id: number,
-): Promise<ActionResult<{ id: number }>> {
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!invoicePublicIdSchema.safeParse(id).success) {
+    return fail("That invoice is no longer in your workspace.");
+  }
+
   try {
     const { prisma } = await getWorkspacePrisma();
     const session = await requireSession();
@@ -304,7 +323,7 @@ export async function duplicateInvoice(
 
     const result = await prisma.$transaction(async (tx) => {
       const source = await tx.invoice.findFirst({
-        where: { id, userId },
+        where: { publicId: id, userId },
         include: { lineItems: { orderBy: { position: "asc" } } },
       });
       if (!source) return null;
@@ -338,7 +357,7 @@ export async function duplicateInvoice(
             })),
           },
         },
-        select: { id: true },
+        select: { id: true, publicId: true },
       });
 
       await tx.invoiceRevision.create({
@@ -351,7 +370,7 @@ export async function duplicateInvoice(
         },
       });
 
-      return created.id;
+      return created.publicId;
     });
 
     if (result === null)

@@ -7,11 +7,17 @@
  * change never costs the reconstructable record.
  */
 
+import { toDateInputValue } from "@/lib/date-only";
+
 export type InvoiceSnapshot = {
   invoiceNumber: number;
   invoiceDate: string;
   currency: string;
   status: string;
+  sentAt: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  cfdiIssuedAt: string | null;
   notes: string | null;
   userProfileId: number;
   bankAccountId: number;
@@ -30,11 +36,63 @@ const FIELD_LABELS: Record<string, string> = {
   invoiceDate: "date",
   currency: "currency",
   status: "status",
+  sentAt: "sent date",
+  approvedAt: "approval date",
+  paidAt: "payment date",
+  cfdiIssuedAt: "CFDI issued date",
   notes: "notes",
   userProfileId: "sender",
   bankAccountId: "bank account",
   clientCompanyId: "client",
 };
+
+export function toStoredInvoiceSnapshot(invoice: {
+  invoiceNumber: number;
+  invoiceDate: Date;
+  currency: string;
+  status: string;
+  sentAt: Date | null;
+  approvedAt: Date | null;
+  paidAt: Date | null;
+  cfdiIssuedAt: Date | null;
+  notes: string | null;
+  userProfileId: number;
+  bankAccountId: number;
+  clientCompanyId: number;
+  lineItems: Array<{
+    description: string;
+    note: string | null;
+    quantity: unknown;
+    rate: unknown;
+    amount: unknown;
+  }>;
+}): InvoiceSnapshot {
+  return {
+    invoiceNumber: invoice.invoiceNumber,
+    invoiceDate: toDateInputValue(invoice.invoiceDate),
+    currency: invoice.currency,
+    status: invoice.status,
+    sentAt: invoice.sentAt ? toDateInputValue(invoice.sentAt) : null,
+    approvedAt: invoice.approvedAt
+      ? toDateInputValue(invoice.approvedAt)
+      : null,
+    paidAt: invoice.paidAt ? toDateInputValue(invoice.paidAt) : null,
+    cfdiIssuedAt: invoice.cfdiIssuedAt
+      ? toDateInputValue(invoice.cfdiIssuedAt)
+      : null,
+    notes: invoice.notes,
+    userProfileId: invoice.userProfileId,
+    bankAccountId: invoice.bankAccountId,
+    clientCompanyId: invoice.clientCompanyId,
+    lineItems: invoice.lineItems.map((item) => ({
+      description: item.description,
+      note: item.note,
+      quantity: Number(item.quantity),
+      rate: Number(item.rate),
+      amount: Number(item.amount),
+    })),
+  };
+}
 
 function totalOf(snapshot: InvoiceSnapshot) {
   const cents = snapshot.lineItems.reduce(

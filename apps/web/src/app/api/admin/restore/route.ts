@@ -18,7 +18,7 @@ import {
 } from "@/lib/backup-format";
 import { restoreUploads } from "@/lib/backup-uploads";
 import { recordError } from "@/lib/error-log";
-import { MAX_UPLOADS_PER_USER_BYTES } from "@/lib/uploads";
+import { deleteUpload, MAX_UPLOADS_PER_USER_BYTES } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -176,16 +176,34 @@ export async function POST(request: Request) {
   if (!parsed.success) return validationError(parsed.error);
 
   try {
-    const summary = await importWorkspace(session.user.id, parsed.data.data);
-    // Deliberately after the domain transaction commits — writing files is not
-    // something Postgres can roll back. See lib/backup-uploads.ts.
     const uploads = await restoreUploads(
       session.user.id,
       parsed.data.data.uploads,
       files,
     );
+    let summary: Awaited<ReturnType<typeof importWorkspace>>;
+    try {
+      summary = await importWorkspace(
+        session.user.id,
+        parsed.data.data,
+        uploads.uploadIdMap,
+      );
+    } catch (importError) {
+      await Promise.allSettled(
+        uploads.restoredUploadIds.map((id) =>
+          deleteUpload(session.user.id, id),
+        ),
+      );
+      throw importError;
+    }
 
-    return NextResponse.json({ summary, uploads });
+    const {
+      uploadIdMap: _uploadIdMap,
+      restoredUploadIds: _ids,
+      ...publicUploads
+    } = uploads;
+
+    return NextResponse.json({ summary, uploads: publicUploads });
   } catch (importError) {
     await recordError("admin.backup.import", importError);
     return error("Could not import the backup file.", 500);

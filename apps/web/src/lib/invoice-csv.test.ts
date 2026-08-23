@@ -48,11 +48,17 @@ describe("invoicesToCsv", () => {
     const csv = invoicesToCsv([
       row({ invoiceNumber: 1, status: "SENT" }),
       row({ invoiceNumber: 2, status: "PAID" }),
-      row({ invoiceNumber: 3, status: "VOID" }),
+      row({ invoiceNumber: 3, status: "TAX_RECEIPT" }),
+      row({ invoiceNumber: 4, status: "TAX_RETURN" }),
+      row({ invoiceNumber: 5, status: "DONE" }),
+      row({ invoiceNumber: 6, status: "VOID" }),
     ]);
 
     expect(csv).toContain(",Sent,");
     expect(csv).toContain(",Paid,");
+    expect(csv).toContain(",Tax receipt,");
+    expect(csv).toContain(",Tax return,");
+    expect(csv).toContain(",Done,");
     expect(csv).toContain(",Void,");
   });
 });

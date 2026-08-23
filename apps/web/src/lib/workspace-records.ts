@@ -78,10 +78,14 @@ export async function listInvoices(userId: string) {
   );
 
   return {
-    invoices: invoices.map((invoice) => ({
-      ...invoice,
-      total: totalById.get(invoice.id) ?? 0,
-    })),
+    invoices: invoices.map((invoice) => {
+      const { id: internalId, publicId, ...fields } = invoice;
+      return {
+        ...fields,
+        id: publicId,
+        total: totalById.get(internalId) ?? 0,
+      };
+    }),
     count,
     truncated: count > invoices.length,
   };
@@ -93,17 +97,17 @@ export async function listInvoices(userId: string) {
  * component, and converting them at the boundary keeps that conversion in one
  * place instead of in every field.
  */
-export async function getInvoiceForEdit(id: number, userId: string) {
+export async function getInvoiceForEdit(id: string, userId: string) {
   const { prisma } = await getWorkspacePrisma();
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id, userId },
+    where: { publicId: id, userId },
     include: { lineItems: { orderBy: { position: "asc" } } },
   });
   if (!invoice) return null;
 
   return {
-    id: invoice.id,
+    id: invoice.publicId,
     values: {
       userProfileId: invoice.userProfileId,
       bankAccountId: invoice.bankAccountId,

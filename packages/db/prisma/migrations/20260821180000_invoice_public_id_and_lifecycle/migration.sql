@@ -1,0 +1,8 @@
+ALTER TYPE "InvoiceStatus" ADD VALUE 'TAX_RECEIPT' AFTER 'PAID';
+ALTER TYPE "InvoiceStatus" ADD VALUE 'TAX_RETURN' AFTER 'TAX_RECEIPT';
+ALTER TYPE "InvoiceStatus" ADD VALUE 'DONE' AFTER 'TAX_RETURN';
+
+ALTER TABLE "Invoice"
+ADD COLUMN "publicId" UUID NOT NULL DEFAULT gen_random_uuid();
+
+CREATE UNIQUE INDEX "Invoice_publicId_key" ON "Invoice"("publicId");

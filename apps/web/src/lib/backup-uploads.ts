@@ -21,11 +21,11 @@ import { MAX_UPLOADS_PER_USER_BYTES, wouldExceedQuota } from "@/lib/uploads";
  * touches the disk.
  *
  * It also runs *outside* the domain-data transaction, because a filesystem
- * write cannot be rolled back by Postgres. Sequencing is therefore: import
- * rows in one transaction, then restore files. A crash in between leaves the
- * domain data restored and some files missing, which is recoverable by
- * re-running the restore; the inverse — files with no rows — would be
- * invisible garbage.
+ * write cannot be rolled back by Postgres. Files are restored first so the
+ * domain transaction can reconnect document relations through `uploadIdMap`.
+ * If that transaction fails, the route deletes every upload created here.
+ * A process crash can still leave owner-scoped upload rows, but never invisible
+ * bytes without rows; re-running or deleting those uploads is recoverable.
  */
 
 export type UploadRestoreSummary = {
@@ -33,6 +33,10 @@ export type UploadRestoreSummary = {
   skippedUploads: number;
   /** Human-readable reasons, surfaced so a partial restore is never silent. */
   reasons: string[];
+  /** Internal remapping used to reconnect workflow-document relations. */
+  uploadIdMap: Map<string, string>;
+  /** Internal cleanup list if the later domain transaction fails. */
+  restoredUploadIds: string[];
 };
 
 export async function restoreUploads(
@@ -44,6 +48,8 @@ export async function restoreUploads(
   const reasons: string[] = [];
   let restored = 0;
   let skipped = 0;
+  const uploadIdMap = new Map<string, string>();
+  const restoredUploadIds: string[] = [];
 
   const existing = await prisma.upload.aggregate({
     where: { userId },
@@ -95,7 +101,7 @@ export async function restoreUploads(
     await writeObject(key, bytes);
 
     try {
-      await prisma.upload.create({
+      const created = await prisma.upload.create({
         data: {
           userId,
           storageKey: key,
@@ -103,9 +109,15 @@ export async function restoreUploads(
           contentType: detected.mime,
           size: bytes.byteLength,
           checksum: upload.checksum,
-          kind: upload.kind,
+          // Start every restored file as a manageable account attachment.
+          // The domain transaction promotes files it successfully reconnects
+          // to invoice/tax documents. If a parent row is skipped, its file is
+          // still visible to the owner instead of becoming hidden garbage.
+          kind: "attachment",
         },
       });
+      if (upload.id) uploadIdMap.set(upload.id, created.id);
+      restoredUploadIds.push(created.id);
       usedBytes += bytes.byteLength;
       restored += 1;
     } catch (createError) {
@@ -124,5 +136,11 @@ export async function restoreUploads(
     );
   }
 
-  return { uploads: restored, skippedUploads: skipped, reasons };
+  return {
+    uploads: restored,
+    skippedUploads: skipped,
+    reasons,
+    uploadIdMap,
+    restoredUploadIds,
+  };
 }

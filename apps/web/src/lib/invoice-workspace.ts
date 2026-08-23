@@ -2,6 +2,11 @@ import "server-only";
 
 import type { Prisma } from "@billow/db/client";
 import { recordError } from "@/lib/error-log";
+import {
+  CLOSED_INVOICE_STATUSES,
+  invoiceAttentionLabel,
+  PAID_INVOICE_STATUSES,
+} from "@/lib/invoice-status";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 /**
@@ -11,13 +16,6 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
  * created, each hydrated with its line items and joins, on a 128 MB heap.
  */
 export const RECENT_INVOICE_LIMIT = 8;
-
-// "Open" is defined by exclusion, exactly as the previous in-memory filter
-// defined it (`status !== PAID && status !== VOID`). Stated as `notIn` rather
-// than `in: [DRAFT, SENT]` so a status added to the enum later keeps counting
-// as money still owed — the safe default — instead of silently vanishing from
-// the total.
-const CLOSED_STATUSES = ["PAID", "VOID"] as const;
 
 /**
  * The half-open instant range covering the calendar month containing `now`.
@@ -49,20 +47,24 @@ export type WorkspaceInvoice = Awaited<
   ReturnType<typeof getInvoiceWorkspace>
 >["recentInvoices"][number];
 
-export async function getInvoiceById(id: number, userId: string) {
+export async function getInvoiceById(id: string, userId: string) {
   try {
     // Encrypted-aware, like getInvoiceWorkspace below: userProfile and
     // bankAccount come back readable when this request can reach the data
     // key, and as ciphertext (with `encrypted: false`) when it cannot.
     const { prisma, encrypted } = await getWorkspacePrisma();
     const invoice = await prisma.invoice.findFirst({
-      where: { id, userId },
+      where: { publicId: id, userId },
       include: {
         userProfile: true,
         bankAccount: true,
         clientCompany: true,
         lineItems: { orderBy: { position: "asc" } },
         revisions: { orderBy: { revisionNumber: "desc" } },
+        documents: {
+          include: { upload: true },
+          orderBy: { kind: "asc" },
+        },
       },
     });
 
@@ -74,9 +76,34 @@ export async function getInvoiceById(id: number, userId: string) {
       return sum + Number(lineItem.amount);
     }, 0);
 
-    return { ...invoice, total, encrypted };
+    const { id: _internalId, publicId, ...fields } = invoice;
+    return { ...fields, id: publicId, total, encrypted };
   } catch (error) {
     console.error("Failed to load invoice", error);
+    return null;
+  }
+}
+
+export async function getTaxPeriodForMonth(userId: string, date: Date) {
+  try {
+    const { prisma } = await getWorkspacePrisma();
+    return prisma.taxPeriod.findUnique({
+      where: {
+        userId_year_month: {
+          userId,
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+        },
+      },
+      include: {
+        documents: {
+          include: { upload: true },
+          orderBy: { kind: "asc" },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load monthly tax filing", error);
     return null;
   }
 }
@@ -99,6 +126,9 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       currentSum,
       openSum,
       paidSum,
+      attentionInvoices,
+      currentTaxPeriod,
+      currentMonthInvoice,
     ] = await Promise.all([
       prisma.appMetadata.findUnique({ where: { appId: "billow" } }),
       prisma.userProfile.findMany({
@@ -148,11 +178,56 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       }),
       prisma.invoiceLineItem.aggregate({
         _sum: { amount: true },
-        where: { invoice: { userId, status: { notIn: [...CLOSED_STATUSES] } } },
+        where: {
+          invoice: {
+            userId,
+            status: { notIn: [...CLOSED_INVOICE_STATUSES] },
+          },
+        },
       }),
       prisma.invoiceLineItem.aggregate({
         _sum: { amount: true },
-        where: { invoice: { userId, status: "PAID" } },
+        where: {
+          invoice: { userId, status: { in: [...PAID_INVOICE_STATUSES] } },
+        },
+      }),
+      prisma.invoice.findMany({
+        where: {
+          userId,
+          status: { not: "VOID" },
+          // Status is only a cached summary. Query the underlying facts so a
+          // restored or legacy DONE row with no CFDI files cannot disappear
+          // from the attention list forever.
+          OR: [
+            { sentAt: null },
+            { approvedAt: null },
+            { paidAt: null },
+            { cfdiIssuedAt: null },
+            { documents: { none: { kind: "CFDI_XML" } } },
+            { documents: { none: { kind: "CFDI_PDF" } } },
+          ],
+        },
+        include: {
+          clientCompany: { select: { name: true } },
+          documents: { select: { kind: true } },
+        },
+        orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }],
+        take: 8,
+      }),
+      prisma.taxPeriod.findUnique({
+        where: {
+          userId_year_month: {
+            userId,
+            year: now.getFullYear(),
+            month: now.getMonth() + 1,
+          },
+        },
+        include: { documents: { select: { kind: true } } },
+      }),
+      prisma.invoice.findFirst({
+        where: { userId, invoiceDate: month },
+        orderBy: [{ invoiceDate: "desc" }, { invoiceNumber: "desc" }],
+        select: { publicId: true },
       }),
     ]);
 
@@ -164,8 +239,67 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
         return sum + Number(lineItem.amount);
       }, 0);
 
-      return { ...invoice, total };
+      const { id: _internalId, publicId, ...fields } = invoice;
+      return { ...fields, id: publicId, total };
     });
+
+    const attention = attentionInvoices.flatMap((invoice) => {
+      const label = invoiceAttentionLabel({
+        currentStatus: invoice.status,
+        sentAt: invoice.sentAt,
+        approvedAt: invoice.approvedAt,
+        paidAt: invoice.paidAt,
+        cfdiIssuedAt: invoice.cfdiIssuedAt,
+        hasCfdiXml: invoice.documents.some(
+          (document) => document.kind === "CFDI_XML",
+        ),
+        hasCfdiPdf: invoice.documents.some(
+          (document) => document.kind === "CFDI_PDF",
+        ),
+      });
+      return label
+        ? [
+            {
+              key: `invoice-${invoice.publicId}`,
+              href: `/invoices/${invoice.publicId}`,
+              title: label,
+              detail: `Invoice #${invoice.invoiceNumber} · ${invoice.clientCompany.name}`,
+            },
+          ]
+        : [];
+    });
+
+    if (currentMonthInvoice) {
+      const monthLabel = new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        year: "numeric",
+      }).format(now);
+      const hasReturn = currentTaxPeriod?.documents.some(
+        (document) => document.kind === "TAX_RETURN",
+      );
+      const hasConfirmation = currentTaxPeriod?.documents.some(
+        (document) => document.kind === "PAYMENT_CONFIRMATION",
+      );
+      if (!currentTaxPeriod?.filedAt || !hasReturn) {
+        attention.push({
+          key: `tax-${now.getFullYear()}-${now.getMonth() + 1}-filing`,
+          href: `/invoices/${currentMonthInvoice.publicId}`,
+          title: `Complete the ${monthLabel} monthly tax filing`,
+          detail: "Add the filing date and tax return PDF.",
+        });
+      } else if (
+        !currentTaxPeriod.paidAt ||
+        currentTaxPeriod.amountPaid === null ||
+        !hasConfirmation
+      ) {
+        attention.push({
+          key: `tax-${now.getFullYear()}-${now.getMonth() + 1}-payment`,
+          href: `/invoices/${currentMonthInvoice.publicId}`,
+          title: `Complete the ${monthLabel} tax payment`,
+          detail: "Add the amount, payment date, and confirmation.",
+        });
+      }
+    }
 
     return {
       databaseAvailable: true,
@@ -178,6 +312,7 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       // gone with it: reducing a truncated list is exactly the mistake this
       // change exists to prevent, so the shape no longer offers the option.
       recentInvoices: invoicesWithTotals,
+      attention,
       hasWorkspace:
         userProfiles.length > 0 &&
         bankAccounts.length > 0 &&
@@ -201,6 +336,7 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       bankAccounts: [],
       clientCompanies: [],
       recentInvoices: [],
+      attention: [],
       hasWorkspace: false,
       nextInvoiceNumber: 1,
       stats: {

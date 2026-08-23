@@ -2,20 +2,20 @@
 // in step with that package, and audit the two together.
 
 model User {
-  id                String      @id @default(cuid())
+  id                String             @id @default(cuid())
   name              String
-  email             String      @unique
-  emailVerified     Boolean     @default(false)
+  email             String             @unique
+  emailVerified     Boolean            @default(false)
   image             String?
-  username          String?     @unique
+  username          String?            @unique
   displayUsername   String?
-  twoFactorEnabled  Boolean     @default(false)
+  twoFactorEnabled  Boolean            @default(false)
   role              String?
-  banned            Boolean?    @default(false)
+  banned            Boolean?           @default(false)
   banReason         String?
   banExpires        DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   sessions          Session[]
   accounts          Account[]
   twoFactors        TwoFactor[]
@@ -24,6 +24,7 @@ model User {
   userProfiles      UserProfile[]
   clientCompanies   ClientCompany[]
   invoices          Invoice[]
+  taxPeriods        TaxPeriod[]
   vaultEntry        VaultEntry?
   keyset            UserKeyset?
   onboarding        UserOnboarding?
@@ -146,15 +147,15 @@ model TwoFactor {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  impersonatedBy String?
-  userId    String
+  id                         String   @id @default(cuid())
+  expiresAt                  DateTime
+  token                      String   @unique
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  ipAddress                  String?
+  userAgent                  String?
+  impersonatedBy             String?
+  userId                     String
   /// The user's data key, sealed under a random key that exists only in this
   /// session's httpOnly cookie. Storing it is safe because it is inert without
   /// that cookie, and it is what lets a server component reach the data key
@@ -162,7 +163,7 @@ model Session {
   /// rest. Null for sessions predating the keyset and for API-key callers,
   /// which carry no cookie and so cannot decrypt.
   dataKeyWrappedBySessionKey String?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("session")

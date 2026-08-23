@@ -19,10 +19,19 @@ const {
   getInvoiceWorkspace,
 } = await import("@/lib/invoice-workspace");
 
-type Status = "DRAFT" | "SENT" | "PAID" | "VOID";
+type Status =
+  | "DRAFT"
+  | "SENT"
+  | "APPROVED"
+  | "PAID"
+  | "TAX_RECEIPT"
+  | "TAX_RETURN"
+  | "DONE"
+  | "VOID";
 
 type Seed = {
   id: number;
+  publicId: string;
   invoiceNumber: number;
   invoiceDate: Date;
   status: Status;
@@ -48,7 +57,7 @@ function fakePrisma(seeds: Seed[]) {
     seed: Seed,
     where: {
       userId?: string;
-      status?: Status | { notIn?: Status[] };
+      status?: Status | { in?: Status[]; notIn?: Status[] };
       invoiceDate?: { gte?: Date; lt?: Date };
     },
   ) => {
@@ -62,6 +71,14 @@ function fakePrisma(seeds: Seed[]) {
       where.status &&
       typeof where.status === "object" &&
       where.status.notIn?.includes(seed.status)
+    ) {
+      return false;
+    }
+    if (
+      where.status &&
+      typeof where.status === "object" &&
+      where.status.in &&
+      !where.status.in.includes(seed.status)
     ) {
       return false;
     }
@@ -83,8 +100,12 @@ function fakePrisma(seeds: Seed[]) {
     bankAccount: { findMany: async () => [{ id: 1 }] },
     clientCompany: { findMany: async () => [{ id: 1 }] },
     invoice: {
-      findMany: async (args: { where: { userId: string }; take?: number }) => {
-        listQueries.push({ take: args.take });
+      findMany: async (args: {
+        where: { userId: string };
+        take?: number;
+        include?: { lineItems?: unknown; documents?: unknown };
+      }) => {
+        if (args.include?.lineItems) listQueries.push({ take: args.take });
         return seeds
           .filter((seed) => matchesInvoice(seed, args.where))
           .sort(
@@ -95,10 +116,16 @@ function fakePrisma(seeds: Seed[]) {
           .slice(0, args.take)
           .map((seed) => ({
             id: seed.id,
+            publicId: seed.publicId,
             invoiceNumber: seed.invoiceNumber,
             invoiceDate: seed.invoiceDate,
             status: seed.status,
+            sentAt: null,
+            approvedAt: null,
+            paidAt: null,
+            cfdiIssuedAt: null,
             clientCompany: { id: 1, name: "Acme Co" },
+            documents: [],
             lineItems: seed.amounts.map((amount, index) => ({
               id: index,
               amount: new Prisma.Decimal(amount),
@@ -133,6 +160,7 @@ function fakePrisma(seeds: Seed[]) {
         };
       },
     },
+    taxPeriod: { findUnique: async () => null },
   };
 
   return { prisma, listQueries, aggregateQueries };
@@ -144,6 +172,7 @@ const NOW = new Date(2026, 6, 15, 12, 0, 0); // 15 July 2026
 
 function seed(overrides: Partial<Seed> & { id: number }): Seed {
   return {
+    publicId: `00000000-0000-4000-8000-${overrides.id.toString().padStart(12, "0")}`,
     invoiceNumber: overrides.id,
     invoiceDate: new Date(2026, 6, 10),
     status: "SENT",
@@ -201,7 +230,10 @@ describe("getInvoiceById", () => {
       },
     });
 
-    const invoice = await getInvoiceById(1, "user-1");
+    const invoice = await getInvoiceById(
+      "c4d76986-85ff-46eb-8e5e-83ab08c698a6",
+      "user-1",
+    );
 
     expect(invoice?.userProfile.taxId).toBe("decrypted-tax-id");
     expect(invoice?.bankAccount.accountNumber).toBe("decrypted-account-number");
@@ -225,7 +257,10 @@ describe("getInvoiceById", () => {
       },
     });
 
-    const invoice = await getInvoiceById(1, "user-1");
+    const invoice = await getInvoiceById(
+      "c4d76986-85ff-46eb-8e5e-83ab08c698a6",
+      "user-1",
+    );
 
     expect(invoice?.encrypted).toBe(false);
   });
@@ -248,6 +283,15 @@ describe("currentMonthRange", () => {
 });
 
 describe("getInvoiceWorkspace totals", () => {
+  it("exposes the opaque invoice ID instead of the internal integer key", async () => {
+    const invoice = seed({ id: 17 });
+    install([invoice]);
+
+    const workspace = await getInvoiceWorkspace("user-1", NOW);
+
+    expect(workspace.recentInvoices[0]?.id).toBe(invoice.publicId);
+  });
+
   it("aggregates every invoice while the list stops at the limit", async () => {
     // 40 invoices of 100 each, all this month and all open. If the totals were
     // still reduced from the returned list they would read 800, not 4000 —
@@ -280,21 +324,24 @@ describe("getInvoiceWorkspace totals", () => {
     }
   });
 
-  it("counts DRAFT and SENT as open, and excludes PAID and VOID", async () => {
+  it("counts DRAFT and SENT as open, and every post-payment state as paid", async () => {
     install([
       seed({ id: 1, status: "DRAFT", amounts: [10] }),
       seed({ id: 2, status: "SENT", amounts: [20] }),
       seed({ id: 3, status: "PAID", amounts: [40] }),
-      seed({ id: 4, status: "VOID", amounts: [80] }),
+      seed({ id: 4, status: "TAX_RECEIPT", amounts: [80] }),
+      seed({ id: 5, status: "TAX_RETURN", amounts: [160] }),
+      seed({ id: 6, status: "DONE", amounts: [320] }),
+      seed({ id: 7, status: "VOID", amounts: [640] }),
     ]);
 
     const workspace = await getInvoiceWorkspace("user-1", NOW);
 
     expect(workspace.stats.openTotal).toBe(30);
-    expect(workspace.stats.paidTotal).toBe(40);
+    expect(workspace.stats.paidTotal).toBe(600);
     // VOID is in neither bucket, but still in the count and this month's total.
-    expect(workspace.stats.currentTotal).toBe(150);
-    expect(workspace.stats.invoiceCount).toBe(4);
+    expect(workspace.stats.currentTotal).toBe(1270);
+    expect(workspace.stats.invoiceCount).toBe(7);
   });
 
   it("sums every line item on an invoice, not just the first", async () => {

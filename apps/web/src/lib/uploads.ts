@@ -3,7 +3,7 @@ import "server-only";
 import { getPrisma } from "@billow/db";
 import type { Upload } from "@billow/db/client";
 
-import { formatBytes } from "@/lib/schemas/uploads";
+import { formatBytes, type UploadResponse } from "@/lib/schemas/uploads";
 import {
   buildStorageKey,
   checksum,
@@ -30,7 +30,18 @@ import {
 export const MAX_UPLOADS_PER_USER_BYTES = 100 * 1024 * 1024;
 
 const ACCEPTED_TYPES_MESSAGE =
-  "Accepted file types: PNG, JPEG, GIF, WEBP, PDF.";
+  "Accepted file types: PNG, JPEG, GIF, WEBP, PDF, CFDI XML.";
+
+export function toUploadResponse(upload: Upload): UploadResponse {
+  return {
+    id: upload.id,
+    filename: upload.filename,
+    contentType: upload.contentType,
+    size: upload.size,
+    kind: upload.kind,
+    createdAt: upload.createdAt.toISOString(),
+  };
+}
 
 /** Thrown for any upload rejection; the API route maps `status` straight to the response. */
 export class UploadRejectedError extends Error {
@@ -132,7 +143,7 @@ export async function listUploads(
   const prisma = getPrisma();
   const [uploads, used] = await Promise.all([
     prisma.upload.findMany({
-      where: { userId },
+      where: { userId, kind: "attachment" },
       orderBy: { createdAt: "desc" },
     }),
     usageBytes(userId),

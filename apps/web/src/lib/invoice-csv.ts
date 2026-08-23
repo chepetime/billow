@@ -37,7 +37,13 @@ export function invoicesToCsv(rows: InvoiceCsvRow[]): string {
   const lines = [COLUMNS.join(",")];
 
   for (const row of rows) {
-    const status = row.status.charAt(0) + row.status.slice(1).toLowerCase();
+    const status = row.status
+      .toLowerCase()
+      .split("_")
+      .map((word, index) =>
+        index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
+      )
+      .join(" ");
 
     lines.push(
       [

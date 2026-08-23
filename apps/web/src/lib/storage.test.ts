@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildStorageKey,
@@ -17,6 +17,8 @@ import {
   resolveStoragePath,
   resolveUserDirectory,
   safeDisplayName,
+  storageRoot,
+  writeObject,
 } from "@/lib/storage";
 
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -24,12 +26,19 @@ const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
 const webp = new Uint8Array([
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
 ]);
+const cfdiXml = new TextEncoder().encode(
+  '<?xml version="1.0" encoding="UTF-8"?><cfdi:Comprobante Version="4.0" xmlns:cfdi="http://www.sat.gob.mx/cfd/4" />',
+);
 
 describe("detectType", () => {
   it("identifies files by their leading bytes", () => {
     expect(detectType(png)?.mime).toBe("image/png");
     expect(detectType(pdf)?.mime).toBe("application/pdf");
     expect(detectType(webp)?.mime).toBe("image/webp");
+    expect(detectType(cfdiXml)).toEqual({
+      mime: "application/xml",
+      ext: "xml",
+    });
   });
 
   it("rejects content that matches no accepted type", () => {
@@ -43,6 +52,18 @@ describe("detectType", () => {
     // A script renamed to .png still fails, because only bytes are inspected.
     const script = new Uint8Array([0x23, 0x21, 0x2f, 0x62, 0x69, 0x6e]);
     expect(detectType(script)).toBeNull();
+  });
+
+  it("accepts only CFDI-shaped XML and rejects active XML formats", () => {
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script /></svg>',
+    );
+    const withDoctype = new TextEncoder().encode(
+      '<?xml version="1.0"?><!DOCTYPE x><cfdi:Comprobante />',
+    );
+
+    expect(detectType(svg)).toBeNull();
+    expect(detectType(withDoctype)).toBeNull();
   });
 });
 
@@ -81,6 +102,42 @@ describe("buildStorageKey", () => {
     expect(a).not.toBe(b);
     expect(a.startsWith("u1/")).toBe(true);
     expect(a.endsWith(".pdf")).toBe(true);
+  });
+});
+
+describe("storageRoot", () => {
+  let root: string;
+  let previousCwd: string;
+  let previousStorageDir: string | undefined;
+
+  beforeEach(async () => {
+    previousCwd = process.cwd();
+    previousStorageDir = process.env.BILLOW_STORAGE_DIR;
+    root = await mkdtemp(path.join(tmpdir(), "billow-local-dev-"));
+    const appDir = path.join(root, "apps", "web");
+    await mkdir(appDir, { recursive: true });
+    process.chdir(appDir);
+    vi.stubEnv("NODE_ENV", "development");
+    delete process.env.BILLOW_STORAGE_DIR;
+  });
+
+  afterEach(async () => {
+    process.chdir(previousCwd);
+    vi.unstubAllEnvs();
+    process.env.BILLOW_STORAGE_DIR = previousStorageDir;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("uses a writable repository-local directory in development", async () => {
+    const key = "test-user/fiscal-invoice.pdf";
+
+    expect(storageRoot()).toBe(path.resolve(process.cwd(), "../../.uploads"));
+    await expect(
+      writeObject(key, new Uint8Array([0x25, 0x50, 0x44, 0x46])),
+    ).resolves.toBeUndefined();
+    await expect(readFile(path.join(root, ".uploads", key))).resolves.toEqual(
+      Buffer.from([0x25, 0x50, 0x44, 0x46]),
+    );
   });
 });
 

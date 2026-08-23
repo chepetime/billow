@@ -12,7 +12,8 @@ export const uploadResponseSchema = z.object({
   }),
   size: z.number().int().nonnegative().meta({ description: "Size in bytes." }),
   kind: z.string().meta({
-    description: 'Attachment classification. Always "attachment" today.',
+    description:
+      'Attachment classification. Account files use "attachment"; workflow documents are hidden from the account list.',
   }),
   createdAt: z
     .string()

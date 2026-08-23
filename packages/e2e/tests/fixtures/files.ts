@@ -19,6 +19,27 @@ export function validPngFile(name = "billow-e2e.png") {
   };
 }
 
+/** Minimal bytes accepted by the PDF signature sniffer. */
+export function validPdfFile(name = "billow-e2e.pdf") {
+  return {
+    name,
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n%%EOF\n", "utf-8"),
+  };
+}
+
+/** A minimal UTF-8 CFDI document with the expected Comprobante root. */
+export function validCfdiXmlFile(name = "billow-e2e.xml") {
+  return {
+    name,
+    mimeType: "application/xml",
+    buffer: Buffer.from(
+      '<?xml version="1.0" encoding="UTF-8"?><cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0"></cfdi:Comprobante>',
+      "utf-8",
+    ),
+  };
+}
+
 /**
  * Bytes that do not match any of the magic numbers `detectType` (see
  * apps/web/src/lib/storage.ts) accepts — plain text, not a spoofed image.
