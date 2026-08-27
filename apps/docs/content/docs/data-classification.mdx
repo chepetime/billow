@@ -98,6 +98,18 @@ Three consequences worth stating plainly:
   A value that fails to decrypt is reported as `null` rather than throwing, so
   one unreadable column cannot take down a page.
 
+That last point is why `/api/v1/sender-profiles` and `/api/v1/bank-accounts`
+are read-only and partial. They exist so an API caller can pick a
+`userProfileId` and `bankAccountId` for an invoice, and they return only
+plaintext columns — a label, a bank name, a display name. Every sealed field is
+omitted rather than returned as `null`, which would read to a consumer as data
+loss instead of a boundary. There are no writes for the same reason: a create
+or update touching a sealed column is refused outright for a keyless caller, so
+a write endpoint would be broken by construction. The selects live in
+`lib/schemas/references.ts` and are asserted field-by-field against
+`ENCRYPTED_FIELDS`, so sealing a new column fails a test rather than quietly
+nulling a response.
+
 `User.email`, `username`, foreign keys, timestamps, `Invoice.publicId`,
 `Invoice.invoiceNumber`, `Invoice.status`, its four progress dates,
 `TaxPeriod.year`, `month`, `currency`, `amountPaid`, `filedAt`, and `paidAt`,

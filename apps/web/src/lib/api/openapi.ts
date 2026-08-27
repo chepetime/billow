@@ -14,6 +14,10 @@ import {
   invoiceListResponseSchema,
 } from "@/lib/schemas/invoices";
 import {
+  bankAccountListResponseSchema,
+  senderProfileListResponseSchema,
+} from "@/lib/schemas/references";
+import {
   taxPeriodListResponseSchema,
   taxPeriodResponseSchema,
 } from "@/lib/schemas/tax-periods";
@@ -45,6 +49,8 @@ const invoiceSchemaJson = z.toJSONSchema(invoiceDetailResponseSchema);
 const invoiceListSchema = z.toJSONSchema(invoiceListResponseSchema);
 const invoiceInputSchema = z.toJSONSchema(invoiceSchema, { io: "input" });
 const incomeSchema = z.toJSONSchema(incomeSummaryResponseSchema);
+const senderProfileListSchema = z.toJSONSchema(senderProfileListResponseSchema);
+const bankAccountListSchema = z.toJSONSchema(bankAccountListResponseSchema);
 
 /**
  * Response and security fragments, shared rather than pasted.
@@ -247,6 +253,42 @@ export const openApiDocument = {
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/sender-profiles": {
+      get: {
+        operationId: "listSenderProfiles",
+        summary: "List sender profiles",
+        description:
+          "The identities invoices are issued from, as userProfileId values to pick between. Read-only and partial: taxId and address are sealed under the owner's data key, which no API key can reach, so they are omitted rather than returned as nulls.",
+        security: AUTHENTICATED,
+        responses: {
+          "200": {
+            description: "The account's sender profiles.",
+            content: {
+              "application/json": { schema: senderProfileListSchema },
+            },
+          },
+          "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/bank-accounts": {
+      get: {
+        operationId: "listBankAccounts",
+        summary: "List bank accounts",
+        description:
+          "The accounts invoices can be paid into, as bankAccountId values to pick between -- a label and a bank name, never the account itself. Number, IBAN, CLABE, SWIFT and holder are sealed under the owner's data key and are omitted.",
+        security: AUTHENTICATED,
+        responses: {
+          "200": {
+            description: "The account's bank accounts.",
+            content: { "application/json": { schema: bankAccountListSchema } },
+          },
+          "401": UNAUTHORIZED,
           "429": TOO_MANY_REQUESTS,
         },
       },
