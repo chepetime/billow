@@ -33,6 +33,47 @@ const taxPeriodSchemaJson = z.toJSONSchema(taxPeriodResponseSchema);
 const taxPeriodListSchema = z.toJSONSchema(taxPeriodListResponseSchema);
 const taxPeriodInputSchema = z.toJSONSchema(taxPeriodSchema, { io: "input" });
 
+/**
+ * Response and security fragments, shared rather than pasted.
+ *
+ * Every operation here is authenticated the same way and fails the same ways,
+ * so the 401 and 429 entries were byte-identical fifteen times over. Reusing
+ * one object means a change to the wording — or a new shared failure mode —
+ * lands everywhere at once, and a route cannot quietly document a slightly
+ * different 429 than the one it actually returns.
+ */
+const AUTHENTICATED = [
+  { apiKey: [] },
+  { bearerAuth: [] },
+  { sessionCookie: [] },
+];
+
+const jsonError = (description: string) => ({
+  description,
+  content: { "application/json": { schema: errorSchema } },
+});
+
+const UNAUTHORIZED = jsonError("No valid credentials were supplied.");
+
+const FORBIDDEN = jsonError(
+  "A cookie-authenticated request did not originate from this app.",
+);
+
+const TOO_MANY_REQUESTS = jsonError(
+  "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+);
+
+const INVALID_BODY = jsonError(
+  "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
+);
+
+const INVALID_ID = jsonError("The id was not a positive integer.");
+
+/** The path parameter every serial-id entity shares. */
+const ID_PARAMETER = [
+  { name: "id", in: "path", required: true, schema: { type: "integer" } },
+];
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -47,25 +88,18 @@ export const openApiDocument = {
         summary: "Get the current account",
         description:
           "Accepts a personal API key in x-api-key or Authorization: Bearer. A signed-in browser session also works.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         responses: {
           "200": {
             description: "The authenticated account.",
             content: { "application/json": { schema: accountSchema } },
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
           "404": {
             description: "The authenticated account no longer exists.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -75,21 +109,14 @@ export const openApiDocument = {
         summary: "List client companies",
         description:
           'The authenticated account\'s client companies — the "Bill To" details invoices are issued against — ordered by name.',
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         responses: {
           "200": {
             description: "The account's client companies.",
             content: { "application/json": { schema: clientListSchema } },
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
         },
       },
       post: {
@@ -97,7 +124,7 @@ export const openApiDocument = {
         summary: "Create a client company",
         description:
           "Creates a client from the same schema the New client form validates against. Responds with the stored row, so the caller holds the server's normalisation and timestamps.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         requestBody: {
           required: true,
           content: { "application/json": { schema: clientInputSchema } },
@@ -107,30 +134,15 @@ export const openApiDocument = {
             description: "The created client company.",
             content: { "application/json": { schema: clientSchema } },
           },
-          "400": {
-            description:
-              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "409": {
             description:
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -140,37 +152,20 @@ export const openApiDocument = {
         summary: "Get one client company",
         description:
           "Looked up scoped to the authenticated account. An id belonging to another account 404s exactly like a missing one.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         responses: {
           "200": {
             description: "The client company.",
             content: { "application/json": { schema: clientSchema } },
           },
-          "400": {
-            description: "The id was not an integer.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
           "404": {
             description: "No such client exists for this account.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       put: {
@@ -178,15 +173,8 @@ export const openApiDocument = {
         summary: "Replace a client company",
         description:
           "A full replacement, not a merge: every field the form requires is required here, so an omitted field is invalid rather than left unchanged.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         requestBody: {
           required: true,
           content: { "application/json": { schema: clientInputSchema } },
@@ -196,20 +184,9 @@ export const openApiDocument = {
             description: "The updated client company.",
             content: { "application/json": { schema: clientSchema } },
           },
-          "400": {
-            description:
-              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "404": {
             description: "No such client exists for this account.",
             content: { "application/json": { schema: errorSchema } },
@@ -219,11 +196,7 @@ export const openApiDocument = {
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       delete: {
@@ -231,30 +204,13 @@ export const openApiDocument = {
         summary: "Delete a client company",
         description:
           "Refused with 409 while any invoice still refers to this client — invoices keep the billing details they were issued with. Only a client with no invoices can be removed.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         responses: {
           "200": { description: "The client was deleted." },
-          "400": {
-            description: "The id was not an integer.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "404": {
             description: "No such client exists for this account.",
             content: { "application/json": { schema: errorSchema } },
@@ -264,11 +220,7 @@ export const openApiDocument = {
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -278,21 +230,14 @@ export const openApiDocument = {
         summary: "List monthly tax filings",
         description:
           "The authenticated account's tax periods, most recent month first, each with its attached documents. filedAt and paidAt are calendar days (YYYY-MM-DD), not timestamps.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         responses: {
           "200": {
             description: "The account's tax periods.",
             content: { "application/json": { schema: taxPeriodListSchema } },
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
         },
       },
       post: {
@@ -300,7 +245,7 @@ export const openApiDocument = {
         summary: "Create a monthly tax filing",
         description:
           "Creates the filing record for one month. A month that already has one answers 409 rather than overwriting it.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         requestBody: {
           required: true,
           content: { "application/json": { schema: taxPeriodInputSchema } },
@@ -310,29 +255,14 @@ export const openApiDocument = {
             description: "The created tax period.",
             content: { "application/json": { schema: taxPeriodSchemaJson } },
           },
-          "400": {
-            description:
-              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "409": {
             description: "This account already has a period for that month.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -342,37 +272,20 @@ export const openApiDocument = {
         summary: "Get one monthly tax filing",
         description:
           "Scoped to the authenticated account. An id belonging to another account 404s exactly like a missing one.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         responses: {
           "200": {
             description: "The tax period.",
             content: { "application/json": { schema: taxPeriodSchemaJson } },
           },
-          "400": {
-            description: "The id was not an integer.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
           "404": {
             description: "No such tax period exists for this account.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       put: {
@@ -380,15 +293,8 @@ export const openApiDocument = {
         summary: "Replace a monthly tax filing",
         description:
           "A full replacement: an omitted nullable field is written as null, so leaving out paidAt clears the payment date. Attached documents are not part of this representation and are untouched.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         requestBody: {
           required: true,
           content: { "application/json": { schema: taxPeriodInputSchema } },
@@ -398,20 +304,9 @@ export const openApiDocument = {
             description: "The updated tax period.",
             content: { "application/json": { schema: taxPeriodSchemaJson } },
           },
-          "400": {
-            description:
-              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "404": {
             description: "No such tax period exists for this account.",
             content: { "application/json": { schema: errorSchema } },
@@ -420,11 +315,7 @@ export const openApiDocument = {
             description: "Another period already covers the target month.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       delete: {
@@ -432,30 +323,13 @@ export const openApiDocument = {
         summary: "Delete a monthly tax filing",
         description:
           "Refused with 409 while any document is attached. The filed return and payment confirmation are detached through the invoice workflow, never by cascading them away with the period.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "integer" },
-          },
-        ],
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
         responses: {
           "200": { description: "The tax period was deleted." },
-          "400": {
-            description: "The id was not an integer.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "404": {
             description: "No such tax period exists for this account.",
             content: { "application/json": { schema: errorSchema } },
@@ -464,11 +338,7 @@ export const openApiDocument = {
             description: "A document is still attached to this period.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -478,7 +348,7 @@ export const openApiDocument = {
         summary: "Upload a file",
         description:
           "Stores a file (PNG, JPEG, GIF, WEBP or PDF) for the authenticated account. The file's type is detected from its bytes, never trusted from the request's declared Content-Type.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         requestBody: {
           required: true,
           content: {
@@ -502,15 +372,8 @@ export const openApiDocument = {
             description: "The request was not a valid multipart upload.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "409": {
             description: "The account's storage quota would be exceeded.",
             content: { "application/json": { schema: errorSchema } },
@@ -523,11 +386,7 @@ export const openApiDocument = {
             description: "The file's bytes did not match any accepted type.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       get: {
@@ -535,7 +394,7 @@ export const openApiDocument = {
         summary: "List uploaded files",
         description:
           "Lists the authenticated account's files and current storage usage. Only attachments are returned unless kind says otherwise; usage.bytes always covers every kind, and usage.byKind explains the difference.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         parameters: [
           {
             name: "kind",
@@ -564,15 +423,8 @@ export const openApiDocument = {
             description: "The kind parameter was not a recognized value.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },
@@ -582,7 +434,7 @@ export const openApiDocument = {
         summary: "Download a file",
         description:
           "Streams back a previously uploaded file's bytes, scoped to the authenticated account. An id that belongs to another account 404s exactly like a missing one.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         parameters: [
           {
             name: "id",
@@ -596,19 +448,12 @@ export const openApiDocument = {
             description:
               "The file's raw bytes, with the detected content type.",
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
           "404": {
             description: "No such file exists for this account.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
       delete: {
@@ -616,7 +461,7 @@ export const openApiDocument = {
         summary: "Delete a file",
         description:
           "Deletes a previously uploaded file, scoped to the authenticated account.",
-        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        security: AUTHENTICATED,
         parameters: [
           {
             name: "id",
@@ -629,24 +474,13 @@ export const openApiDocument = {
           "200": {
             description: "The file was deleted.",
           },
-          "401": {
-            description: "No valid credentials were supplied.",
-            content: { "application/json": { schema: errorSchema } },
-          },
-          "403": {
-            description:
-              "A cookie-authenticated request did not originate from this app.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
           "404": {
             description: "No such file exists for this account.",
             content: { "application/json": { schema: errorSchema } },
           },
-          "429": {
-            description:
-              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
-            content: { "application/json": { schema: errorSchema } },
-          },
+          "429": TOO_MANY_REQUESTS,
         },
       },
     },

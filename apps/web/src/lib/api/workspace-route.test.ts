@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { workspaceError } from "@/lib/api/workspace-response";
+import { numericId, workspaceError } from "@/lib/api/workspace-route";
 import type { WorkspaceErrorReason } from "@/lib/workspace/result";
 
 /**
@@ -59,5 +59,33 @@ describe("workspaceError", () => {
       error: "Invalid request.",
       fields: {},
     });
+  });
+});
+
+describe("numericId", () => {
+  it("accepts a serial id", () => {
+    expect(numericId("42")).toBe(42);
+  });
+
+  it.each([
+    ["an empty segment", ""],
+    ["whitespace", " "],
+    ["a word", "abc"],
+    ["a decimal", "1.5"],
+    // Number() accepts all three of these, which is why the check is a regex
+    // and not Number.isInteger: hex would give two URLs for one row, and the
+    // empty and blank cases would look up the nonexistent id 0.
+    ["hex", "0x10"],
+    ["exponent notation", "1e3"],
+    ["a leading plus", "+1"],
+    ["a negative", "-1"],
+    ["zero, which no serial id ever is", "0"],
+    ["a padded number", " 12 "],
+  ])("rejects %s", (_label, raw) => {
+    expect(numericId(raw)).toBeNull();
+  });
+
+  it("accepts a large id without losing precision", () => {
+    expect(numericId("2147483647")).toBe(2147483647);
   });
 });

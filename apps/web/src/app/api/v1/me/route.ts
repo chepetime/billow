@@ -1,5 +1,4 @@
 import { getPrisma } from "@billow/db";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireApiIdentity } from "@/lib/api/identity";
 import { error } from "@/lib/api/respond";
@@ -15,8 +14,8 @@ export const dynamic = "force-dynamic";
  *   Authorization: Bearer <key>
  * A signed-in browser session also works, which makes the route easy to try.
  */
-export async function GET() {
-  const identity = await requireApiIdentity(await headers());
+export async function GET(request: Request) {
+  const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
   const user = await getPrisma().user.findUnique({

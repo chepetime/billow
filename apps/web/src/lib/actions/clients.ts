@@ -53,13 +53,21 @@ function toActionResult<T>(result: WorkspaceResult<T>): ActionResult<T> {
   }
 }
 
+/**
+ * The rules return the stored row; the forms only ever needed the new id (to
+ * redirect) or nothing at all. Narrowing here rather than widening the action's
+ * contract keeps the extra columns out of the client bundle — a server action's
+ * return value is serialised and shipped to the browser.
+ */
 export async function createClientCompany(
   input: ClientCompanyInput,
 ): Promise<ActionResult<{ id: number }>> {
   const session = await requireSession();
   const result = await clients.createClientCompany(session.user.id, input);
-  if (result.ok) revalidate();
-  return toActionResult(result);
+  if (!result.ok) return toActionResult(result);
+
+  revalidate();
+  return ok({ id: result.data.id });
 }
 
 export async function updateClientCompany(
@@ -68,8 +76,10 @@ export async function updateClientCompany(
 ): Promise<ActionResult> {
   const session = await requireSession();
   const result = await clients.updateClientCompany(session.user.id, id, input);
-  if (result.ok) revalidate();
-  return toActionResult(result);
+  if (!result.ok) return toActionResult(result);
+
+  revalidate();
+  return ok();
 }
 
 export async function deleteClientCompany(id: number): Promise<ActionResult> {

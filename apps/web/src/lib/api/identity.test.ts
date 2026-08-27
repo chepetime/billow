@@ -31,7 +31,11 @@ const authMock = vi.hoisted(() => ({
   // Every request in this file is treated as carrying a valid session cookie,
   // which is the situation the guard has to get right: an attacker's forged
   // request rides on a real session.
-  getSession: vi.fn(async () => ({ user: { id: SESSION_OWNER } })),
+  getSession: vi.fn(
+    async (): Promise<{ user: { id: string } } | null> => ({
+      user: { id: SESSION_OWNER },
+    }),
+  ),
 }));
 
 vi.mock("@billow/auth", () => ({ auth: { api: authMock } }));
@@ -78,6 +82,11 @@ function put(path: string, headers: Record<string, string>) {
   return new Request(`${ORIGIN}${path}`, { method: "PUT", headers });
 }
 
+/** requireApiIdentity takes the Request now, so the guard lives with it. */
+function get(headers: Record<string, string> = {}) {
+  return new Request(`${ORIGIN}/api/v1/me`, { headers });
+}
+
 const clientParams = { params: Promise.resolve({ id: "1" }) };
 
 const apiKeyHeaders = { authorization: `Bearer ${API_KEY}` };
@@ -89,25 +98,72 @@ const sameOriginHeaders = { origin: ORIGIN, host: "umbrel.local:3000" };
 
 describe("requireApiIdentity", () => {
   it("reports an x-api-key caller as authenticated by API key", async () => {
-    const identity = await requireApiIdentity(
-      new Headers({ "x-api-key": API_KEY }),
-    );
+    const identity = await requireApiIdentity(get({ "x-api-key": API_KEY }));
     expect(identity).toEqual({ userId: KEY_OWNER, via: "apiKey" });
   });
 
   it("reports an Authorization: Bearer caller as authenticated by API key", async () => {
-    const identity = await requireApiIdentity(new Headers(apiKeyHeaders));
+    const identity = await requireApiIdentity(get(apiKeyHeaders));
     expect(identity).toEqual({ userId: KEY_OWNER, via: "apiKey" });
   });
 
   it("reports an Authorization scheme it does not accept as a session caller", async () => {
-    const identity = await requireApiIdentity(new Headers(basicHeaders));
+    const identity = await requireApiIdentity(get(basicHeaders));
     expect(identity).toEqual({ userId: SESSION_OWNER, via: "session" });
   });
 
   it("reports a plain cookie caller as a session caller", async () => {
-    const identity = await requireApiIdentity(new Headers());
+    const identity = await requireApiIdentity(get());
     expect(identity).toEqual({ userId: SESSION_OWNER, via: "session" });
+  });
+});
+
+/**
+ * The guard itself, now that it lives in one place rather than in seven route
+ * files. The route tests below prove each route opts in; these prove what
+ * opting in does.
+ */
+describe("the mutation origin guard", () => {
+  function mutation(headers: Record<string, string>) {
+    return new Request(`${ORIGIN}/api/v1/clients`, { method: "POST", headers });
+  }
+
+  it("refuses a cookie caller that sent no origin", async () => {
+    const result = (await requireApiIdentity(mutation({}), {
+      mutating: true,
+    })) as Response;
+    expect(result.status).toBe(403);
+  });
+
+  it("allows a cookie caller from this app", async () => {
+    const result = await requireApiIdentity(mutation(sameOriginHeaders), {
+      mutating: true,
+    });
+    expect(result).toEqual({ userId: SESSION_OWNER, via: "session" });
+  });
+
+  it("never applies to an API key, which no page can forge", async () => {
+    const result = await requireApiIdentity(mutation(apiKeyHeaders), {
+      mutating: true,
+    });
+    expect(result).toEqual({ userId: KEY_OWNER, via: "apiKey" });
+  });
+
+  it("is off unless asked for: a read needs no guard", async () => {
+    // Browsers send no Origin on a same-origin GET, so guarding reads would
+    // 403 the app's own pages. That is a real regression this repo has had.
+    const result = await requireApiIdentity(mutation({}));
+    expect(result).toEqual({ userId: SESSION_OWNER, via: "session" });
+  });
+
+  it("answers 401 before 403 when nothing authenticated at all", async () => {
+    // Ordering matters: telling an anonymous caller they are "forbidden" sends
+    // them looking for a permission problem when they simply need to sign in.
+    authMock.getSession.mockResolvedValueOnce(null);
+    const result = (await requireApiIdentity(mutation({}), {
+      mutating: true,
+    })) as Response;
+    expect(result.status).toBe(401);
   });
 });
 
@@ -333,9 +389,7 @@ describe("rate-limited API keys", () => {
   it("answers 429 with Retry-After, not 401", async () => {
     authMock.verifyApiKey.mockResolvedValueOnce(rateLimitedResult);
 
-    const response = await requireApiIdentity(
-      new Headers({ "x-api-key": API_KEY }),
-    );
+    const response = await requireApiIdentity(get({ "x-api-key": API_KEY }));
 
     expect(response).toBeInstanceOf(Response);
     const result = response as Response;
@@ -351,7 +405,7 @@ describe("rate-limited API keys", () => {
     });
 
     const result = (await requireApiIdentity(
-      new Headers({ "x-api-key": API_KEY }),
+      get({ "x-api-key": API_KEY }),
     )) as Response;
 
     expect(result.status).toBe(429);
@@ -360,7 +414,7 @@ describe("rate-limited API keys", () => {
 
   it("leaves a genuinely invalid key at 401", async () => {
     const result = (await requireApiIdentity(
-      new Headers({ "x-api-key": "not-the-key" }),
+      get({ "x-api-key": "not-the-key" }),
     )) as Response;
 
     expect(result.status).toBe(401);

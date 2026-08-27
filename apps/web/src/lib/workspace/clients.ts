@@ -36,10 +36,19 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
  * schema to drift from.
  */
 
+/**
+ * Every write returns the stored row, not just its id.
+ *
+ * A caller that needs the record back — which both the API routes do, to
+ * answer with it — would otherwise have to read it again, and that re-read was
+ * the same four lines in every route. Returning it here also means the
+ * response carries the database's own normalisation and timestamps rather than
+ * an echo of the request.
+ */
 export async function createClientCompany(
   userId: string,
   input: unknown,
-): Promise<WorkspaceResult<{ id: number }>> {
+): Promise<WorkspaceResult<ClientCompany>> {
   const parsed = clientCompanySchema.safeParse(input);
   if (!parsed.success) {
     return refuse("invalid", parsed.error.flatten().fieldErrors);
@@ -47,11 +56,11 @@ export async function createClientCompany(
 
   try {
     const { prisma } = await getWorkspacePrisma();
+    // `create` returns the row, so this stays one round trip.
     const client = await prisma.clientCompany.create({
       data: { ...parsed.data, userId },
-      select: { id: true },
     });
-    return succeed({ id: client.id });
+    return succeed(client);
   } catch (error) {
     return refuseFromError("createClientCompany", error);
   }
@@ -61,7 +70,7 @@ export async function updateClientCompany(
   userId: string,
   id: number,
   input: unknown,
-): Promise<WorkspaceResult> {
+): Promise<WorkspaceResult<ClientCompany>> {
   const parsed = clientCompanySchema.safeParse(input);
   if (!parsed.success) {
     return refuse("invalid", parsed.error.flatten().fieldErrors);
@@ -71,13 +80,16 @@ export async function updateClientCompany(
     const { prisma } = await getWorkspacePrisma();
     // `updateMany` with the owner in the filter, rather than a read-then-write:
     // the ownership check and the write are one statement, so there is no
-    // window between them and no branch that could update by id alone.
+    // window between them and no branch that could update by id alone. It
+    // returns a count rather than the row, hence the read that follows — the
+    // ordering is what matters, and it is the write that must carry the owner.
     const { count } = await prisma.clientCompany.updateMany({
       where: { id, userId },
       data: parsed.data,
     });
+    if (count === 0) return refuse("not_found");
 
-    return count === 0 ? refuse("not_found") : succeed();
+    return getClientCompany(userId, id);
   } catch (error) {
     return refuseFromError("updateClientCompany", error);
   }

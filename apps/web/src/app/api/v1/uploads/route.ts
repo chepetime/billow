@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage";
@@ -24,18 +23,8 @@ export const dynamic = "force-dynamic";
  * session — see requireApiIdentity.
  */
 export async function POST(request: Request) {
-  // Resolve credentials first. Rejecting an unauthenticated caller with 403
-  // would tell them they are forbidden when what they actually need is to
-  // authenticate, so the origin check comes second and only guards the
-  // cookie/session path: a request that carried its own API key isn't a
-  // browser form submission a hostile page could forge with the victim's
-  // cookies.
-  const identity = await requireApiIdentity(request.headers);
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
-
-  if (identity.via === "session" && !isSameOriginRequest(request)) {
-    return error("Invalid request origin.", 403);
-  }
 
   // Cheap pre-check before parsing the multipart body at all: when the
   // client declares Content-Length far beyond the limit, reject without
@@ -89,7 +78,7 @@ export async function POST(request: Request) {
  * them, which made `usage.bytes` look inflated by files that did not exist.
  */
 export async function GET(request: Request) {
-  const identity = await requireApiIdentity(request.headers);
+  const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
   const requestedKind = new URL(request.url).searchParams.get("kind");

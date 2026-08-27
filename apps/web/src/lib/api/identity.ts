@@ -1,6 +1,7 @@
 import "server-only";
 
 import { auth } from "@billow/auth";
+import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error, rateLimited } from "@/lib/api/respond";
 
 /**
@@ -43,10 +44,30 @@ function rateLimitRetrySeconds(verifyError: unknown): number | null {
     : 1;
 }
 
-/** Resolves an API key or browser session to the calling account. */
+/**
+ * Resolves an API key or browser session to the calling account, and — for a
+ * mutation — checks that a cookie-authenticated caller is this app.
+ *
+ * The two belong together. The CSRF guard's correctness depends entirely on
+ * `via`, and when each route wrote its own copy there were seven of them, all
+ * one edit away from disagreeing about a rule whose whole job is to be
+ * uniform. A route that forgets the option now differs from its neighbours in
+ * one visible argument rather than in a missing block.
+ *
+ * Ordering is deliberate and is the reason the guard cannot be a separate
+ * wrapper applied first: credentials resolve *before* the origin is judged,
+ * because answering 403 to a caller who simply sent nothing tells them they
+ * are forbidden when what they need is to authenticate.
+ *
+ * `mutating` should be true for anything that changes state. It is not derived
+ * from `request.method` here: the vault reads its own method set, and a route
+ * that wants a guard on a GET (or none on a POST) should have to say so.
+ */
 export async function requireApiIdentity(
-  requestHeaders: Headers,
+  request: Request,
+  options: { mutating?: boolean } = {},
 ): Promise<ApiIdentity | ReturnType<typeof error>> {
+  const requestHeaders = request.headers;
   const authorization = requestHeaders.get("authorization");
   const apiKey =
     requestHeaders.get("x-api-key") ??
@@ -68,6 +89,9 @@ export async function requireApiIdentity(
       return error(String(result.error?.message ?? "Invalid API key."), 401);
     }
 
+    // A request that carried its own API key is not a form submission a
+    // hostile page could forge with the victim's cookies, so it never needs
+    // the origin check.
     return { userId: result.key.referenceId, via: "apiKey" };
   }
 
@@ -77,6 +101,10 @@ export async function requireApiIdentity(
       "Authentication required. Send an API key via x-api-key or sign in.",
       401,
     );
+  }
+
+  if (options.mutating && !isSameOriginRequest(request)) {
+    return error("Invalid request origin.", 403);
   }
 
   return { userId: session.user.id, via: "session" };

@@ -72,8 +72,14 @@ target `@billow/db` directly.
 Every `/api/v1/*` handler follows the same shape:
 
 ```ts
-export async function GET() {
-  const identity = await requireApiIdentity(await headers());
+export async function GET(request: Request) {
+  const identity = await requireApiIdentity(request);
+  if (identity instanceof NextResponse) return identity;
+  // …
+}
+
+export async function POST(request: Request) {
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
   // …
 }
@@ -82,6 +88,24 @@ export async function GET() {
 `requireApiIdentity` accepts an `x-api-key` header, an `Authorization: Bearer`
 token, or a browser session. Errors use `{ error: string }` from
 `lib/api/respond.ts`.
+
+`{ mutating: true }` adds the same-origin (CSRF) check, and belongs on anything
+that changes state. It applies only to cookie callers — a request carrying its
+own API key is not something a hostile page can forge with the victim's
+cookies — and it runs *after* credentials resolve, so an anonymous caller gets
+401 rather than a 403 that sends them hunting for a permission problem.
+
+<Callout type="warn">
+Do not guard a read. Browsers send no `Origin` on a same-origin GET, so a
+guarded read answers the app's own pages with 403 — a regression this repo has
+already shipped once, on the vault.
+</Callout>
+
+Serial-id routes parse the path with `numericId` from
+`lib/api/workspace-route.ts`, never `Number()`: `Number("0x10")` is 16 and
+`Number("")` is 0, so the naive version gave two URLs for one row and turned an
+empty segment into a lookup. `Invoice` is keyed by a UUID `publicId` and
+validates with `invoicePublicIdSchema` instead.
 
 ## Workspace rules
 
@@ -102,7 +126,7 @@ Two thin callers map that reason outward, and neither one holds a rule:
 - `lib/actions/*` supplies the session's user, revalidates the pages that
   changed, and turns the reason into form copy (`toActionResult`).
 - `app/api/v1/*` supplies whoever the API key resolved to and turns the same
-  reason into a status (`workspaceError` in `lib/api/workspace-response.ts`).
+  reason into a status (`workspaceError` in `lib/api/workspace-route.ts`).
 
 Both mappers switch exhaustively, so a new reason fails the build rather than
 falling through to a 500.

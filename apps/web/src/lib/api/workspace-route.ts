@@ -4,6 +4,30 @@ import { error, validationError } from "@/lib/api/respond";
 import type { WorkspaceResult } from "@/lib/workspace/result";
 
 /**
+ * Serial-integer path ids, parsed once.
+ *
+ * A non-numeric id is a malformed request, not a missing row: answering 400
+ * says so and keeps a NaN out of Prisma, where it would become a query that
+ * matches nothing and reads as a 404. Returns null for the caller to reject —
+ * the message names the entity, which this has no business knowing.
+ *
+ * Not every entity is addressed this way. `Invoice` is keyed by a UUID
+ * `publicId`, so it validates with `invoicePublicIdSchema` instead.
+ */
+export function numericId(raw: string): number | null {
+  // Decimal digits only, rather than `Number.isInteger(Number(raw))`. That
+  // test passes things a path id must not be: `Number("0x10")` is 16, so
+  // /clients/0x10 and /clients/16 addressed the same row, and `Number("")` and
+  // `Number(" ")` are both 0, so an empty segment read as a lookup for id 0
+  // instead of a malformed request. Serial ids start at 1, so zero is rejected
+  // with the rest.
+  if (!/^\d+$/.test(raw)) return null;
+
+  const id = Number(raw);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+/**
  * The API's half of the workspace rules: one refusal reason to one HTTP
  * status, for every entity.
  *

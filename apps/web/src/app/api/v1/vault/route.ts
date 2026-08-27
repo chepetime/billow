@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiIdentity } from "@/lib/api/identity";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error, rateLimited } from "@/lib/api/respond";
 import {
   decryptVaultPayload,
@@ -40,9 +39,6 @@ function vaultKey(request: Request): string | null {
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 async function identityFor(request: Request) {
-  const identity = await requireApiIdentity(request.headers);
-  if (identity instanceof NextResponse) return identity;
-
   // The origin check applies to mutations only, matching what
   // isSameOriginRequest documents itself as ("reject cookie-authenticated
   // mutations") and how the restore route uses it.
@@ -55,15 +51,9 @@ async function identityFor(request: Request) {
   // GET needs no CSRF guard of its own: it changes nothing, and reading it
   // cross-origin requires the custom vault-key header, which forces a CORS
   // preflight that this app never answers.
-  if (
-    MUTATING_METHODS.has(request.method) &&
-    identity.via === "session" &&
-    !isSameOriginRequest(request)
-  ) {
-    return error("Invalid request origin.", 403);
-  }
-
-  return identity;
+  return requireApiIdentity(request, {
+    mutating: MUTATING_METHODS.has(request.method),
+  });
 }
 
 /**

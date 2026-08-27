@@ -93,10 +93,14 @@ export async function getTaxPeriod(
   }
 }
 
+/**
+ * Writes return the stored record, documents included, so a caller does not
+ * have to read it back — that re-read was the same four lines in every route.
+ */
 export async function createTaxPeriod(
   userId: string,
   input: unknown,
-): Promise<WorkspaceResult<{ id: number }>> {
+): Promise<WorkspaceResult<TaxPeriodRecord>> {
   const parsed = taxPeriodSchema.safeParse(input);
   if (!parsed.success) {
     return refuse("invalid", parsed.error.flatten().fieldErrors);
@@ -104,11 +108,12 @@ export async function createTaxPeriod(
 
   try {
     const { prisma } = await getWorkspacePrisma();
+    // `create` returns the row, so this stays one round trip.
     const period = await prisma.taxPeriod.create({
       data: { ...toColumns(parsed.data), userId },
-      select: { id: true },
+      include: withDocuments,
     });
-    return succeed({ id: period.id });
+    return succeed(period);
   } catch (error) {
     // A second period for the same month violates the unique constraint and
     // comes back as `conflict`, which is the honest answer: the caller asked
@@ -122,7 +127,7 @@ export async function updateTaxPeriod(
   userId: string,
   id: number,
   input: unknown,
-): Promise<WorkspaceResult> {
+): Promise<WorkspaceResult<TaxPeriodRecord>> {
   const parsed = taxPeriodSchema.safeParse(input);
   if (!parsed.success) {
     return refuse("invalid", parsed.error.flatten().fieldErrors);
@@ -130,11 +135,16 @@ export async function updateTaxPeriod(
 
   try {
     const { prisma } = await getWorkspacePrisma();
+    // The owner rides in the write's own filter, so the ownership check and
+    // the update are one statement. updateMany returns a count rather than the
+    // row, hence the read that follows.
     const { count } = await prisma.taxPeriod.updateMany({
       where: { id, userId },
       data: toColumns(parsed.data),
     });
-    return count === 0 ? refuse("not_found") : succeed();
+    if (count === 0) return refuse("not_found");
+
+    return getTaxPeriod(userId, id);
   } catch (error) {
     // Moving a period onto a month that already has one is a conflict, same
     // constraint as create.

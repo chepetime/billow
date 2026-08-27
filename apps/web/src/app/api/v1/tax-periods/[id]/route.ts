@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
-import { workspaceError } from "@/lib/api/workspace-response";
+import { numericId, workspaceError } from "@/lib/api/workspace-route";
 import { toTaxPeriodResponse } from "@/lib/schemas/tax-periods";
 import {
   deleteTaxPeriod,
@@ -15,28 +14,6 @@ export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-/** Serial integers, so a non-numeric id is malformed rather than missing. */
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) ? id : null;
-}
-
-/**
- * Credentials, then the origin check for cookie callers on a mutation. A
- * request carrying its own API key is not a form submission a hostile page
- * could forge with the victim's cookies, so it skips the guard.
- */
-async function identityFor(request: Request, mutating: boolean) {
-  const identity = await requireApiIdentity(request.headers);
-  if (identity instanceof NextResponse) return identity;
-
-  if (mutating && identity.via === "session" && !isSameOriginRequest(request)) {
-    return error("Invalid request origin.", 403);
-  }
-
-  return identity;
-}
-
 /**
  * GET /api/v1/tax-periods/[id]
  *
@@ -44,10 +21,10 @@ async function identityFor(request: Request, mutating: boolean) {
  * same `not_found` as a missing one, so this never confirms one exists.
  */
 export async function GET(request: Request, { params }: RouteParams) {
-  const identity = await identityFor(request, false);
+  const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
-  const id = parseId((await params).id);
+  const id = numericId((await params).id);
   if (id === null) return error("Invalid tax period id.", 400);
 
   const result = await getTaxPeriod(identity.userId, id);
@@ -65,10 +42,10 @@ export async function GET(request: Request, { params }: RouteParams) {
  * this representation to write.
  */
 export async function PUT(request: Request, { params }: RouteParams) {
-  const identity = await identityFor(request, true);
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
 
-  const id = parseId((await params).id);
+  const id = numericId((await params).id);
   if (id === null) return error("Invalid tax period id.", 400);
 
   const body = await request.json().catch(() => null);
@@ -79,10 +56,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   const updated = await updateTaxPeriod(identity.userId, id, body);
   if (!updated.ok) return workspaceError(updated);
 
-  const period = await getTaxPeriod(identity.userId, id);
-  if (!period.ok) return workspaceError(period);
-
-  return NextResponse.json(toTaxPeriodResponse(period.data));
+  return NextResponse.json(toTaxPeriodResponse(updated.data));
 }
 
 /**
@@ -93,10 +67,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
  * what should happen to a filed return.
  */
 export async function DELETE(request: Request, { params }: RouteParams) {
-  const identity = await identityFor(request, true);
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
 
-  const id = parseId((await params).id);
+  const id = numericId((await params).id);
   if (id === null) return error("Invalid tax period id.", 400);
 
   const result = await deleteTaxPeriod(identity.userId, id);

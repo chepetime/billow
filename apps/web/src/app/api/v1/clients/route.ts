@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
-import { workspaceError } from "@/lib/api/workspace-response";
+import { workspaceError } from "@/lib/api/workspace-route";
 import { toClientResponse } from "@/lib/schemas/clients";
-import { createClientCompany, getClientCompany } from "@/lib/workspace/clients";
+import { createClientCompany } from "@/lib/workspace/clients";
 import { listClientCompanies } from "@/lib/workspace-records";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +15,7 @@ export const dynamic = "force-dynamic";
  * The authenticated account's client companies, ordered by name.
  */
 export async function GET(request: Request) {
-  const identity = await requireApiIdentity(request.headers);
+  const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
   const { clients } = await listClientCompanies(identity.userId);
@@ -31,15 +30,8 @@ export async function GET(request: Request) {
  * the "New client" form cannot disagree about what a valid client is.
  */
 export async function POST(request: Request) {
-  // Credentials first: a 403 for an unauthenticated caller would say
-  // "forbidden" when what they need is to authenticate. Same ordering as the
-  // uploads routes.
-  const identity = await requireApiIdentity(request.headers);
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
-
-  if (identity.via === "session" && !isSameOriginRequest(request)) {
-    return error("Invalid request origin.", 403);
-  }
 
   const body = await request.json().catch(() => null);
   if (body === null || typeof body !== "object") {
@@ -49,13 +41,7 @@ export async function POST(request: Request) {
   const created = await createClientCompany(identity.userId, body);
   if (!created.ok) return workspaceError(created);
 
-  // Read the row back rather than echoing the request: the response then
-  // carries the server's timestamps and its own normalisation, so a client
-  // that stores what it gets holds what the database holds.
-  const client = await getClientCompany(identity.userId, created.data.id);
-  if (!client.ok) return workspaceError(client);
-
-  return NextResponse.json(toClientResponse(client.data), {
+  return NextResponse.json(toClientResponse(created.data), {
     status: 201,
     headers: { Location: `/api/v1/clients/${created.data.id}` },
   });

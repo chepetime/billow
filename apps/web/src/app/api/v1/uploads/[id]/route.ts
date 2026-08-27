@@ -1,8 +1,6 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
-import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error } from "@/lib/api/respond";
 import { recordError } from "@/lib/error-log";
 import {
@@ -25,8 +23,8 @@ type RouteParams = { params: Promise<{ id: string }> };
  * Served with the sniffed content type (never a public static directory),
  * nosniff, and no-store, since this may include private documents.
  */
-export async function GET(_request: Request, { params }: RouteParams) {
-  const identity = await requireApiIdentity(await headers());
+export async function GET(request: Request, { params }: RouteParams) {
+  const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
   const { id } = await params;
@@ -63,16 +61,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
  * rationale) — a missing object never blocks removing the row.
  */
 export async function DELETE(request: Request, { params }: RouteParams) {
-  // Resolve credentials first. Rejecting an unauthenticated caller with 403
-  // would tell them they are forbidden when what they actually need is to
-  // authenticate, so the origin check comes second and only guards the
-  // cookie/session path — see the matching note in ../route.ts.
-  const identity = await requireApiIdentity(request.headers);
+  const identity = await requireApiIdentity(request, { mutating: true });
   if (identity instanceof NextResponse) return identity;
-
-  if (identity.via === "session" && !isSameOriginRequest(request)) {
-    return error("Invalid request origin.", 403);
-  }
 
   const { id } = await params;
   const deleted = await deleteUpload(identity.userId, id);
