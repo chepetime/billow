@@ -8,6 +8,7 @@ import {
   clientListResponseSchema,
   clientResponseSchema,
 } from "@/lib/schemas/clients";
+import { incomeSummaryResponseSchema } from "@/lib/schemas/income";
 import {
   invoiceDetailResponseSchema,
   invoiceListResponseSchema,
@@ -43,6 +44,7 @@ const taxPeriodInputSchema = z.toJSONSchema(taxPeriodSchema, { io: "input" });
 const invoiceSchemaJson = z.toJSONSchema(invoiceDetailResponseSchema);
 const invoiceListSchema = z.toJSONSchema(invoiceListResponseSchema);
 const invoiceInputSchema = z.toJSONSchema(invoiceSchema, { io: "input" });
+const incomeSchema = z.toJSONSchema(incomeSummaryResponseSchema);
 
 /**
  * Response and security fragments, shared rather than pasted.
@@ -245,6 +247,33 @@ export const openApiDocument = {
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/income": {
+      get: {
+        operationId: "getIncomeSummary",
+        summary: "Income and tax status for a year",
+        description:
+          "A fiscal year in one response: invoiced and paid per month, grouped by currency, with each month's CFDI count and the state of its tax filing. Amounts are never summed across currencies -- no exchange rate is stored, so a consumer wanting one figure must supply its own rate.",
+        security: AUTHENTICATED,
+        parameters: [
+          {
+            name: "year",
+            in: "query",
+            required: false,
+            description: "Calendar year. Defaults to the current one.",
+            schema: { type: "integer", minimum: 2000, maximum: 2100 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "The year's income and filing status.",
+            content: { "application/json": { schema: incomeSchema } },
+          },
+          "400": jsonError("The year was outside 2000-2100, or not a number."),
+          "401": UNAUTHORIZED,
           "429": TOO_MANY_REQUESTS,
         },
       },

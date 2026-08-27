@@ -166,6 +166,31 @@ boundaries are deliberate:
   west of UTC and falls out of its own month — the shift `lib/date-only.ts`
   exists to prevent. `createdAt`/`updatedAt` really are instants and stay ISO.
 
+## Income summary
+
+`GET /api/v1/income?year=2026` folds a fiscal year into one response: invoiced
+and paid per month, each month's CFDI count, and the state of its tax filing.
+The reads are in `lib/workspace/income.ts`; the fold is
+`lib/income-summary.ts`, which is pure and is where the tests are.
+
+<Callout type="warn">
+**Amounts are grouped by currency and never summed across it.** The dashboard
+adds every invoice into one figure and labels it MXN — a documented
+simplification for a glance at a screen, and one a tax summary cannot make. A
+USD invoice is not worth its face value in pesos, and no exchange rate is
+stored anywhere to convert it. A consumer that wants a single number has to
+supply the rate it used, which means saying so.
+</Callout>
+
+All twelve months are returned, including empty ones: "nothing was invoiced in
+April" is itself an answer, and a consumer charting a year should not have to
+reconstruct the gaps. Sums are folded in JavaScript rather than SQL because the
+grouping keys span two tables — `Invoice.currency` and the local calendar month
+of `Invoice.invoiceDate`, against `InvoiceLineItem.amount` — which Prisma's
+`groupBy` cannot cross. Raw SQL could, at the cost of re-deriving the local
+month boundary in Postgres, which is the conversion `date-only.ts` exists to
+keep in one place.
+
 ## Attention rules
 
 The dashboard's **Needs attention** list reads the dated facts, not just the
