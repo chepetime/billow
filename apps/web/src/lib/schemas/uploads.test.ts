@@ -34,10 +34,20 @@ describe("uploadResponseSchema", () => {
 });
 
 describe("uploadListResponseSchema", () => {
+  const emptyByKind = {
+    attachment: 0,
+    invoice_document: 0,
+    tax_period_document: 0,
+  };
+
   it("accepts an empty list with usage totals", () => {
     const result = uploadListResponseSchema.safeParse({
       uploads: [],
-      usage: { bytes: 0, limitBytes: 100 * 1024 * 1024 },
+      usage: {
+        bytes: 0,
+        byKind: emptyByKind,
+        limitBytes: 100 * 1024 * 1024,
+      },
     });
     expect(result.success).toBe(true);
   });
@@ -46,9 +56,35 @@ describe("uploadListResponseSchema", () => {
     expect(
       uploadListResponseSchema.safeParse({
         uploads: [],
-        usage: { bytes: 0, limitBytes: 0 },
+        usage: { bytes: 0, byKind: emptyByKind, limitBytes: 0 },
       }).success,
     ).toBe(false);
+  });
+
+  it("requires the per-kind breakdown", () => {
+    // usage.bytes counts kinds the default listing hides, so a response
+    // without the breakdown gives a client no way to reconcile the two.
+    expect(
+      uploadListResponseSchema.safeParse({
+        uploads: [],
+        usage: { bytes: 0, limitBytes: 100 * 1024 * 1024 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a breakdown that does not add up to the total", () => {
+    // A kind this app does not know about still counts against the quota,
+    // so the total is deliberately not a sum of the listed parts.
+    expect(
+      uploadListResponseSchema.safeParse({
+        uploads: [],
+        usage: {
+          bytes: 900,
+          byKind: { ...emptyByKind, attachment: 400 },
+          limitBytes: 100 * 1024 * 1024,
+        },
+      }).success,
+    ).toBe(true);
   });
 });
 

@@ -69,12 +69,70 @@ export function contentDispositionHeader(filename: string): string {
   return `attachment; filename="${escaped}"`;
 }
 
+/**
+ * The kinds an `Upload` row can carry. "attachment" is a file the account
+ * owner uploaded directly; the other two are rows adopted by the invoice
+ * workflow (see lib/actions/invoice-workflow.ts), which retags an attachment
+ * once it is attached to an invoice or a tax period.
+ */
+export const UPLOAD_KINDS = [
+  "attachment",
+  "invoice_document",
+  "tax_period_document",
+] as const;
+
+export type UploadKind = (typeof UPLOAD_KINDS)[number];
+
+/** What a list request asks for: one kind, or every kind at once. */
+export type UploadKindFilter = UploadKind | "all";
+
+export function isUploadKindFilter(value: string): value is UploadKindFilter {
+  return value === "all" || (UPLOAD_KINDS as readonly string[]).includes(value);
+}
+
 async function usageBytes(userId: string): Promise<number> {
   const result = await getPrisma().upload.aggregate({
     where: { userId },
     _sum: { size: true },
   });
   return result._sum.size ?? 0;
+}
+
+/**
+ * Total bytes stored, and the same figure split by kind with every known kind
+ * present even at zero.
+ *
+ * The breakdown exists because the quota counts every row while the default
+ * listing only shows attachments, so `usage.bytes` legitimately exceeds the
+ * sum of the files in the response. Without it that reads as an accounting bug
+ * and sends the caller looking for files that are not missing — they are
+ * workflow documents, which the invoice UI owns and which are deliberately not
+ * deletable from the files list.
+ *
+ * The total is summed from the same grouped rows rather than a second query,
+ * so the two figures cannot disagree. It counts kinds this app does not know
+ * about, which the breakdown does not report — the total is what the quota is
+ * enforced on, so it must never be only the sum of the parts named here.
+ */
+async function usage(
+  userId: string,
+): Promise<{ bytes: number; byKind: Record<string, number> }> {
+  const rows = await getPrisma().upload.groupBy({
+    by: ["kind"],
+    where: { userId },
+    _sum: { size: true },
+  });
+
+  const byKind: Record<string, number> = Object.fromEntries(
+    UPLOAD_KINDS.map((kind) => [kind, 0]),
+  );
+  let bytes = 0;
+  for (const row of rows) {
+    const size = row._sum.size ?? 0;
+    bytes += size;
+    if (row.kind in byKind) byKind[row.kind] += size;
+  }
+  return { bytes, byKind };
 }
 
 /**
@@ -137,19 +195,40 @@ export async function createUpload(
   }
 }
 
+/**
+ * Lists an account's uploads, defaulting to the attachments the owner manages
+ * directly. `kind` widens that: "all" returns workflow documents alongside
+ * attachments, which is what makes the returned files reconcile against
+ * `usageBytes`.
+ *
+ * The default stays "attachment" so the settings page and existing API callers
+ * keep seeing exactly the files they can act on.
+ */
 export async function listUploads(
   userId: string,
-): Promise<{ uploads: Upload[]; usageBytes: number; limitBytes: number }> {
+  options: { kind?: UploadKindFilter } = {},
+): Promise<{
+  uploads: Upload[];
+  usageBytes: number;
+  usageByKind: Record<string, number>;
+  limitBytes: number;
+}> {
   const prisma = getPrisma();
+  const kind = options.kind ?? "attachment";
   const [uploads, used] = await Promise.all([
     prisma.upload.findMany({
-      where: { userId, kind: "attachment" },
+      where: { userId, ...(kind === "all" ? {} : { kind }) },
       orderBy: { createdAt: "desc" },
     }),
-    usageBytes(userId),
+    usage(userId),
   ]);
 
-  return { uploads, usageBytes: used, limitBytes: MAX_UPLOADS_PER_USER_BYTES };
+  return {
+    uploads,
+    usageBytes: used.bytes,
+    usageByKind: used.byKind,
+    limitBytes: MAX_UPLOADS_PER_USER_BYTES,
+  };
 }
 
 /**

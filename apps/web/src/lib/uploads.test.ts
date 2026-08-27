@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   contentDispositionHeader,
+  isUploadKindFilter,
   MAX_UPLOADS_PER_USER_BYTES,
   toUploadResponse,
+  UPLOAD_KINDS,
   wouldExceedQuota,
 } from "@/lib/uploads";
 
@@ -65,5 +67,33 @@ describe("contentDispositionHeader", () => {
     expect(contentDispositionHeader("back\\slash.png")).toBe(
       'attachment; filename="back\\\\slash.png"',
     );
+  });
+});
+
+describe("isUploadKindFilter", () => {
+  it("accepts every kind an Upload row can carry", () => {
+    for (const kind of UPLOAD_KINDS) {
+      expect(isUploadKindFilter(kind)).toBe(true);
+    }
+  });
+
+  it('accepts "all", which is what makes a listing reconcile with usage', () => {
+    expect(isUploadKindFilter("all")).toBe(true);
+  });
+
+  it("rejects anything else so an unknown value 400s instead of silently listing attachments", () => {
+    expect(isUploadKindFilter("attachments")).toBe(false);
+    expect(isUploadKindFilter("")).toBe(false);
+    expect(isUploadKindFilter("ATTACHMENT")).toBe(false);
+  });
+});
+
+describe("UPLOAD_KINDS", () => {
+  it("includes the workflow kinds the invoice actions write", () => {
+    // lib/actions/invoice-workflow.ts retags an attachment to one of these
+    // when it is adopted by an invoice or a tax period. A kind missing here
+    // is one the quota counts but no listing can ever reach.
+    expect(UPLOAD_KINDS).toContain("invoice_document");
+    expect(UPLOAD_KINDS).toContain("tax_period_document");
   });
 });

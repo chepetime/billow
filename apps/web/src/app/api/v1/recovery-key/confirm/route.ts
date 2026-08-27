@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
-import { error } from "@/lib/api/respond";
+import { error, rateLimited } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,9 @@ export async function POST(request: Request) {
     300,
   );
   if (!limit.allowed) {
-    return error(
+    return rateLimited(
       `Too many attempts. Try again in ${limit.retryAfter} seconds.`,
-      429,
+      limit.retryAfter,
     );
   }
 

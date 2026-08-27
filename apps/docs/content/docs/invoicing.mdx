@@ -78,6 +78,14 @@ so it does not appear in the generic account attachments list. Replacing a
 document removes the old upload row and bytes after the database transaction
 commits.
 
+Those retagged rows still count against the 100 MB quota, so
+`GET /api/v1/uploads` reports a `usage.bytes` larger than the files it returns.
+That is not an accounting bug, and the response says so: `usage.byKind` breaks
+the total down, and `?kind=all` (or a specific workflow kind) lists the rows the
+default `attachment` view hides. They stay out of the default listing because
+the invoice UI owns their lifecycle — deleting one from the files list would
+silently strip a CFDI off an invoice.
+
 ## Monthly tax filing
 
 The monthly obligation is separate from any one invoice. `TaxPeriod` is created

@@ -227,7 +227,16 @@ export const auth = betterAuth({
   plugins: [
     username(),
     twoFactor(),
-    apiKey(),
+    apiKey({
+      // Without this the plugin's own default applies: 10 requests per 24
+      // hours, which is unusable for the account owner's own tooling. See
+      // getAuthEnv for the reasoning and the environment overrides.
+      rateLimit: {
+        enabled: true,
+        maxRequests: authEnv.apiKeyRateLimit.max,
+        timeWindow: authEnv.apiKeyRateLimit.windowMs,
+      },
+    }),
     admin({ defaultRole: "user", adminRoles: ["admin"] }),
     // Keep auth's generated specification available without its CDN-hosted UI.
     openAPI({ disableDefaultReference: true }),

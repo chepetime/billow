@@ -113,8 +113,10 @@ model Apikey {
   lastRefillAt        DateTime?
   enabled             Boolean?  @default(true)
   rateLimitEnabled    Boolean?  @default(true)
-  rateLimitTimeWindow Int?      @default(86400000)
-  rateLimitMax        Int?      @default(10)
+  /// Written explicitly by the api-key plugin on every insert, from the
+  /// configured budget (see getAuthEnv); these defaults never actually apply.
+  rateLimitTimeWindow Int?      @default(60000)
+  rateLimitMax        Int?      @default(120)
   requestCount        Int?      @default(0)
   remaining           Int?
   lastRequest         DateTime?

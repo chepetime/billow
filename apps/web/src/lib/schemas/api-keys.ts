@@ -18,6 +18,10 @@ export const accountResponseSchema = z.object({
 
 export const errorResponseSchema = z.object({
   error: z.string().meta({ description: "Human-readable error message." }),
+  retryAfter: z.number().int().positive().optional().meta({
+    description:
+      "Seconds to wait before retrying. Present only on 429 responses, where it mirrors the Retry-After header.",
+  }),
 });
 
 export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;

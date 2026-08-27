@@ -113,8 +113,10 @@ particular, progress and tax dates reveal behaviour and `amountPaid` reveals a
 financial obligation. Encrypting them would prevent the database from finding
 unfinished invoices and month records without loading and decrypting every row.
 Internal upload storage keys and checksums are never returned by the upload API;
-invoice- and tax-scoped uploads are also excluded from its generic attachment
-list.
+invoice- and tax-scoped uploads are excluded from its default attachment list
+and reachable only when the caller asks for them by kind. That is a listing
+default, not a confidentiality boundary — the same owner-scoped credential
+already reads those rows through the invoice routes.
 
 Client names and invoice amounts are classified **sensitive** because plaintext
 disclosure is harmful, but whether they are encrypted is not this repository's

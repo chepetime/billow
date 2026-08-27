@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { requireApiIdentity } from "@/lib/api/identity";
@@ -8,8 +7,10 @@ import { recordError } from "@/lib/error-log";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 import {
   createUpload,
+  isUploadKindFilter,
   listUploads,
   toUploadResponse,
+  UPLOAD_KINDS,
   UploadRejectedError,
 } from "@/lib/uploads";
 
@@ -76,20 +77,35 @@ export async function POST(request: Request) {
 }
 
 /**
- * GET /api/v1/uploads
+ * GET /api/v1/uploads[?kind=...]
  *
  * Lists the authenticated account's files together with current storage
  * usage against the per-account quota.
+ *
+ * `kind` defaults to "attachment" — the files the owner manages directly — so
+ * the default response is unchanged. "all", or a specific workflow kind, also
+ * returns the documents the invoice workflow has adopted. Those have always counted
+ * against the quota; before this parameter existed there was no way to see
+ * them, which made `usage.bytes` look inflated by files that did not exist.
  */
-export async function GET() {
-  const identity = await requireApiIdentity(await headers());
+export async function GET(request: Request) {
+  const identity = await requireApiIdentity(request.headers);
   if (identity instanceof NextResponse) return identity;
 
-  const { uploads, usageBytes, limitBytes } = await listUploads(
+  const requestedKind = new URL(request.url).searchParams.get("kind");
+  if (requestedKind !== null && !isUploadKindFilter(requestedKind)) {
+    return error(
+      `Unknown kind. Use one of: ${UPLOAD_KINDS.join(", ")}, all.`,
+      400,
+    );
+  }
+
+  const { uploads, usageBytes, usageByKind, limitBytes } = await listUploads(
     identity.userId,
+    { kind: requestedKind ?? undefined },
   );
   return NextResponse.json({
     uploads: uploads.map(toUploadResponse),
-    usage: { bytes: usageBytes, limitBytes },
+    usage: { bytes: usageBytes, byKind: usageByKind, limitBytes },
   });
 }

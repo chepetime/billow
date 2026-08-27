@@ -83,6 +83,45 @@ export async function GET() {
 token, or a browser session. Errors use `{ error: string }` from
 `lib/api/respond.ts`.
 
+## Workspace rules
+
+A domain rule that both the UI and the API need lives in `lib/workspace/`,
+takes the owner's `userId` as an argument, and returns a `WorkspaceResult` —
+`{ ok: true, data }` or a refusal carrying a *reason*, never a sentence:
+
+```ts
+export async function updateClientCompany(
+  userId: string,
+  id: number,
+  input: ClientCompanyInput,
+): Promise<WorkspaceResult> { /* … */ }
+```
+
+Two thin callers map that reason outward, and neither one holds a rule:
+
+- `lib/actions/*` supplies the session's user, revalidates the pages that
+  changed, and turns the reason into form copy (`toActionResult`).
+- `app/api/v1/*` supplies whoever the API key resolved to and turns the same
+  reason into a status (`workspaceError` in `lib/api/workspace-response.ts`).
+
+Both mappers switch exhaustively, so a new reason fails the build rather than
+falling through to a 500.
+
+<Callout>
+The reason is the whole point. A rule that returns
+*"That client is no longer in your workspace."* has picked a caller, and the
+other one is left matching on English to choose between 404 and 409.
+</Callout>
+
+`ClientCompany` is the worked example. The older actions — invoices, bank
+accounts, senders — still call `requireSession()` inline and are not callable
+from a route yet; migrate one when it needs an endpoint, not speculatively.
+
+Ownership is the `userId` argument; encryption is `getWorkspacePrisma()`, which
+reads the session itself and correctly hands an API-key caller the keyless
+client. Keep the two separate — a rule that conflates them will either leak
+another account's rows or refuse a write it should allow.
+
 ## Testing
 
 Vitest, colocated as `*.test.ts`. Favour pure functions that can be tested

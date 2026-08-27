@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireApiIdentity } from "@/lib/api/identity";
 import { consumeRateLimit } from "@/lib/api/rate-limit";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
-import { error } from "@/lib/api/respond";
+import { error, rateLimited } from "@/lib/api/respond";
 import {
   decryptVaultPayload,
   encryptVaultPayload,
@@ -75,9 +75,9 @@ async function identityFor(request: Request) {
 async function overVaultLimit(userId: string) {
   const limit = await consumeRateLimit(`vault:${userId}`, 20, 60);
   if (limit.allowed) return null;
-  return error(
+  return rateLimited(
     `Too many vault requests. Try again in ${limit.retryAfter} seconds.`,
-    429,
+    limit.retryAfter,
   );
 }
 

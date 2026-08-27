@@ -6,11 +6,27 @@ const API_KEY = "billow_test_key";
 const KEY_OWNER = "user-from-api-key";
 const SESSION_OWNER = "user-from-session";
 
+/**
+ * Mirrors the plugin's actual `{ valid, key, error }` return shape, including
+ * the `code`/`details` the api-key plugin sets on a throttled key but does not
+ * declare in its public types.
+ */
+type VerifyApiKeyResult = {
+  valid: boolean;
+  key: { referenceId: string } | null;
+  error?: {
+    message: string;
+    code?: string;
+    details?: { tryAgainIn?: number };
+  };
+};
+
 const authMock = vi.hoisted(() => ({
-  verifyApiKey: vi.fn(async ({ body }: { body: { key: string } }) =>
-    body.key === API_KEY
-      ? { valid: true, key: { referenceId: KEY_OWNER } }
-      : { valid: false, key: null, error: { message: "Invalid API key." } },
+  verifyApiKey: vi.fn(
+    async ({ body }: { body: { key: string } }): Promise<VerifyApiKeyResult> =>
+      body.key === API_KEY
+        ? { valid: true, key: { referenceId: KEY_OWNER } }
+        : { valid: false, key: null, error: { message: "Invalid API key." } },
   ),
   // Every request in this file is treated as carrying a valid session cookie,
   // which is the situation the guard has to get right: an attacker's forged
@@ -19,6 +35,17 @@ const authMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@billow/auth", () => ({ auth: { api: authMock } }));
+
+vi.mock("@/lib/workspace/clients", () => ({
+  createClientCompany: vi.fn(async () => ({ ok: false, reason: "invalid" })),
+  updateClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  deleteClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  getClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+}));
+
+vi.mock("@/lib/workspace-records", () => ({
+  listClientCompanies: vi.fn(async () => ({ clients: [], encrypted: false })),
+}));
 
 vi.mock("@/lib/uploads", () => ({
   UploadRejectedError: class extends Error {
@@ -38,6 +65,12 @@ function post(path: string, headers: Record<string, string>) {
 function del(path: string, headers: Record<string, string>) {
   return new Request(`${ORIGIN}${path}`, { method: "DELETE", headers });
 }
+
+function put(path: string, headers: Record<string, string>) {
+  return new Request(`${ORIGIN}${path}`, { method: "PUT", headers });
+}
+
+const clientParams = { params: Promise.resolve({ id: "1" }) };
 
 const apiKeyHeaders = { authorization: `Bearer ${API_KEY}` };
 // `Basic` is not a credential requireApiIdentity accepts, so a request sending
@@ -129,6 +162,60 @@ describe("same-origin guard on API-key-capable routes", () => {
     expect(response.status).toBe(403);
   });
 
+  it("POST /api/v1/clients skips the origin check for a Bearer API key", async () => {
+    const { POST } = await import("@/app/api/v1/clients/route");
+    const response = await POST(post("/api/v1/clients", apiKeyHeaders));
+    expect(response.status).not.toBe(403);
+  });
+
+  it("POST /api/v1/clients rejects a Basic header riding on a session cookie", async () => {
+    const { POST } = await import("@/app/api/v1/clients/route");
+    const response = await POST(post("/api/v1/clients", basicHeaders));
+    expect(response.status).toBe(403);
+  });
+
+  it("POST /api/v1/clients rejects a session request with no origin", async () => {
+    const { POST } = await import("@/app/api/v1/clients/route");
+    const response = await POST(post("/api/v1/clients", {}));
+    expect(response.status).toBe(403);
+  });
+
+  it("PUT /api/v1/clients/[id] rejects a session request with no origin", async () => {
+    const { PUT } = await import("@/app/api/v1/clients/[id]/route");
+    const response = await PUT(put("/api/v1/clients/1", {}), clientParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("PUT /api/v1/clients/[id] skips the origin check for a Bearer API key", async () => {
+    const { PUT } = await import("@/app/api/v1/clients/[id]/route");
+    const response = await PUT(
+      put("/api/v1/clients/1", apiKeyHeaders),
+      clientParams,
+    );
+    expect(response.status).not.toBe(403);
+  });
+
+  it("DELETE /api/v1/clients/[id] rejects a session request with no origin", async () => {
+    const { DELETE } = await import("@/app/api/v1/clients/[id]/route");
+    const response = await DELETE(del("/api/v1/clients/1", {}), clientParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("DELETE /api/v1/clients/[id] skips the origin check for a Bearer API key", async () => {
+    const { DELETE } = await import("@/app/api/v1/clients/[id]/route");
+    const response = await DELETE(
+      del("/api/v1/clients/1", apiKeyHeaders),
+      clientParams,
+    );
+    expect(response.status).not.toBe(403);
+  });
+
+  it("GET /api/v1/clients stays exempt: browsers send no origin on a same-origin GET", async () => {
+    const { GET } = await import("@/app/api/v1/clients/route");
+    const response = await GET(new Request(`${ORIGIN}/api/v1/clients`));
+    expect(response.status).toBe(200);
+  });
+
   it("POST /api/v1/vault skips the origin check for a Bearer API key", async () => {
     const { POST } = await import("@/app/api/v1/vault/route");
     const response = await POST(post("/api/v1/vault", apiKeyHeaders));
@@ -158,5 +245,60 @@ describe("same-origin guard on API-key-capable routes", () => {
     const response = await GET(new Request(`${ORIGIN}/api/v1/vault`));
     // 401 for the missing vault key, not 403 for the missing origin.
     expect(response.status).toBe(401);
+  });
+});
+
+/**
+ * A throttled key is a working credential being told to wait. Answering 401
+ * makes a client treat it as invalid — the failure this covers is a caller
+ * that discarded a good key, and one that retried flat out because nothing in
+ * the response said how long to wait.
+ */
+describe("rate-limited API keys", () => {
+  const rateLimitedResult = {
+    valid: false,
+    key: null,
+    error: {
+      message: "Rate limit exceeded",
+      code: "RATE_LIMITED",
+      details: { tryAgainIn: 42_000 },
+    },
+  };
+
+  it("answers 429 with Retry-After, not 401", async () => {
+    authMock.verifyApiKey.mockResolvedValueOnce(rateLimitedResult);
+
+    const response = await requireApiIdentity(
+      new Headers({ "x-api-key": API_KEY }),
+    );
+
+    expect(response).toBeInstanceOf(Response);
+    const result = response as Response;
+    expect(result.status).toBe(429);
+    expect(result.headers.get("Retry-After")).toBe("42");
+    await expect(result.json()).resolves.toMatchObject({ retryAfter: 42 });
+  });
+
+  it("still says wait when the plugin gives no window", async () => {
+    authMock.verifyApiKey.mockResolvedValueOnce({
+      ...rateLimitedResult,
+      error: { message: "Rate limit exceeded", code: "RATE_LIMITED" },
+    });
+
+    const result = (await requireApiIdentity(
+      new Headers({ "x-api-key": API_KEY }),
+    )) as Response;
+
+    expect(result.status).toBe(429);
+    expect(result.headers.get("Retry-After")).toBe("1");
+  });
+
+  it("leaves a genuinely invalid key at 401", async () => {
+    const result = (await requireApiIdentity(
+      new Headers({ "x-api-key": "not-the-key" }),
+    )) as Response;
+
+    expect(result.status).toBe(401);
+    expect(result.headers.get("Retry-After")).toBeNull();
   });
 });

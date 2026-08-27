@@ -3,25 +3,20 @@
 import { requireSession } from "@billow/auth";
 import { revalidatePath } from "next/cache";
 
-import {
-  type ActionResult,
-  fail,
-  ok,
-  toActionError,
-} from "@/lib/actions/result";
-import {
-  type ClientCompanyInput,
-  clientCompanySchema,
-} from "@/lib/schemas/workspace";
-import { getWorkspacePrisma } from "@/lib/workspace-prisma";
+import { type ActionResult, fail, ok } from "@/lib/actions/result";
+import type { ClientCompanyInput } from "@/lib/schemas/workspace";
+import * as clients from "@/lib/workspace/clients";
+import type { WorkspaceResult } from "@/lib/workspace/result";
 
 /**
- * Client companies — the "Bill To" block on an invoice.
+ * The browser's half of the client-company rules.
  *
- * No encrypted column on this model today, but the writes still go through
- * `getWorkspacePrisma()`: one way in is what makes "is this write sealed?"
- * answerable by reading the file, and a mixed convention is exactly what
- * shipped plaintext account numbers once already.
+ * Everything here is a wrapper: supply the session's user, call the rule in
+ * `lib/workspace/clients.ts`, revalidate the pages that changed, and turn the
+ * refusal reason into the sentence the form shows. No rule lives in this file,
+ * which is the point — `app/api/v1/clients` calls the same functions with a
+ * different user and maps the same reasons to HTTP statuses, so the two
+ * callers cannot disagree about who owns what or when a delete is refused.
  */
 
 function revalidate() {
@@ -29,70 +24,57 @@ function revalidate() {
   revalidatePath("/dashboard");
 }
 
+const IN_USE =
+  "This client is used by an invoice. Invoices keep the billing details they were issued with, so the client cannot be deleted while they exist.";
+
+/**
+ * Reason to copy. Exhaustive on purpose: adding a reason to
+ * `WorkspaceErrorReason` should stop the build here rather than silently fall
+ * through to "Something went wrong".
+ */
+function toActionResult<T>(result: WorkspaceResult<T>): ActionResult<T> {
+  if (result.ok) return ok(result.data);
+
+  switch (result.reason) {
+    case "invalid":
+      return fail("Check the highlighted fields.");
+    case "not_found":
+      return fail("That client is no longer in your workspace.");
+    case "in_use":
+      return fail(IN_USE);
+    case "conflict":
+      return fail("Those details clash with a client you already have.");
+    case "no_key":
+      return fail(
+        "Your encryption key is not available in this session. Sign out and back in, then try again.",
+      );
+    case "failed":
+      return fail("Something went wrong saving that. Please try again.");
+  }
+}
+
 export async function createClientCompany(
   input: ClientCompanyInput,
 ): Promise<ActionResult<{ id: number }>> {
-  const parsed = clientCompanySchema.safeParse(input);
-  if (!parsed.success) return fail("Check the highlighted fields.");
-
-  try {
-    const { prisma } = await getWorkspacePrisma();
-    const session = await requireSession();
-
-    const client = await prisma.clientCompany.create({
-      data: { ...parsed.data, userId: session.user.id },
-      select: { id: true },
-    });
-
-    revalidate();
-    return ok({ id: client.id });
-  } catch (error) {
-    return toActionError("createClientCompany", error);
-  }
+  const session = await requireSession();
+  const result = await clients.createClientCompany(session.user.id, input);
+  if (result.ok) revalidate();
+  return toActionResult(result);
 }
 
 export async function updateClientCompany(
   id: number,
   input: ClientCompanyInput,
 ): Promise<ActionResult> {
-  const parsed = clientCompanySchema.safeParse(input);
-  if (!parsed.success) return fail("Check the highlighted fields.");
-
-  try {
-    const { prisma } = await getWorkspacePrisma();
-    const session = await requireSession();
-
-    const { count } = await prisma.clientCompany.updateMany({
-      where: { id, userId: session.user.id },
-      data: parsed.data,
-    });
-
-    if (count === 0) return fail("That client is no longer in your workspace.");
-
-    revalidate();
-    return ok();
-  } catch (error) {
-    return toActionError("updateClientCompany", error);
-  }
+  const session = await requireSession();
+  const result = await clients.updateClientCompany(session.user.id, id, input);
+  if (result.ok) revalidate();
+  return toActionResult(result);
 }
 
 export async function deleteClientCompany(id: number): Promise<ActionResult> {
-  try {
-    const { prisma } = await getWorkspacePrisma();
-    const session = await requireSession();
-
-    const { count } = await prisma.clientCompany.deleteMany({
-      where: { id, userId: session.user.id },
-    });
-
-    if (count === 0) return fail("That client is no longer in your workspace.");
-
-    revalidate();
-    return ok();
-  } catch (error) {
-    return toActionError("deleteClientCompany", error, {
-      inUse:
-        "This client is used by an invoice. Invoices keep the billing details they were issued with, so the client cannot be deleted while they exist.",
-    });
-  }
+  const session = await requireSession();
+  const result = await clients.deleteClientCompany(session.user.id, id);
+  if (result.ok) revalidate();
+  return toActionResult(result);
 }

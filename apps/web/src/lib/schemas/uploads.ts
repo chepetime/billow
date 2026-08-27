@@ -13,7 +13,7 @@ export const uploadResponseSchema = z.object({
   size: z.number().int().nonnegative().meta({ description: "Size in bytes." }),
   kind: z.string().meta({
     description:
-      'Attachment classification. Account files use "attachment"; workflow documents are hidden from the account list.',
+      'Attachment classification: "attachment" for a file the account owner manages directly, "invoice_document" or "tax_period_document" once the invoice workflow has adopted it. Only attachments are listed by default.',
   }),
   createdAt: z
     .string()
@@ -21,11 +21,14 @@ export const uploadResponseSchema = z.object({
 });
 
 export const uploadUsageSchema = z.object({
-  bytes: z
-    .number()
-    .int()
-    .nonnegative()
-    .meta({ description: "Total bytes currently stored for this account." }),
+  bytes: z.number().int().nonnegative().meta({
+    description:
+      "Total bytes stored for this account, across every kind. This is the figure the quota is enforced on, so it can exceed the sum of the files in this response — see byKind.",
+  }),
+  byKind: z.record(z.string(), z.number().int().nonnegative()).meta({
+    description:
+      "Bytes stored per kind. Workflow documents count against the quota but are not returned by the default listing; request kind=all to see them.",
+  }),
   limitBytes: z
     .number()
     .int()

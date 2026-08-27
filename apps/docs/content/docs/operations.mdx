@@ -93,6 +93,51 @@ valid"*, because DNS resolved to a different Postgres.
 | `BETTER_AUTH_URL` | no | Deliberately unset; origins are trusted per request |
 | `PORT` | no | Defaults to 3000 |
 | `BILLOW_DEBUG_TOKEN` | no | >=16 chars. Break-glass access to `/api/admin/diagnostics` via an `x-debug-token` header. Unset by default |
+| `BILLOW_API_KEY_RATE_LIMIT_MAX` | no | Requests one API key may make per window. Defaults to 120 |
+| `BILLOW_API_KEY_RATE_LIMIT_WINDOW_SECONDS` | no | Length of that window. Defaults to 60 |
+
+An unparseable value for either limit falls back to the default rather than
+throwing. A malformed number must not stop the app from booting — there is no
+shell behind the Umbrel UI to fix it from.
+
+### API key rate limits
+
+BetterAuth's api-key plugin defaults to **10 requests per 24 hours** and stores
+that budget on each key row when the key is created. Two consequences:
+
+- Changing the variables above only affects keys created afterwards. The
+  `20260827120000_api_key_rate_limit_budget` migration moved existing keys off
+  the plugin defaults; a key created later under a different setting keeps the
+  value it was created with.
+- These limits govern credential verification only. They are not what protects
+  the scrypt routes — those carry their own tighter limiter (see the callout
+  below), which does not care which credential the caller used.
+
+A throttled request answers **429 with `Retry-After`**, never 401. A 401 tells
+a client its credential is bad, and a client that believes that discards a
+working key or retries immediately — the opposite of backing off.
+
+### API keys carry no scopes
+
+A key is the account. BetterAuth's plugin supports per-key `permissions`, and
+this app has never set them, so every key can reach every route its owner can.
+
+That is what bounds which write verbs are exposed. `DELETE /api/v1/clients/{id}`
+is safe without scopes because `Invoice.clientCompanyId` is `onDelete: Restrict`
+— Postgres refuses to remove a client any invoice was issued to, so the worst a
+key can do is drop an unreferenced row. `Invoice` is not: its `lineItems` and
+`revisions` are `onDelete: Cascade`, so deleting one destroys its history with
+it. **Scoped keys land before invoice writes do.**
+
+Two things make that more than a one-liner when it is picked up:
+
+- `permissions` is a **server-only** property. `authClient.apiKey.create()` from
+  the browser is rejected with `SERVER_ONLY_PROPERTY`, so the settings UI needs
+  a server action that calls `auth.api.createApiKey` instead.
+- A key with `permissions: null` **fails every permission check**, and fails as
+  `KEY_NOT_FOUND` — a 401 reading "invalid key". Turning scopes on without
+  backfilling existing keys reproduces exactly the misleading 401 that the rate
+  limiter used to return. Backfill first, and map a scope failure to 403.
 
 ## Container runtime
 
