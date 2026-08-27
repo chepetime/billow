@@ -111,15 +111,34 @@ validates with `invoicePublicIdSchema` instead.
 
 A domain rule that both the UI and the API need lives in `lib/workspace/`,
 takes the owner's `userId` as an argument, and returns a `WorkspaceResult` —
-`{ ok: true, data }` or a refusal carrying a *reason*, never a sentence:
+`{ ok: true, data }` or a refusal carrying a *reason*, never a sentence. The
+body runs inside `rule()`, which opens the workspace client and turns anything
+thrown into a refusal:
 
 ```ts
-export async function updateClientCompany(
+export async function deleteClientCompany(
   userId: string,
   id: number,
-  input: ClientCompanyInput,
-): Promise<WorkspaceResult> { /* … */ }
+): Promise<WorkspaceResult> {
+  return rule("deleteClientCompany", async ({ prisma }) => {
+    const { count } = await prisma.clientCompany.deleteMany({
+      where: { id, userId },
+    });
+    return count === 0 ? refuse("not_found") : succeed();
+  });
+}
 ```
+
+Use it for reads too. Rules that wrote the `try`/`catch` by hand mostly got it
+right, and the one that did not — a list — threw into its route as a 500 with
+nothing in the error log while every neighbour reported `failed` and recorded
+the cause.
+
+The owner belongs in the write's own `where` clause, not in a read that
+precedes it: `updateMany({ where: { id, userId } })` makes the ownership check
+and the write one statement. Validation stays visible in each rule rather than
+moving into the wrapper — it is the first invariant, and a body arriving from
+JSON is exactly as unvalidated as one arriving from a form.
 
 Two thin callers map that reason outward, and neither one holds a rule:
 

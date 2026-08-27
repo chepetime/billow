@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { numericId, workspaceError } from "@/lib/api/workspace-route";
-import type { WorkspaceErrorReason } from "@/lib/workspace/result";
+import type { WorkspaceErrorReason } from "@/lib/workspace/rule";
 
 /**
  * The mapper is the API's half of the rules split: `lib/workspace/*` returns a

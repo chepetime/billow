@@ -2,6 +2,7 @@ import "server-only";
 
 import { PlaintextEncryptedWriteError } from "@billow/db/field-encryption";
 import { recordError } from "@/lib/error-log";
+import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 /**
  * What a workspace rule returns.
@@ -91,4 +92,35 @@ export async function refuseFromError(
 
   await recordError(context, error);
   return refuse("failed");
+}
+
+type WorkspaceClient = Awaited<ReturnType<typeof getWorkspacePrisma>>;
+
+/**
+ * Runs one workspace rule: opens the client, and turns anything thrown into a
+ * refusal.
+ *
+ * Every rule had written this try/catch itself, and the one that did not was
+ * `listTaxPeriods` — so a database error on that path threw into the route
+ * handler and became a 500 with nothing in the error log to explain it, while
+ * its neighbours all reported `failed` and recorded the cause. That asymmetry
+ * is invisible at the call site, which is exactly why it survived review.
+ *
+ * The body receives `{ prisma, encrypted }` rather than just the client:
+ * `encrypted` is false when this request cannot reach a data key, and a rule
+ * touching an encrypted column has to be able to say so. See
+ * lib/workspace-prisma.ts.
+ *
+ * `context` names the rule in the error log. It is passed rather than derived
+ * because a stack trace through this wrapper names the wrapper.
+ */
+export async function rule<T>(
+  context: string,
+  body: (client: WorkspaceClient) => Promise<WorkspaceResult<T>>,
+): Promise<WorkspaceResult<T>> {
+  try {
+    return await body(await getWorkspacePrisma());
+  } catch (error) {
+    return refuseFromError(context, error);
+  }
 }

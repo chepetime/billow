@@ -1,7 +1,7 @@
 import type { NextResponse } from "next/server";
 
 import { error, validationError } from "@/lib/api/respond";
-import type { WorkspaceResult } from "@/lib/workspace/result";
+import type { WorkspaceResult } from "@/lib/workspace/rule";
 
 /**
  * Serial-integer path ids, parsed once.

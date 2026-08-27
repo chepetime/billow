@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ClientForm } from "@/app/(app)/clients/_components/client-form";
-import { listClientCompanies } from "@/lib/workspace-records";
+import { getClientCompany } from "@/lib/workspace/clients";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +18,11 @@ export default async function EditClientPage({
 
   if (Number.isNaN(clientId)) notFound();
 
-  const { clients } = await listClientCompanies(session.user.id);
-  const client = clients.find((candidate) => candidate.id === clientId);
-
-  if (!client) notFound();
+  // Was: load every client and find this one. The rule looks it up scoped to
+  // its owner, which is both the cheaper query and the same one the API uses.
+  const result = await getClientCompany(session.user.id, clientId);
+  if (!result.ok) notFound();
+  const client = result.data;
 
   return (
     <div className="flex flex-1 flex-col gap-6">

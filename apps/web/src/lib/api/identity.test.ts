@@ -45,6 +45,7 @@ vi.mock("@/lib/workspace/clients", () => ({
   updateClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
   deleteClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
   getClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  listClientCompanies: vi.fn(async () => ({ ok: true, data: [] })),
 }));
 
 vi.mock("@/lib/workspace/tax-periods", () => ({
@@ -52,11 +53,7 @@ vi.mock("@/lib/workspace/tax-periods", () => ({
   updateTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
   deleteTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
   getTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
-  listTaxPeriods: vi.fn(async () => []),
-}));
-
-vi.mock("@/lib/workspace-records", () => ({
-  listClientCompanies: vi.fn(async () => ({ clients: [], encrypted: false })),
+  listTaxPeriods: vi.fn(async () => ({ ok: true, data: [] })),
 }));
 
 vi.mock("@/lib/uploads", () => ({

@@ -19,7 +19,11 @@ export async function GET(request: Request) {
   if (identity instanceof NextResponse) return identity;
 
   const periods = await listTaxPeriods(identity.userId);
-  return NextResponse.json({ taxPeriods: periods.map(toTaxPeriodResponse) });
+  if (!periods.ok) return workspaceError(periods);
+
+  return NextResponse.json({
+    taxPeriods: periods.data.map(toTaxPeriodResponse),
+  });
 }
 
 /**

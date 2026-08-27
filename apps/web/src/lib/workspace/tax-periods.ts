@@ -1,14 +1,15 @@
 import "server-only";
 
+import type { Prisma } from "@billow/db/client";
+
 import { parseDateOnly } from "@/lib/date-only";
 import { taxPeriodSchema } from "@/lib/schemas/workspace";
 import {
   refuse,
-  refuseFromError,
+  rule,
   succeed,
   type WorkspaceResult,
-} from "@/lib/workspace/result";
-import { getWorkspacePrisma } from "@/lib/workspace-prisma";
+} from "@/lib/workspace/rule";
 
 /**
  * Monthly tax filings.
@@ -40,6 +41,11 @@ const documentSelection = {
 
 const withDocuments = { documents: documentSelection } as const;
 
+/** A period with its documents, derived from the include above rather than restated. */
+export type TaxPeriodRecord = Prisma.TaxPeriodGetPayload<{
+  include: typeof withDocuments;
+}>;
+
 /**
  * Schema-valid input to database columns.
  *
@@ -62,35 +68,33 @@ function toColumns(input: ReturnType<typeof taxPeriodSchema.parse>) {
   };
 }
 
-export async function listTaxPeriods(userId: string) {
-  const { prisma } = await getWorkspacePrisma();
-  return prisma.taxPeriod.findMany({
-    where: { userId },
-    include: withDocuments,
-    // Most recent month first: the period anyone is asking about is almost
-    // always the one just closed.
-    orderBy: [{ year: "desc" }, { month: "desc" }],
-  });
+export async function listTaxPeriods(
+  userId: string,
+): Promise<WorkspaceResult<TaxPeriodRecord[]>> {
+  return rule("listTaxPeriods", async ({ prisma }) =>
+    succeed(
+      await prisma.taxPeriod.findMany({
+        where: { userId },
+        include: withDocuments,
+        // Most recent month first: the period anyone is asking about is almost
+        // always the one just closed.
+        orderBy: [{ year: "desc" }, { month: "desc" }],
+      }),
+    ),
+  );
 }
-
-export type TaxPeriodRecord = Awaited<
-  ReturnType<typeof listTaxPeriods>
->[number];
 
 export async function getTaxPeriod(
   userId: string,
   id: number,
 ): Promise<WorkspaceResult<TaxPeriodRecord>> {
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  return rule("getTaxPeriod", async ({ prisma }) => {
     const period = await prisma.taxPeriod.findFirst({
       where: { id, userId },
       include: withDocuments,
     });
     return period === null ? refuse("not_found") : succeed(period);
-  } catch (error) {
-    return refuseFromError("getTaxPeriod", error);
-  }
+  });
 }
 
 /**
@@ -106,21 +110,19 @@ export async function createTaxPeriod(
     return refuse("invalid", parsed.error.flatten().fieldErrors);
   }
 
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  // A second period for the same month violates the unique constraint and
+  // comes back as `conflict`, which is the honest answer: the caller asked to
+  // create something that already exists, and an upsert here would silently
+  // overwrite a filing record.
+  return rule("createTaxPeriod", async ({ prisma }) =>
     // `create` returns the row, so this stays one round trip.
-    const period = await prisma.taxPeriod.create({
-      data: { ...toColumns(parsed.data), userId },
-      include: withDocuments,
-    });
-    return succeed(period);
-  } catch (error) {
-    // A second period for the same month violates the unique constraint and
-    // comes back as `conflict`, which is the honest answer: the caller asked
-    // to create something that already exists, and an upsert here would
-    // silently overwrite a filing record.
-    return refuseFromError("createTaxPeriod", error);
-  }
+    succeed(
+      await prisma.taxPeriod.create({
+        data: { ...toColumns(parsed.data), userId },
+        include: withDocuments,
+      }),
+    ),
+  );
 }
 
 export async function updateTaxPeriod(
@@ -133,8 +135,9 @@ export async function updateTaxPeriod(
     return refuse("invalid", parsed.error.flatten().fieldErrors);
   }
 
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  // Moving a period onto a month that already has one is a conflict, same
+  // constraint as create.
+  return rule("updateTaxPeriod", async ({ prisma }) => {
     // The owner rides in the write's own filter, so the ownership check and
     // the update are one statement. updateMany returns a count rather than the
     // row, hence the read that follows.
@@ -145,11 +148,7 @@ export async function updateTaxPeriod(
     if (count === 0) return refuse("not_found");
 
     return getTaxPeriod(userId, id);
-  } catch (error) {
-    // Moving a period onto a month that already has one is a conflict, same
-    // constraint as create.
-    return refuseFromError("updateTaxPeriod", error);
-  }
+  });
 }
 
 /**
@@ -169,8 +168,7 @@ export async function deleteTaxPeriod(
   userId: string,
   id: number,
 ): Promise<WorkspaceResult> {
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  return rule("deleteTaxPeriod", async ({ prisma }) => {
     const period = await prisma.taxPeriod.findFirst({
       where: { id, userId },
       select: { id: true, _count: { select: { documents: true } } },
@@ -185,7 +183,5 @@ export async function deleteTaxPeriod(
       where: { id, userId },
     });
     return count === 0 ? refuse("not_found") : succeed();
-  } catch (error) {
-    return refuseFromError("deleteTaxPeriod", error);
-  }
+  });
 }

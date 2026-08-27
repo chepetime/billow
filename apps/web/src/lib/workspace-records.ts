@@ -5,6 +5,10 @@ import { recordError } from "@/lib/error-log";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 /**
+ * Reads for the workspace CRUD screens that have not moved to lib/workspace/
+ * yet. `ClientCompany` and `TaxPeriod` own their own reads there, beside their
+ * writes; the rest still live here.
+ *
  * Reads for the workspace CRUD screens.
  *
  * Everything here goes through `getWorkspacePrisma()` so the encrypted columns
@@ -41,16 +45,6 @@ export async function listBankAccounts(userId: string) {
   });
 
   return { accounts, encrypted };
-}
-
-export async function listClientCompanies(userId: string) {
-  const { prisma, encrypted } = await getWorkspacePrisma();
-  const clients = await prisma.clientCompany.findMany({
-    where: { userId },
-    orderBy: [{ name: "asc" }],
-  });
-
-  return { clients, encrypted };
 }
 
 export async function listInvoices(userId: string) {

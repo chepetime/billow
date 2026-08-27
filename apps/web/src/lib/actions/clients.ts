@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { type ActionResult, fail, ok } from "@/lib/actions/result";
 import type { ClientCompanyInput } from "@/lib/schemas/workspace";
 import * as clients from "@/lib/workspace/clients";
-import type { WorkspaceResult } from "@/lib/workspace/result";
+import type { WorkspaceResult } from "@/lib/workspace/rule";
 
 /**
  * The browser's half of the client-company rules.

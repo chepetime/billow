@@ -3,13 +3,18 @@ import { buttonVariants } from "@billow/shadcn/components/button";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { listClientCompanies } from "@/lib/workspace-records";
+import { listClientCompanies } from "@/lib/workspace/clients";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
   const session = await requireSession();
-  const { clients } = await listClientCompanies(session.user.id);
+  const result = await listClientCompanies(session.user.id);
+  // A page throws where the API answers 500: the read already logged its
+  // cause, and rendering "No clients yet" for a database failure would tell
+  // the user something false about their own account.
+  if (!result.ok) throw new Error("Could not load clients.");
+  const clients = result.data;
 
   return (
     <div className="flex flex-1 flex-col gap-6">

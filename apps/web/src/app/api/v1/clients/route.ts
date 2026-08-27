@@ -4,8 +4,10 @@ import { requireApiIdentity } from "@/lib/api/identity";
 import { error } from "@/lib/api/respond";
 import { workspaceError } from "@/lib/api/workspace-route";
 import { toClientResponse } from "@/lib/schemas/clients";
-import { createClientCompany } from "@/lib/workspace/clients";
-import { listClientCompanies } from "@/lib/workspace-records";
+import {
+  createClientCompany,
+  listClientCompanies,
+} from "@/lib/workspace/clients";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +20,10 @@ export async function GET(request: Request) {
   const identity = await requireApiIdentity(request);
   if (identity instanceof NextResponse) return identity;
 
-  const { clients } = await listClientCompanies(identity.userId);
-  return NextResponse.json({ clients: clients.map(toClientResponse) });
+  const clients = await listClientCompanies(identity.userId);
+  if (!clients.ok) return workspaceError(clients);
+
+  return NextResponse.json({ clients: clients.data.map(toClientResponse) });
 }
 
 /**

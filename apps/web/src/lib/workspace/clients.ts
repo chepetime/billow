@@ -5,11 +5,10 @@ import type { ClientCompany } from "@billow/db/client";
 import { clientCompanySchema } from "@/lib/schemas/workspace";
 import {
   refuse,
-  refuseFromError,
+  rule,
   succeed,
   type WorkspaceResult,
-} from "@/lib/workspace/result";
-import { getWorkspacePrisma } from "@/lib/workspace-prisma";
+} from "@/lib/workspace/rule";
 
 /**
  * Client companies — the "Bill To" block on an invoice.
@@ -20,10 +19,11 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
  * passes whoever the API key resolved to, and neither can accidentally enforce
  * ownership differently from the other.
  *
- * `getWorkspacePrisma()` still reads the session on its own, but it is
- * answering a different question — "can this request reach a data key?" — and
- * an API-key caller correctly gets the keyless client. Ownership scoping is
- * the `userId` here; encryption is that. Keeping them separate is deliberate.
+ * `getWorkspacePrisma()` — reached through `rule()` — still reads the session
+ * on its own, but it is answering a different question ("can this request
+ * reach a data key?") and an API-key caller correctly gets the keyless client.
+ * Ownership scoping is the `userId` here; encryption is that. Keeping them
+ * separate is deliberate.
  *
  * `ClientCompany` holds no encrypted column today, so the keyless client is
  * fully functional for it. That is what makes this entity the right one to
@@ -35,6 +35,39 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
  * concerned, and a route that pre-validated would be a second copy of the
  * schema to drift from.
  */
+
+export async function listClientCompanies(
+  userId: string,
+): Promise<WorkspaceResult<ClientCompany[]>> {
+  return rule("listClientCompanies", async ({ prisma }) =>
+    succeed(
+      await prisma.clientCompany.findMany({
+        where: { userId },
+        orderBy: [{ name: "asc" }],
+      }),
+    ),
+  );
+}
+
+/**
+ * One client, scoped to its owner.
+ *
+ * Returns the same `not_found` refusal for another owner's id as for one that
+ * does not exist, so a caller mapping it to 404 never confirms that some other
+ * account's client exists. Reads speak the same vocabulary as the writes below
+ * so that one reason-to-status mapper covers the whole entity.
+ */
+export async function getClientCompany(
+  userId: string,
+  id: number,
+): Promise<WorkspaceResult<ClientCompany>> {
+  return rule("getClientCompany", async ({ prisma }) => {
+    const client = await prisma.clientCompany.findFirst({
+      where: { id, userId },
+    });
+    return client === null ? refuse("not_found") : succeed(client);
+  });
+}
 
 /**
  * Every write returns the stored row, not just its id.
@@ -54,16 +87,14 @@ export async function createClientCompany(
     return refuse("invalid", parsed.error.flatten().fieldErrors);
   }
 
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  return rule("createClientCompany", async ({ prisma }) =>
     // `create` returns the row, so this stays one round trip.
-    const client = await prisma.clientCompany.create({
-      data: { ...parsed.data, userId },
-    });
-    return succeed(client);
-  } catch (error) {
-    return refuseFromError("createClientCompany", error);
-  }
+    succeed(
+      await prisma.clientCompany.create({
+        data: { ...parsed.data, userId },
+      }),
+    ),
+  );
 }
 
 export async function updateClientCompany(
@@ -76,8 +107,7 @@ export async function updateClientCompany(
     return refuse("invalid", parsed.error.flatten().fieldErrors);
   }
 
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  return rule("updateClientCompany", async ({ prisma }) => {
     // `updateMany` with the owner in the filter, rather than a read-then-write:
     // the ownership check and the write are one statement, so there is no
     // window between them and no branch that could update by id alone. It
@@ -90,49 +120,20 @@ export async function updateClientCompany(
     if (count === 0) return refuse("not_found");
 
     return getClientCompany(userId, id);
-  } catch (error) {
-    return refuseFromError("updateClientCompany", error);
-  }
+  });
 }
 
 export async function deleteClientCompany(
   userId: string,
   id: number,
 ): Promise<WorkspaceResult> {
-  try {
-    const { prisma } = await getWorkspacePrisma();
+  // A client an invoice still points at raises the foreign-key violation that
+  // `rule` turns into "in_use". Invoices keep the billing details they were
+  // issued with, so this refusal is the feature.
+  return rule("deleteClientCompany", async ({ prisma }) => {
     const { count } = await prisma.clientCompany.deleteMany({
       where: { id, userId },
     });
-
     return count === 0 ? refuse("not_found") : succeed();
-  } catch (error) {
-    // A client an invoice still points at raises the foreign-key violation
-    // that refuseFromError turns into "in_use". Invoices keep the billing
-    // details they were issued with, so this refusal is the feature.
-    return refuseFromError("deleteClientCompany", error);
-  }
-}
-
-/**
- * One client, scoped to its owner.
- *
- * Returns the same `not_found` refusal for another owner's id as for one that
- * does not exist, so a caller mapping it to 404 never confirms that some other
- * account's client exists. Reads speak the same vocabulary as the writes above
- * so that one reason-to-status mapper covers the whole entity.
- */
-export async function getClientCompany(
-  userId: string,
-  id: number,
-): Promise<WorkspaceResult<ClientCompany>> {
-  try {
-    const { prisma } = await getWorkspacePrisma();
-    const client = await prisma.clientCompany.findFirst({
-      where: { id, userId },
-    });
-    return client === null ? refuse("not_found") : succeed(client);
-  } catch (error) {
-    return refuseFromError("getClientCompany", error);
-  }
+  });
 }
