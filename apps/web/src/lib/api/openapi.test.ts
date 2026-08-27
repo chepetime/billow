@@ -70,6 +70,27 @@ describe("openApiDocument", () => {
     );
   });
 
+  it("exposes the full tax-period surface", () => {
+    expect(Object.keys(openApiDocument.paths["/api/v1/tax-periods"])).toEqual(
+      expect.arrayContaining(["get", "post"]),
+    );
+    expect(
+      Object.keys(openApiDocument.paths["/api/v1/tax-periods/{id}"]),
+    ).toEqual(expect.arrayContaining(["get", "put", "delete"]));
+  });
+
+  it("documents 409 on every tax-period write", () => {
+    // Duplicate month, and a delete refused while documents are attached.
+    const writes = operations().filter(
+      ([path, method]) =>
+        path.startsWith("/api/v1/tax-periods") && method !== "get",
+    );
+    expect(writes).toHaveLength(3);
+    for (const [path, method, operation] of writes) {
+      expect(operation.responses?.["409"], `${method} ${path}`).toBeDefined();
+    }
+  });
+
   it("documents 409 on every client write", () => {
     // in_use, conflict and no_key all land on 409. A client that does not model
     // it retries a delete the database will refuse every time.

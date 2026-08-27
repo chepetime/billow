@@ -119,6 +119,20 @@ single month-level record. A CFDI issued in the first days of the next month can
 belong to a different declaration period, so an explicit period override is the
 expected future extension.
 
+`/api/v1/tax-periods` exposes the period record over REST — list, create,
+replace, delete — through the rules in `lib/workspace/tax-periods.ts`. Two
+boundaries are deliberate:
+
+- **Documents are read-only there.** Attaching a filed return is a step in an
+  invoice's lifecycle and carries invariants the period alone cannot check (a
+  filing must end holding a `TAX_RETURN`, a payment a `PAYMENT_CONFIRMATION`).
+  `updateInvoiceWorkflow` keeps that, so the two ways in cannot disagree.
+- **`filedAt` and `paidAt` are calendar days**, sent and returned as
+  `YYYY-MM-DD`. Serialising them as instants hands a caller
+  `2026-03-01T06:00:00.000Z` for a March 1 filing, which renders as February 28
+  west of UTC and falls out of its own month — the shift `lib/date-only.ts`
+  exists to prevent. `createdAt`/`updatedAt` really are instants and stay ISO.
+
 ## Attention rules
 
 The dashboard's **Needs attention** list reads the dated facts, not just the

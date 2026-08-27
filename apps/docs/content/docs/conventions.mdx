@@ -113,9 +113,18 @@ The reason is the whole point. A rule that returns
 other one is left matching on English to choose between 404 and 409.
 </Callout>
 
-`ClientCompany` is the worked example. The older actions — invoices, bank
-accounts, senders — still call `requireSession()` inline and are not callable
-from a route yet; migrate one when it needs an endpoint, not speculatively.
+`ClientCompany` and `TaxPeriod` are the migrated entities. The older actions —
+invoices, bank accounts, senders — still call `requireSession()` inline and are
+not callable from a route yet; migrate one when it needs an endpoint, not
+speculatively.
+
+A rule also owns the destructive limits the database does not enforce.
+`ClientCompany` gets `onDelete: Restrict` from `Invoice.clientCompanyId`, so
+Postgres refuses to remove a client that was ever billed. `TaxPeriod` gets the
+opposite — its documents are `onDelete: Cascade` and would be taken down with
+it, orphaning the uploads they point at — so `deleteTaxPeriod` refuses while any
+document is attached. Check the schema before exposing a `DELETE`; the answer
+differs per model.
 
 Ownership is the `userId` argument; encryption is `getWorkspacePrisma()`, which
 reads the session itself and correctly hands an API-key caller the keyless

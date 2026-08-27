@@ -54,6 +54,10 @@ check "GET /api/v1/clients/1 (no auth)" "$(code "$BASE/api/v1/clients/1")" 401
 check "POST /api/v1/clients (no auth)" "$(code -X POST "$BASE/api/v1/clients")" 401
 check "PUT /api/v1/clients/1 (no auth)" "$(code -X PUT "$BASE/api/v1/clients/1")" 401
 check "DELETE /api/v1/clients/1 (no auth)" "$(code -X DELETE "$BASE/api/v1/clients/1")" 401
+check "GET /api/v1/tax-periods (no auth)" "$(code "$BASE/api/v1/tax-periods")" 401
+check "POST /api/v1/tax-periods (no auth)" "$(code -X POST "$BASE/api/v1/tax-periods")" 401
+check "PUT /api/v1/tax-periods/1 (no auth)" "$(code -X PUT "$BASE/api/v1/tax-periods/1")" 401
+check "DELETE /api/v1/tax-periods/1 (no auth)" "$(code -X DELETE "$BASE/api/v1/tax-periods/1")" 401
 
 # The probe is deliberately boolean-only: {"status":"ok"} when the database is
 # reachable, {"status":"unavailable"} with 503 when it is not.

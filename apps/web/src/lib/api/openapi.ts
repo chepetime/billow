@@ -9,10 +9,14 @@ import {
   clientResponseSchema,
 } from "@/lib/schemas/clients";
 import {
+  taxPeriodListResponseSchema,
+  taxPeriodResponseSchema,
+} from "@/lib/schemas/tax-periods";
+import {
   uploadListResponseSchema,
   uploadResponseSchema,
 } from "@/lib/schemas/uploads";
-import { clientCompanySchema } from "@/lib/schemas/workspace";
+import { clientCompanySchema, taxPeriodSchema } from "@/lib/schemas/workspace";
 
 const accountSchema = z.toJSONSchema(accountResponseSchema);
 const errorSchema = z.toJSONSchema(errorResponseSchema);
@@ -25,6 +29,9 @@ const clientListSchema = z.toJSONSchema(clientListResponseSchema);
 const clientInputSchema = z.toJSONSchema(clientCompanySchema, {
   io: "input",
 });
+const taxPeriodSchemaJson = z.toJSONSchema(taxPeriodResponseSchema);
+const taxPeriodListSchema = z.toJSONSchema(taxPeriodListResponseSchema);
+const taxPeriodInputSchema = z.toJSONSchema(taxPeriodSchema, { io: "input" });
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -255,6 +262,206 @@ export const openApiDocument = {
           "409": {
             description:
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": {
+            description:
+              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+        },
+      },
+    },
+    "/api/v1/tax-periods": {
+      get: {
+        operationId: "listTaxPeriods",
+        summary: "List monthly tax filings",
+        description:
+          "The authenticated account's tax periods, most recent month first, each with its attached documents. filedAt and paidAt are calendar days (YYYY-MM-DD), not timestamps.",
+        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        responses: {
+          "200": {
+            description: "The account's tax periods.",
+            content: { "application/json": { schema: taxPeriodListSchema } },
+          },
+          "401": {
+            description: "No valid credentials were supplied.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": {
+            description:
+              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+        },
+      },
+      post: {
+        operationId: "createTaxPeriod",
+        summary: "Create a monthly tax filing",
+        description:
+          "Creates the filing record for one month. A month that already has one answers 409 rather than overwriting it.",
+        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: taxPeriodInputSchema } },
+        },
+        responses: {
+          "201": {
+            description: "The created tax period.",
+            content: { "application/json": { schema: taxPeriodSchemaJson } },
+          },
+          "400": {
+            description:
+              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "401": {
+            description: "No valid credentials were supplied.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "403": {
+            description:
+              "A cookie-authenticated request did not originate from this app.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "409": {
+            description: "This account already has a period for that month.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": {
+            description:
+              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+        },
+      },
+    },
+    "/api/v1/tax-periods/{id}": {
+      get: {
+        operationId: "getTaxPeriod",
+        summary: "Get one monthly tax filing",
+        description:
+          "Scoped to the authenticated account. An id belonging to another account 404s exactly like a missing one.",
+        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "The tax period.",
+            content: { "application/json": { schema: taxPeriodSchemaJson } },
+          },
+          "400": {
+            description: "The id was not an integer.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "401": {
+            description: "No valid credentials were supplied.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "404": {
+            description: "No such tax period exists for this account.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": {
+            description:
+              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+        },
+      },
+      put: {
+        operationId: "replaceTaxPeriod",
+        summary: "Replace a monthly tax filing",
+        description:
+          "A full replacement: an omitted nullable field is written as null, so leaving out paidAt clears the payment date. Attached documents are not part of this representation and are untouched.",
+        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: taxPeriodInputSchema } },
+        },
+        responses: {
+          "200": {
+            description: "The updated tax period.",
+            content: { "application/json": { schema: taxPeriodSchemaJson } },
+          },
+          "400": {
+            description:
+              "The body was not a JSON object, or a field failed validation. Field errors are in the fields property.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "401": {
+            description: "No valid credentials were supplied.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "403": {
+            description:
+              "A cookie-authenticated request did not originate from this app.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "404": {
+            description: "No such tax period exists for this account.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "409": {
+            description: "Another period already covers the target month.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": {
+            description:
+              "The API key's request budget for the current window is spent. Retry-After carries the wait in seconds; the same figure is in the body's retryAfter field.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+        },
+      },
+      delete: {
+        operationId: "deleteTaxPeriod",
+        summary: "Delete a monthly tax filing",
+        description:
+          "Refused with 409 while any document is attached. The filed return and payment confirmation are detached through the invoice workflow, never by cascading them away with the period.",
+        security: [{ apiKey: [] }, { bearerAuth: [] }, { sessionCookie: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        responses: {
+          "200": { description: "The tax period was deleted." },
+          "400": {
+            description: "The id was not an integer.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "401": {
+            description: "No valid credentials were supplied.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "403": {
+            description:
+              "A cookie-authenticated request did not originate from this app.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "404": {
+            description: "No such tax period exists for this account.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "409": {
+            description: "A document is still attached to this period.",
             content: { "application/json": { schema: errorSchema } },
           },
           "429": {

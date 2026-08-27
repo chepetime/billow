@@ -145,6 +145,44 @@ export const clientCompanySchema = z.object({
   notes: optionalText(1000),
 });
 
+/**
+ * A monthly tax filing.
+ *
+ * `filedAt` and `paidAt` are date-only strings, not timestamps: they are
+ * calendar days, and `lib/date-only.ts` exists because parsing one with the
+ * built-in Date constructor shifts it a day west of UTC. Everything nullable
+ * here is also optional — an absent key means "no value", which is what makes
+ * a PUT a full replacement rather than a merge.
+ *
+ * `year`/`month` carry the `@@unique([userId, year, month])` constraint, so a
+ * second period for the same month is a conflict rather than a second row.
+ */
+export const taxPeriodSchema = z.object({
+  year: numeric("Year").pipe(
+    z
+      .number()
+      .int("Year must be a whole number.")
+      .min(2000, "Year must be 2000 or later.")
+      .max(2100, "Year must be 2100 or earlier."),
+  ),
+  month: numeric("Month").pipe(
+    z
+      .number()
+      .int("Month must be a whole number.")
+      .min(1, "Month must be between 1 and 12.")
+      .max(12, "Month must be between 1 and 12."),
+  ),
+  currency: currencySchema.default("MXN"),
+  amountPaid: money("Amount paid")
+    .nullish()
+    .transform((value) => value ?? null),
+  filedAt: dateOnlySchema.nullish().transform((value) => value ?? null),
+  paidAt: dateOnlySchema.nullish().transform((value) => value ?? null),
+  notes: optionalText(1000)
+    .nullish()
+    .transform((value) => value ?? null),
+});
+
 export const invoiceLineItemSchema = z.object({
   description: requiredText("Description", 300),
   note: optionalText(1000),
@@ -176,6 +214,7 @@ export const invoiceSchema = z.object({
 export type SenderProfileInput = z.infer<typeof senderProfileSchema>;
 export type BankAccountInput = z.infer<typeof bankAccountSchema>;
 export type ClientCompanyInput = z.infer<typeof clientCompanySchema>;
+export type TaxPeriodInput = z.infer<typeof taxPeriodSchema>;
 export type InvoiceLineItemInput = z.infer<typeof invoiceLineItemSchema>;
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 

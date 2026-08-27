@@ -43,6 +43,14 @@ vi.mock("@/lib/workspace/clients", () => ({
   getClientCompany: vi.fn(async () => ({ ok: false, reason: "not_found" })),
 }));
 
+vi.mock("@/lib/workspace/tax-periods", () => ({
+  createTaxPeriod: vi.fn(async () => ({ ok: false, reason: "invalid" })),
+  updateTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  deleteTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  getTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  listTaxPeriods: vi.fn(async () => []),
+}));
+
 vi.mock("@/lib/workspace-records", () => ({
   listClientCompanies: vi.fn(async () => ({ clients: [], encrypted: false })),
 }));
@@ -213,6 +221,63 @@ describe("same-origin guard on API-key-capable routes", () => {
   it("GET /api/v1/clients stays exempt: browsers send no origin on a same-origin GET", async () => {
     const { GET } = await import("@/app/api/v1/clients/route");
     const response = await GET(new Request(`${ORIGIN}/api/v1/clients`));
+    expect(response.status).toBe(200);
+  });
+
+  it("POST /api/v1/tax-periods skips the origin check for a Bearer API key", async () => {
+    const { POST } = await import("@/app/api/v1/tax-periods/route");
+    const response = await POST(post("/api/v1/tax-periods", apiKeyHeaders));
+    expect(response.status).not.toBe(403);
+  });
+
+  it("POST /api/v1/tax-periods rejects a session request with no origin", async () => {
+    const { POST } = await import("@/app/api/v1/tax-periods/route");
+    const response = await POST(post("/api/v1/tax-periods", {}));
+    expect(response.status).toBe(403);
+  });
+
+  it("POST /api/v1/tax-periods rejects a Basic header riding on a session cookie", async () => {
+    const { POST } = await import("@/app/api/v1/tax-periods/route");
+    const response = await POST(post("/api/v1/tax-periods", basicHeaders));
+    expect(response.status).toBe(403);
+  });
+
+  it("PUT /api/v1/tax-periods/[id] rejects a session request with no origin", async () => {
+    const { PUT } = await import("@/app/api/v1/tax-periods/[id]/route");
+    const response = await PUT(put("/api/v1/tax-periods/1", {}), clientParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("PUT /api/v1/tax-periods/[id] skips the origin check for a Bearer API key", async () => {
+    const { PUT } = await import("@/app/api/v1/tax-periods/[id]/route");
+    const response = await PUT(
+      put("/api/v1/tax-periods/1", apiKeyHeaders),
+      clientParams,
+    );
+    expect(response.status).not.toBe(403);
+  });
+
+  it("DELETE /api/v1/tax-periods/[id] rejects a session request with no origin", async () => {
+    const { DELETE } = await import("@/app/api/v1/tax-periods/[id]/route");
+    const response = await DELETE(
+      del("/api/v1/tax-periods/1", {}),
+      clientParams,
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it("DELETE /api/v1/tax-periods/[id] skips the origin check for a Bearer API key", async () => {
+    const { DELETE } = await import("@/app/api/v1/tax-periods/[id]/route");
+    const response = await DELETE(
+      del("/api/v1/tax-periods/1", apiKeyHeaders),
+      clientParams,
+    );
+    expect(response.status).not.toBe(403);
+  });
+
+  it("GET /api/v1/tax-periods stays exempt: browsers send no origin on a same-origin GET", async () => {
+    const { GET } = await import("@/app/api/v1/tax-periods/route");
+    const response = await GET(new Request(`${ORIGIN}/api/v1/tax-periods`));
     expect(response.status).toBe(200);
   });
 
