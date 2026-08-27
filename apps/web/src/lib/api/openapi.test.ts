@@ -79,6 +79,29 @@ describe("openApiDocument", () => {
     ).toEqual(expect.arrayContaining(["get", "put", "delete"]));
   });
 
+  it("exposes the full invoice surface", () => {
+    expect(Object.keys(openApiDocument.paths["/api/v1/invoices"])).toEqual(
+      expect.arrayContaining(["get", "post"]),
+    );
+    expect(Object.keys(openApiDocument.paths["/api/v1/invoices/{id}"])).toEqual(
+      expect.arrayContaining(["get", "put", "delete"]),
+    );
+  });
+
+  it("documents the invoice id as a uuid, not an integer", () => {
+    // Invoices are keyed by publicId. A generated client typing this as an
+    // integer would be unable to address a single invoice.
+    const parameters = (
+      openApiDocument.paths["/api/v1/invoices/{id}"].get as {
+        parameters: Array<{ name: string; schema: { type: string } }>;
+      }
+    ).parameters;
+    expect(parameters[0]).toMatchObject({
+      name: "id",
+      schema: { type: "string", format: "uuid" },
+    });
+  });
+
   it("documents 409 on every tax-period write", () => {
     // Duplicate month, and a delete refused while documents are attached.
     const writes = operations().filter(

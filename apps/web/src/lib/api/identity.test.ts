@@ -54,6 +54,17 @@ vi.mock("@/lib/workspace/clients", () => ({
   listClientCompanies: vi.fn(async () => ({ ok: true, data: [] })),
 }));
 
+vi.mock("@/lib/workspace/invoices", () => ({
+  createInvoice: vi.fn(async () => ({ ok: false, reason: "invalid" })),
+  updateInvoice: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  deleteInvoice: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  getInvoice: vi.fn(async () => ({ ok: false, reason: "not_found" })),
+  listInvoices: vi.fn(async () => ({
+    ok: true,
+    data: { invoices: [], count: 0, truncated: false },
+  })),
+}));
+
 vi.mock("@/lib/workspace/tax-periods", () => ({
   createTaxPeriod: vi.fn(async () => ({ ok: false, reason: "invalid" })),
   updateTaxPeriod: vi.fn(async () => ({ ok: false, reason: "not_found" })),
@@ -403,6 +414,57 @@ describe("same-origin guard on API-key-capable routes", () => {
   it("GET /api/v1/tax-periods stays exempt: browsers send no origin on a same-origin GET", async () => {
     const { GET } = await import("@/app/api/v1/tax-periods/route");
     const response = await GET(new Request(`${ORIGIN}/api/v1/tax-periods`));
+    expect(response.status).toBe(200);
+  });
+
+  it("POST /api/v1/invoices skips the origin check for a Bearer API key", async () => {
+    const { POST } = await import("@/app/api/v1/invoices/route");
+    const response = await POST(post("/api/v1/invoices", apiKeyHeaders));
+    expect(response.status).not.toBe(403);
+  });
+
+  it("POST /api/v1/invoices rejects a session request with no origin", async () => {
+    const { POST } = await import("@/app/api/v1/invoices/route");
+    const response = await POST(post("/api/v1/invoices", {}));
+    expect(response.status).toBe(403);
+  });
+
+  it("PUT /api/v1/invoices/[id] rejects a session request with no origin", async () => {
+    const { PUT } = await import("@/app/api/v1/invoices/[id]/route");
+    const response = await PUT(put("/api/v1/invoices/x", {}), clientParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("DELETE /api/v1/invoices/[id] rejects a session request with no origin", async () => {
+    const { DELETE } = await import("@/app/api/v1/invoices/[id]/route");
+    const response = await DELETE(del("/api/v1/invoices/x", {}), clientParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("DELETE /api/v1/invoices/[id] is refused for a read-only key", async () => {
+    // The verb scoped keys existed for: line items and the revision history
+    // cascade, and no rule can make that reversible.
+    authMock.verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { referenceId: KEY_OWNER, permissions: { billow: ["read"] } },
+    });
+    const { DELETE } = await import("@/app/api/v1/invoices/[id]/route");
+    const response = await DELETE(
+      del("/api/v1/invoices/x", apiKeyHeaders),
+      clientParams,
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it("GET /api/v1/invoices allows a read-only key", async () => {
+    authMock.verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { referenceId: KEY_OWNER, permissions: { billow: ["read"] } },
+    });
+    const { GET } = await import("@/app/api/v1/invoices/route");
+    const response = await GET(
+      new Request(`${ORIGIN}/api/v1/invoices`, { headers: apiKeyHeaders }),
+    );
     expect(response.status).toBe(200);
   });
 

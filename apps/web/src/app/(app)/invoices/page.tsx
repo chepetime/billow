@@ -5,13 +5,17 @@ import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatInvoiceDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { INVOICE_PAGE_SIZE, listInvoices } from "@/lib/workspace-records";
+import { INVOICE_PAGE_SIZE, listInvoices } from "@/lib/workspace/invoices";
 
 export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage() {
   const session = await requireSession();
-  const { invoices, count, truncated } = await listInvoices(session.user.id);
+  const result = await listInvoices(session.user.id);
+  // A page throws where the API answers 500: the read already logged its
+  // cause, and an empty list would say something false about the account.
+  if (!result.ok) throw new Error("Could not load invoices.");
+  const { invoices, count, truncated } = result.data;
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -40,9 +44,9 @@ export default async function InvoicesPage() {
       ) : (
         <ul className="divide-y divide-border rounded-lg border bg-card">
           {invoices.map((invoice) => (
-            <li key={invoice.id}>
+            <li key={invoice.publicId}>
               <Link
-                href={`/invoices/${invoice.id}`}
+                href={`/invoices/${invoice.publicId}`}
                 className="flex flex-wrap items-center justify-between gap-3 p-5 hover:bg-accent/40"
               >
                 <div className="flex flex-wrap items-center gap-3 text-sm">

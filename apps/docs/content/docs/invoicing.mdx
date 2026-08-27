@@ -86,6 +86,39 @@ default `attachment` view hides. They stay out of the default listing because
 the invoice UI owns their lifecycle — deleting one from the files list would
 silently strip a CFDI off an invoice.
 
+### Over the API
+
+`/api/v1/invoices` exposes list, create, replace and delete through the rules in
+`lib/workspace/invoices.ts` — the same rules the invoice forms call.
+
+Three things differ from the other entities, and they are why no shared CRUD
+abstraction covers this one:
+
+- **Addressed by `publicId`**, an opaque UUID. The serial primary key never
+  leaves the server, and a malformed id answers `404` exactly like a missing
+  one so a caller cannot probe which ids exist.
+- **Every write appends a revision** inside the same transaction. The editor is
+  recorded as `Name (API key)` when the write came from a key, so an automated
+  edit is distinguishable from one a person made.
+- **The three references are re-checked against the caller** inside that
+  transaction. Without it, an id posted straight at the route would attach
+  another account's bank details to an invoice. A reference that is not yours
+  is `404`, the same as a missing invoice.
+
+`status` and the four progress dates are not writable here. They are derived
+from the workflow's milestones and carried forward unchanged by a `PUT`.
+
+<Callout type="warn">
+`DELETE` takes the line items and the whole revision history with it — both
+cascade, and unlike a client (refused by `onDelete: Restrict`) or a tax period
+(protected by its own rule) nothing makes it reversible. This is the verb
+scoped keys exist for: a read-only key cannot reach it.
+</Callout>
+
+The detail read deliberately omits the sender profile and bank account. Those
+are the encrypted models, and an API-key caller holds no data key, so joining
+them would cost a decrypt per column to return nulls.
+
 ## Monthly tax filing
 
 The monthly obligation is separate from any one invoice. `TaxPeriod` is created

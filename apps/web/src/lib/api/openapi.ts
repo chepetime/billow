@@ -9,6 +9,10 @@ import {
   clientResponseSchema,
 } from "@/lib/schemas/clients";
 import {
+  invoiceDetailResponseSchema,
+  invoiceListResponseSchema,
+} from "@/lib/schemas/invoices";
+import {
   taxPeriodListResponseSchema,
   taxPeriodResponseSchema,
 } from "@/lib/schemas/tax-periods";
@@ -16,7 +20,11 @@ import {
   uploadListResponseSchema,
   uploadResponseSchema,
 } from "@/lib/schemas/uploads";
-import { clientCompanySchema, taxPeriodSchema } from "@/lib/schemas/workspace";
+import {
+  clientCompanySchema,
+  invoiceSchema,
+  taxPeriodSchema,
+} from "@/lib/schemas/workspace";
 
 const accountSchema = z.toJSONSchema(accountResponseSchema);
 const errorSchema = z.toJSONSchema(errorResponseSchema);
@@ -32,6 +40,9 @@ const clientInputSchema = z.toJSONSchema(clientCompanySchema, {
 const taxPeriodSchemaJson = z.toJSONSchema(taxPeriodResponseSchema);
 const taxPeriodListSchema = z.toJSONSchema(taxPeriodListResponseSchema);
 const taxPeriodInputSchema = z.toJSONSchema(taxPeriodSchema, { io: "input" });
+const invoiceSchemaJson = z.toJSONSchema(invoiceDetailResponseSchema);
+const invoiceListSchema = z.toJSONSchema(invoiceListResponseSchema);
+const invoiceInputSchema = z.toJSONSchema(invoiceSchema, { io: "input" });
 
 /**
  * Response and security fragments, shared rather than pasted.
@@ -68,6 +79,20 @@ const INVALID_BODY = jsonError(
 );
 
 const INVALID_ID = jsonError("The id was not a positive integer.");
+
+/** Invoices are addressed by an opaque UUID, not the serial id others use. */
+const INVOICE_ID_PARAMETER = [
+  {
+    name: "id",
+    in: "path",
+    required: true,
+    schema: { type: "string", format: "uuid" },
+  },
+];
+
+const INVOICE_NOT_FOUND = jsonError(
+  "No such invoice exists for this account. A malformed id answers the same way, so this never confirms which ids exist.",
+);
 
 /** The path parameter every serial-id entity shares. */
 const ID_PARAMETER = [
@@ -220,6 +245,115 @@ export const openApiDocument = {
               "The change was refused by a rule: a conflicting record, a row another record still refers to, or a field only a signed-in user can write.",
             content: { "application/json": { schema: errorSchema } },
           },
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/invoices": {
+      get: {
+        operationId: "listInvoices",
+        summary: "List invoices",
+        description:
+          "The account's invoices, newest first, with totals and progress dates. Bounded: count and truncated say whether anything was left out. Dates are calendar days (YYYY-MM-DD), not timestamps.",
+        security: AUTHENTICATED,
+        responses: {
+          "200": {
+            description: "The account's invoices.",
+            content: { "application/json": { schema: invoiceListSchema } },
+          },
+          "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+      post: {
+        operationId: "createInvoice",
+        summary: "Create a draft invoice",
+        description:
+          "Creates a DRAFT invoice with its line items and records the first revision. Needs a read-and-write key. The sender profile, bank account and client are confirmed to belong to the caller in the same transaction that writes the row; one that does not answers 404, the same as a missing invoice.",
+        security: AUTHENTICATED,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: invoiceInputSchema } },
+        },
+        responses: {
+          "201": {
+            description: "The created invoice.",
+            content: { "application/json": { schema: invoiceSchemaJson } },
+          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
+          "404": {
+            description:
+              "The sender profile, bank account or client is not in this account.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "409": {
+            description:
+              "This account already has an invoice with that number.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/invoices/{id}": {
+      get: {
+        operationId: "getInvoice",
+        summary: "Get one invoice",
+        description:
+          "One invoice with its line items and attached documents. Each document names the upload holding its bytes, fetchable from /api/v1/uploads/{id}.",
+        security: AUTHENTICATED,
+        parameters: INVOICE_ID_PARAMETER,
+        responses: {
+          "200": {
+            description: "The invoice.",
+            content: { "application/json": { schema: invoiceSchemaJson } },
+          },
+          "401": UNAUTHORIZED,
+          "404": INVOICE_NOT_FOUND,
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+      put: {
+        operationId: "replaceInvoice",
+        summary: "Replace an invoice",
+        description:
+          "A full replacement of the editable fields, appending a revision. status and the four progress dates are not editable here -- they are derived from the workflow's milestones and carried forward. Line items are replaced, not reconciled.",
+        security: AUTHENTICATED,
+        parameters: INVOICE_ID_PARAMETER,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: invoiceInputSchema } },
+        },
+        responses: {
+          "200": {
+            description: "The updated invoice.",
+            content: { "application/json": { schema: invoiceSchemaJson } },
+          },
+          "400": INVALID_BODY,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
+          "404": INVOICE_NOT_FOUND,
+          "409": {
+            description: "Another invoice already has that number.",
+            content: { "application/json": { schema: errorSchema } },
+          },
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+      delete: {
+        operationId: "deleteInvoice",
+        summary: "Delete an invoice",
+        description:
+          "Deletes the invoice, its line items and its entire revision history -- all cascade, and none of it is recoverable. Attached CFDI uploads survive and stay reachable at /api/v1/uploads?kind=invoice_document.",
+        security: AUTHENTICATED,
+        parameters: INVOICE_ID_PARAMETER,
+        responses: {
+          "200": { description: "The invoice was deleted." },
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
+          "404": INVOICE_NOT_FOUND,
           "429": TOO_MANY_REQUESTS,
         },
       },

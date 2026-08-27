@@ -94,7 +94,23 @@ export async function refuseFromError(
   return refuse("failed");
 }
 
-type WorkspaceClient = Awaited<ReturnType<typeof getWorkspacePrisma>>;
+export type WorkspaceClient = Awaited<ReturnType<typeof getWorkspacePrisma>>;
+
+export type WorkspacePrisma = WorkspaceClient["prisma"];
+
+/**
+ * What Prisma hands a `$transaction` callback: the extended client minus the
+ * methods a transaction cannot use.
+ *
+ * Derived rather than `Prisma.TransactionClient`, which describes the *bare*
+ * client. The workspace client is `$extends`-ed with the field-encryption
+ * extension, so the two are not assignable and a helper typed with the bare
+ * one cannot be called from inside a workspace transaction.
+ */
+export type WorkspaceTx = Omit<
+  WorkspacePrisma,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 /**
  * Runs one workspace rule: opens the client, and turns anything thrown into a

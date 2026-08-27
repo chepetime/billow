@@ -18,14 +18,6 @@ import { getWorkspacePrisma } from "@/lib/workspace-prisma";
  * rather than print an envelope at the user.
  */
 
-/**
- * How many invoices the list route loads. A contractor billing monthly reaches
- * this in eight years, and the count beside it tells the truth when it is hit.
- * The bound exists because an unbounded list of invoices each hydrated with its
- * line items is what the dashboard had to be rescued from once already.
- */
-export const INVOICE_PAGE_SIZE = 100;
-
 export async function listSenderProfiles(userId: string) {
   const { prisma, encrypted } = await getWorkspacePrisma();
   const profiles = await prisma.userProfile.findMany({
@@ -45,44 +37,6 @@ export async function listBankAccounts(userId: string) {
   });
 
   return { accounts, encrypted };
-}
-
-export async function listInvoices(userId: string) {
-  const { prisma } = await getWorkspacePrisma();
-
-  const [invoices, count, totals] = await Promise.all([
-    prisma.invoice.findMany({
-      where: { userId },
-      include: { clientCompany: { select: { id: true, name: true } } },
-      orderBy: [{ invoiceDate: "desc" }, { invoiceNumber: "desc" }],
-      take: INVOICE_PAGE_SIZE,
-    }),
-    prisma.invoice.count({ where: { userId } }),
-    // One grouped aggregate instead of hydrating every line item of every
-    // invoice just to add up four numbers per row.
-    prisma.invoiceLineItem.groupBy({
-      by: ["invoiceId"],
-      _sum: { amount: true },
-      where: { invoice: { userId } },
-    }),
-  ]);
-
-  const totalById = new Map(
-    totals.map((row) => [row.invoiceId, Number(row._sum.amount ?? 0)]),
-  );
-
-  return {
-    invoices: invoices.map((invoice) => {
-      const { id: internalId, publicId, ...fields } = invoice;
-      return {
-        ...fields,
-        id: publicId,
-        total: totalById.get(internalId) ?? 0,
-      };
-    }),
-    count,
-    truncated: count > invoices.length,
-  };
 }
 
 /**
