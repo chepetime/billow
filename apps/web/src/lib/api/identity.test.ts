@@ -13,7 +13,7 @@ const SESSION_OWNER = "user-from-session";
  */
 type VerifyApiKeyResult = {
   valid: boolean;
-  key: { referenceId: string } | null;
+  key: { referenceId: string; permissions?: unknown } | null;
   error?: {
     message: string;
     code?: string;
@@ -25,7 +25,13 @@ const authMock = vi.hoisted(() => ({
   verifyApiKey: vi.fn(
     async ({ body }: { body: { key: string } }): Promise<VerifyApiKeyResult> =>
       body.key === API_KEY
-        ? { valid: true, key: { referenceId: KEY_OWNER } }
+        ? {
+            valid: true,
+            key: {
+              referenceId: KEY_OWNER,
+              permissions: { billow: ["read", "write"] },
+            },
+          }
         : { valid: false, key: null, error: { message: "Invalid API key." } },
   ),
   // Every request in this file is treated as carrying a valid session cookie,
@@ -112,6 +118,72 @@ describe("requireApiIdentity", () => {
   it("reports a plain cookie caller as a session caller", async () => {
     const identity = await requireApiIdentity(get());
     expect(identity).toEqual({ userId: SESSION_OWNER, via: "session" });
+  });
+});
+
+/**
+ * Scopes. The route says `mutating`, and that one flag decides both the CSRF
+ * guard and which grant the key needs.
+ */
+describe("API key scopes", () => {
+  function readOnlyKey() {
+    authMock.verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { referenceId: KEY_OWNER, permissions: { billow: ["read"] } },
+    });
+  }
+
+  it("lets a read-only key read", async () => {
+    readOnlyKey();
+    await expect(
+      requireApiIdentity(get({ "x-api-key": API_KEY })),
+    ).resolves.toEqual({ userId: KEY_OWNER, via: "apiKey" });
+  });
+
+  it("refuses a write from a read-only key with 403, not 401", async () => {
+    // 401 would say the credential is bad and send the caller off to reissue a
+    // key that was never the problem — the same misdiagnosis the rate limiter
+    // used to hand out.
+    readOnlyKey();
+    const result = (await requireApiIdentity(get({ "x-api-key": API_KEY }), {
+      mutating: true,
+    })) as Response;
+
+    expect(result.status).toBe(403);
+    await expect(result.json()).resolves.toMatchObject({
+      error: expect.stringContaining("read-only"),
+    });
+  });
+
+  it("lets a read_write key write", async () => {
+    await expect(
+      requireApiIdentity(get({ "x-api-key": API_KEY }), { mutating: true }),
+    ).resolves.toEqual({ userId: KEY_OWNER, via: "apiKey" });
+  });
+
+  it("never scope-checks a session: the signed-in user is the owner", async () => {
+    await expect(
+      requireApiIdentity(
+        new Request(`${ORIGIN}/api/v1/clients`, {
+          method: "POST",
+          headers: sameOriginHeaders,
+        }),
+        { mutating: true },
+      ),
+    ).resolves.toEqual({ userId: SESSION_OWNER, via: "session" });
+  });
+
+  it("treats a key with no permissions as read-only rather than invalid", async () => {
+    // authClient.apiKey.create sets none, and it is reachable from a browser
+    // console. Least privilege, not lockout.
+    authMock.verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { referenceId: KEY_OWNER, permissions: null },
+    });
+    const result = (await requireApiIdentity(get({ "x-api-key": API_KEY }), {
+      mutating: true,
+    })) as Response;
+    expect(result.status).toBe(403);
   });
 });
 

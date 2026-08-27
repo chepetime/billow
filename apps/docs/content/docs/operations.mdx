@@ -117,27 +117,40 @@ A throttled request answers **429 with `Retry-After`**, never 401. A 401 tells
 a client its credential is bad, and a client that believes that discards a
 working key or retries immediately — the opposite of backing off.
 
-### API keys carry no scopes
+### API key scopes
 
-A key is the account. BetterAuth's plugin supports per-key `permissions`, and
-this app has never set them, so every key can reach every route its owner can.
+A key carries one of two grants, stored in BetterAuth's `permissions` column:
 
-That is what bounds which write verbs are exposed. `DELETE /api/v1/clients/{id}`
-is safe without scopes because `Invoice.clientCompanyId` is `onDelete: Restrict`
-— Postgres refuses to remove a client any invoice was issued to, so the worst a
-key can do is drop an unreferenced row. `Invoice` is not: its `lineItems` and
-`revisions` are `onDelete: Cascade`, so deleting one destroys its history with
-it. **Scoped keys land before invoice writes do.**
+| grant | stored | can |
+| --- | --- | --- |
+| `read` | `{"billow":["read"]}` | every `GET` |
+| `read_write` | `{"billow":["read","write"]}` | everything |
 
-Two things make that more than a one-liner when it is picked up:
+The settings form defaults to **read only**, which is the right default for what
+these keys are actually for: a script or agent that summarises the workspace
+should not be able to delete an invoice.
 
-- `permissions` is a **server-only** property. `authClient.apiKey.create()` from
-  the browser is rejected with `SERVER_ONLY_PROPERTY`, so the settings UI needs
-  a server action that calls `auth.api.createApiKey` instead.
-- A key with `permissions: null` **fails every permission check**, and fails as
-  `KEY_NOT_FOUND` — a 401 reading "invalid key". Turning scopes on without
-  backfilling existing keys reproduces exactly the misleading 401 that the rate
-  limiter used to return. Backfill first, and map a scope failure to 403.
+One flag drives it. A route that passes `{ mutating: true }` to
+`requireApiIdentity` gets both the same-origin guard and the `write`
+requirement — a route cannot be CSRF-guarded but scope-free, or the reverse.
+Sessions are never scope-checked; the signed-in user is the owner.
+
+Three things are deliberate and easy to get wrong:
+
+- **Creation is a server action**, `lib/actions/api-keys.ts`, not
+  `authClient.apiKey.create`. BetterAuth treats `permissions` as a server-only
+  property and rejects any request carrying one that arrived with headers, so a
+  key created from the browser would have no scope at all.
+- **An insufficient scope answers 403**, and the check runs on the permissions
+  `verifyApiKey` returns rather than by passing `permissions` to it. That path
+  reports a scope failure as `KEY_NOT_FOUND` — a 401 reading "invalid key" for
+  a perfectly valid credential, the same misdiagnosis the rate limiter used to
+  hand out.
+- **A key with no permissions reads but cannot write.** BetterAuth refuses
+  every permission check for such a key; the app treats it as least privilege
+  instead. Keys predating scopes were backfilled to read+write by
+  `20260827180000_api_key_scopes`, because silently demoting a working
+  integration is not a migration's job.
 
 ## Container runtime
 

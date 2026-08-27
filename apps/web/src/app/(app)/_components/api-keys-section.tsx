@@ -9,8 +9,11 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { SecretReveal } from "@/components/secret-reveal";
 import { Field } from "@/components/ui/field";
+import { createApiKey } from "@/lib/actions/api-keys";
+import { describeGrant, grantOf } from "@/lib/api/api-key-scope";
 import { notifyError, notifySuccess } from "@/lib/notify";
 import {
+  type CreateApiKeyFormValues,
   type CreateApiKeyInput,
   createApiKeySchema,
 } from "@/lib/schemas/api-keys";
@@ -21,6 +24,7 @@ export type ApiKeySummary = {
   start?: string | null;
   createdAt: Date | string;
   lastRequest?: Date | string | null;
+  permissions?: unknown;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { timeZone: "UTC" });
@@ -34,24 +38,24 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
   const router = useRouter();
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [createdKeyName, setCreatedKeyName] = useState<string>("");
-  const form = useForm<CreateApiKeyInput>({
+  const form = useForm<CreateApiKeyFormValues, unknown, CreateApiKeyInput>({
     resolver: zodResolver(createApiKeySchema),
-    defaultValues: { name: "" },
+    defaultValues: { name: "", grant: "read" },
   });
 
-  async function createKey({ name }: CreateApiKeyInput) {
+  // Creation goes through a server action, not authClient: BetterAuth treats
+  // `permissions` as server-only, so a key created from the browser would
+  // carry no scope at all.
+  async function createKey(values: CreateApiKeyInput) {
     setCreatedKey(null);
-    const resolvedName = name || "Personal key";
-    const { data, error: createError } = await authClient.apiKey.create({
-      name: resolvedName,
-    });
-    if (createError || !data) {
-      notifyError("Key not created", createError?.message ?? undefined);
+    const result = await createApiKey(values);
+    if (!result.ok) {
+      notifyError("Key not created", result.error);
       return;
     }
-    setCreatedKey(data.key);
-    setCreatedKeyName(resolvedName);
-    form.reset();
+    setCreatedKey(result.data.key);
+    setCreatedKeyName(result.data.name);
+    form.reset({ name: "", grant: "read" });
     notifySuccess("API key created", "Save it now — it won't be shown again.");
     router.refresh();
   }
@@ -112,6 +116,16 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
             {...form.register("name")}
           />
         </Field>
+        <Field label="Access" htmlFor="keyGrant" className="w-48">
+          <select
+            id="keyGrant"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            {...form.register("grant")}
+          >
+            <option value="read">Read only</option>
+            <option value="read_write">Read and write</option>
+          </select>
+        </Field>
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Creating..." : "Create key"}
         </Button>
@@ -131,7 +145,8 @@ export function ApiKeysSection({ keys }: { keys: ApiKeySummary[] }) {
                   {key.start ? (
                     <span className="font-mono">{key.start}…</span>
                   ) : null}{" "}
-                  created {formatDate(key.createdAt)} · last used{" "}
+                  {describeGrant(grantOf(key.permissions))} · created{" "}
+                  {formatDate(key.createdAt)} · last used{" "}
                   {formatDate(key.lastRequest)}
                 </p>
               </div>

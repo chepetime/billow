@@ -1,6 +1,7 @@
 import "server-only";
 
 import { auth } from "@billow/auth";
+import { allows } from "@/lib/api/api-key-scope";
 import { isSameOriginRequest } from "@/lib/api/request-origin";
 import { error, rateLimited } from "@/lib/api/respond";
 
@@ -62,6 +63,10 @@ function rateLimitRetrySeconds(verifyError: unknown): number | null {
  * `mutating` should be true for anything that changes state. It is not derived
  * from `request.method` here: the vault reads its own method set, and a route
  * that wants a guard on a GET (or none on a POST) should have to say so.
+ *
+ * The same flag decides which scope an API key needs — a mutation needs
+ * "write", everything else "read". One concept rather than two: a route
+ * cannot be CSRF-guarded but scope-free, or the reverse.
  */
 export async function requireApiIdentity(
   request: Request,
@@ -87,6 +92,18 @@ export async function requireApiIdentity(
       }
 
       return error(String(result.error?.message ?? "Invalid API key."), 401);
+    }
+
+    // Scopes are checked here rather than by passing `permissions` to
+    // verifyApiKey. That path reports an insufficient scope as KEY_NOT_FOUND,
+    // which surfaces as a 401 reading "invalid key" — indistinguishable from a
+    // forged key, and the same misdiagnosis the rate limiter used to hand out.
+    // Checking the returned permissions keeps the two answers apart.
+    if (!allows(result.key.permissions, options.mutating ? "write" : "read")) {
+      return error(
+        "This API key is read-only. Create a read and write key in Settings to make changes.",
+        403,
+      );
     }
 
     // A request that carried its own API key is not a form submission a

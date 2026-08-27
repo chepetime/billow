@@ -56,7 +56,7 @@ const jsonError = (description: string) => ({
 const UNAUTHORIZED = jsonError("No valid credentials were supplied.");
 
 const FORBIDDEN = jsonError(
-  "A cookie-authenticated request did not originate from this app.",
+  "The API key is read-only, or a cookie-authenticated request did not originate from this app.",
 );
 
 const TOO_MANY_REQUESTS = jsonError(
@@ -491,7 +491,8 @@ export const openApiDocument = {
         type: "apiKey",
         in: "header",
         name: "x-api-key",
-        description: "Personal API key created in Settings.",
+        description:
+          "Personal API key created in Settings. Keys are read-only by default; a write needs a read-and-write key, and a read-only key gets 403 rather than 401.",
       },
       bearerAuth: { type: "http", scheme: "bearer" },
       sessionCookie: {
