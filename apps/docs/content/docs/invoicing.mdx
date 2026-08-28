@@ -115,9 +115,20 @@ cascade, and unlike a client (refused by `onDelete: Restrict`) or a tax period
 scoped keys exist for: a read-only key cannot reach it.
 </Callout>
 
-The detail read deliberately omits the sender profile and bank account. Those
-are the encrypted models, and an API-key caller holds no data key, so joining
-them would cost a decrypt per column to return nulls.
+The detail read omits the sender profile and bank account *rows* — those are
+the encrypted models, and an API-key caller holds no data key, so joining them
+would cost a decrypt per column to return nulls. It does return
+`userProfileId`, `bankAccountId` and `clientCompanyId`, which are plaintext
+columns on `Invoice` itself.
+
+<Callout>
+Those three ids are what make a read sufficient to build the `PUT` that
+rewrites it. Without them an invoice could be read but not edited: `PUT`
+requires all three and nothing in the response carried them, so a caller
+repointing an invoice off a duplicated client had to guess which sender
+profile and bank account it already used — and with two identical bank
+accounts there was no way to tell.
+</Callout>
 
 ## Monthly tax filing
 

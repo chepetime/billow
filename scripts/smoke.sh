@@ -65,6 +65,8 @@ check "DELETE /api/v1/invoices/x (no auth)" "$(code -X DELETE "$BASE/api/v1/invo
 check "GET /api/v1/income (no auth)  " "$(code "$BASE/api/v1/income")" 401
 check "GET /api/v1/sender-profiles (no auth)" "$(code "$BASE/api/v1/sender-profiles")" 401
 check "GET /api/v1/bank-accounts (no auth)" "$(code "$BASE/api/v1/bank-accounts")" 401
+check "DELETE /api/v1/sender-profiles/1 (no auth)" "$(code -X DELETE "$BASE/api/v1/sender-profiles/1")" 401
+check "DELETE /api/v1/bank-accounts/1 (no auth)" "$(code -X DELETE "$BASE/api/v1/bank-accounts/1")" 401
 
 # The probe is deliberately boolean-only: {"status":"ok"} when the database is
 # reachable, {"status":"unavailable"} with 503 when it is not.

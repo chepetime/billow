@@ -71,6 +71,23 @@ const invoiceCore = {
     .nullable()
     .meta({ description: "Day the CFDI was issued, or null." }),
   total: money("Sum of the line items."),
+  // The three references, as the ids a PUT needs back. Without them an
+  // invoice could be read but not rewritten: `invoiceSchema` requires all
+  // three and nothing in the response carried them, so a caller had to guess
+  // which sender profile and bank account the invoice already used. They are
+  // plaintext foreign keys — the encrypted rows they point at stay out.
+  userProfileId: z
+    .number()
+    .int()
+    .meta({ description: "Sender profile. See /api/v1/sender-profiles." }),
+  bankAccountId: z
+    .number()
+    .int()
+    .meta({ description: "Bank account. See /api/v1/bank-accounts." }),
+  clientCompanyId: z
+    .number()
+    .int()
+    .meta({ description: "Client. See /api/v1/clients." }),
   client: z.object({
     id: z.number().int(),
     name: z.string(),
@@ -130,6 +147,9 @@ type InvoiceRow = {
   cfdiIssuedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  userProfileId: number;
+  bankAccountId: number;
+  clientCompanyId: number;
   clientCompany: { id: number; name: string };
   total: number;
 };
@@ -165,6 +185,9 @@ function core(invoice: InvoiceRow): InvoiceSummaryResponse {
     cfdiIssuedAt: day(invoice.cfdiIssuedAt),
     // An invoice has no total column; the rules layer sums its line items.
     total: invoice.total,
+    userProfileId: invoice.userProfileId,
+    bankAccountId: invoice.bankAccountId,
+    clientCompanyId: invoice.clientCompanyId,
     client: { id: invoice.clientCompany.id, name: invoice.clientCompany.name },
     createdAt: invoice.createdAt.toISOString(),
     updatedAt: invoice.updatedAt.toISOString(),

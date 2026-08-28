@@ -55,6 +55,10 @@ const LIST_INCLUDE = {
   clientCompany: { select: { id: true, name: true } },
 } as const;
 
+// userProfileId, bankAccountId and clientCompanyId are columns on Invoice, so
+// they ride along on every row without a join — which is what makes a read
+// sufficient to build the PUT that rewrites it.
+
 export type InvoiceDetail = Prisma.InvoiceGetPayload<{
   include: typeof DETAIL_INCLUDE;
 }> & { total: number };

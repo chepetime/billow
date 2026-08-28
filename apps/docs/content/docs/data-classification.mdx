@@ -103,9 +103,14 @@ are read-only and partial. They exist so an API caller can pick a
 `userProfileId` and `bankAccountId` for an invoice, and they return only
 plaintext columns — a label, a bank name, a display name. Every sealed field is
 omitted rather than returned as `null`, which would read to a consumer as data
-loss instead of a boundary. There are no writes for the same reason: a create
-or update touching a sealed column is refused outright for a keyless caller, so
-a write endpoint would be broken by construction. The selects live in
+loss instead of a boundary. There is no create or update for the same reason: one touching a sealed column
+is refused outright for a keyless caller, so it would be broken by
+construction. `DELETE` **is** exposed, because the guard refuses a *write to a
+sealed column* and a delete writes none — and the database bounds it anyway,
+since `Invoice.userProfileId` and `Invoice.bankAccountId` are
+`onDelete: Restrict`. That asymmetry is deliberate: without a delete, a
+workspace restored onto non-empty data left duplicate profiles and accounts
+that could only be cleared with SQL on the host. The selects live in
 `lib/schemas/references.ts` and are asserted field-by-field against
 `ENCRYPTED_FIELDS`, so sealing a new column fails a test rather than quietly
 nulling a response.

@@ -257,6 +257,25 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/sender-profiles/{id}": {
+      delete: {
+        operationId: "deleteSenderProfile",
+        summary: "Delete a sender profile",
+        description:
+          "Refused with 409 while any invoice still references it -- Invoice.userProfileId is onDelete: Restrict. There is no create or update here: this model's identifying columns are sealed under the owner's data key, which an API key cannot reach, so a write would be refused by the encryption guard. A delete writes no column, which is why it works.",
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
+        responses: {
+          "200": { description: "The sender profile was deleted." },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
+          "404": jsonError("No such sender profile exists for this account."),
+          "409": jsonError("An invoice still references this sender profile."),
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
     "/api/v1/sender-profiles": {
       get: {
         operationId: "listSenderProfiles",
@@ -272,6 +291,25 @@ export const openApiDocument = {
             },
           },
           "401": UNAUTHORIZED,
+          "429": TOO_MANY_REQUESTS,
+        },
+      },
+    },
+    "/api/v1/bank-accounts/{id}": {
+      delete: {
+        operationId: "deleteBankAccount",
+        summary: "Delete a bank account",
+        description:
+          "Refused with 409 while any invoice still references it -- Invoice.bankAccountId is onDelete: Restrict. There is no create or update here: this model's identifying columns are sealed under the owner's data key, which an API key cannot reach, so a write would be refused by the encryption guard. A delete writes no column, which is why it works.",
+        security: AUTHENTICATED,
+        parameters: ID_PARAMETER,
+        responses: {
+          "200": { description: "The bank account was deleted." },
+          "400": INVALID_ID,
+          "401": UNAUTHORIZED,
+          "403": FORBIDDEN,
+          "404": jsonError("No such bank account exists for this account."),
+          "409": jsonError("An invoice still references this bank account."),
           "429": TOO_MANY_REQUESTS,
         },
       },

@@ -19,8 +19,36 @@ import {
 import { restoreUploads } from "@/lib/backup-uploads";
 import { recordError } from "@/lib/error-log";
 import { deleteUpload, MAX_UPLOADS_PER_USER_BYTES } from "@/lib/uploads";
+import { getWorkspacePrisma } from "@/lib/workspace-prisma";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Describes what a restore would collide with, or null when the workspace is
+ * empty enough to receive one.
+ *
+ * Counts rather than a boolean so the refusal can say what is in the way —
+ * "this workspace still has 9 invoices" is actionable, "not empty" is not.
+ * Uploads are deliberately not counted: restoreUploads adds files beside
+ * whatever is there and an orphaned upload is harmless, unlike a duplicated
+ * invoice.
+ */
+async function workspaceIsOccupied(userId: string): Promise<string | null> {
+  const { prisma } = await getWorkspacePrisma();
+  const [invoices, profiles, clients] = await Promise.all([
+    prisma.invoice.count({ where: { userId } }),
+    prisma.userProfile.count({ where: { userId } }),
+    prisma.clientCompany.count({ where: { userId } }),
+  ]);
+
+  const parts = [
+    invoices > 0 && `${invoices} invoice${invoices === 1 ? "" : "s"}`,
+    profiles > 0 && `${profiles} sender profile${profiles === 1 ? "" : "s"}`,
+    clients > 0 && `${clients} client${clients === 1 ? "" : "s"}`,
+  ].filter((part): part is string => typeof part === "string");
+
+  return parts.length > 0 ? parts.join(", ") : null;
+}
 
 /**
  * Ceiling on a decompressed archive.
@@ -174,6 +202,23 @@ export async function POST(request: Request) {
 
   const parsed = parseBackupPayload(manifestJson);
   if (!parsed.success) return validationError(parsed.error);
+
+  const occupied = await workspaceIsOccupied(session.user.id);
+  if (occupied) {
+    // importWorkspace creates unconditionally — it maps old ids to new rows
+    // rather than matching existing ones — so restoring onto a workspace that
+    // already holds data duplicates all of it: two sender profiles, two of
+    // each bank account and client, and invoices split between the copies.
+    // That is not recoverable through this API afterwards, because the
+    // duplicates are only distinguishable by which invoices point at them.
+    //
+    // The workspace reset exists to be run first. Refusing here is what makes
+    // it the path rather than a suggestion.
+    return error(
+      `This workspace still has ${occupied}. Restoring onto it would duplicate every record instead of replacing them. Reset the workspace first, then restore.`,
+      409,
+    );
+  }
 
   try {
     const uploads = await restoreUploads(

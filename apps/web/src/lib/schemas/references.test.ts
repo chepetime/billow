@@ -52,3 +52,24 @@ describe("what the lists are for", () => {
     expect(BANK_ACCOUNT_FIELDS).toContain("userProfileId");
   });
 });
+
+/**
+ * Deleting is possible where creating and updating are not, and the reason is
+ * worth pinning down: the encryption guard refuses a *write to a sealed
+ * column*, and a delete writes none. Both models are bounded by the database
+ * instead — Invoice.userProfileId and Invoice.bankAccountId are
+ * onDelete: Restrict, so a row any invoice was issued against comes back
+ * `in_use` rather than taking the invoice with it.
+ */
+describe("what the API can do to these models", () => {
+  it("exposes no writable field, so a create or update has nothing to send", () => {
+    // If this ever gains a POST or PUT, the sealed columns are required and
+    // an API-key caller cannot supply them — the endpoint would 409 always.
+    for (const field of SEALED_FIELDS.UserProfile ?? []) {
+      expect(SENDER_PROFILE_FIELDS).not.toContain(field);
+    }
+    for (const field of SEALED_FIELDS.BankAccount ?? []) {
+      expect(BANK_ACCOUNT_FIELDS).not.toContain(field);
+    }
+  });
+});
