@@ -130,7 +130,7 @@ Still manual after every release. The store metadata lives in a separate repo:
    ```
 
 2. Update **both the tag and the digest** in the store repo's
-   `billow/docker-compose.yml`:
+   `chepetime-billow/docker-compose.yml`:
 
    ```yaml
    image: ghcr.io/chepetime/billow:v0.1.28@sha256:<digest from step 1>
@@ -145,8 +145,11 @@ Still manual after every release. The store metadata lives in a separate repo:
    fails the pull outright, which is the intended safety property: it cannot
    silently install the wrong thing.
 
-3. Bump `version` and `releaseNotes` in `billow/umbrel-app.yml`.
-4. Keep `id: billow` unchanged.
+3. Bump `version` and `releaseNotes` in `chepetime-billow/umbrel-app.yml`.
+4. Keep `id: chepetime-billow` unchanged. The directory and the id are both
+   store-prefixed: a community store silently drops an app whose id is not
+   prefixed with the store id (`chepetime`), so it vanishes from the store
+   without an error anywhere.
 5. Keep `${APP_DATA_DIR}/postgres:/var/lib/postgresql/data` unchanged.
 6. Push the store repo and refresh the alt store in Umbrel.
 

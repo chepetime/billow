@@ -149,6 +149,6 @@ Dependabot (`.github/dependabot.yml`) updates npm, Actions, and Docker weekly.
 release that needs a data migration.
 
 **Still manual after a release:** bump the separate store repo's
-`billow/docker-compose.yml` image tag and `billow/umbrel-app.yml`
+`chepetime-billow/docker-compose.yml` image tag and `chepetime-billow/umbrel-app.yml`
 version/releaseNotes, then refresh the store in Umbrel. Steps in
 `.claude/skills/release/SKILL.md`.
