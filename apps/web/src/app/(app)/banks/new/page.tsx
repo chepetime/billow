@@ -1,9 +1,14 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { BankForm } from "@/app/(app)/banks/_components/bank-form";
 import { listSenderProfiles } from "@/lib/workspace-records";
+
+export const metadata: Metadata = {
+  title: "New bank account",
+};
 
 export const dynamic = "force-dynamic";
 

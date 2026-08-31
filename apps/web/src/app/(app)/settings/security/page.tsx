@@ -1,11 +1,16 @@
 import { requireSession } from "@billow/auth";
 import { getPrisma } from "@billow/db";
+import type { Metadata } from "next";
 import {
   type SessionSummary,
   SessionsSection,
 } from "@/app/(app)/_components/sessions-section";
 import { TwoFactorSection } from "@/app/(app)/_components/two-factor-section";
 import { recordError } from "@/lib/error-log";
+
+export const metadata: Metadata = {
+  title: "Security",
+};
 
 export const dynamic = "force-dynamic";
 

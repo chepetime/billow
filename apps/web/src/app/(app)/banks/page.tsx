@@ -1,11 +1,16 @@
 import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EncryptionNotice } from "@/app/(app)/_components/encryption-notice";
 import { maskAccountNumber } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 import { listBankAccounts, listSenderProfiles } from "@/lib/workspace-records";
+
+export const metadata: Metadata = {
+  title: "Bank accounts",
+};
 
 export const dynamic = "force-dynamic";
 

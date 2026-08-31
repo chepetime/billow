@@ -1,11 +1,30 @@
-import { requireSession } from "@billow/auth";
+import { getSession, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { ClientForm } from "@/app/(app)/clients/_components/client-form";
 import { getClientCompany } from "@/lib/workspace/clients";
 
 export const dynamic = "force-dynamic";
+
+/** Shared by `generateMetadata` and the page, so the lookup happens once. */
+const loadClient = cache(getClientCompany);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const session = await getSession();
+  const { id } = await params;
+  const clientId = Number.parseInt(id, 10);
+  if (!session || Number.isNaN(clientId)) return { title: "Client" };
+
+  const result = await loadClient(session.user.id, clientId);
+  return { title: result.ok ? result.data.name : "Client" };
+}
 
 export default async function EditClientPage({
   params,
@@ -20,7 +39,7 @@ export default async function EditClientPage({
 
   // Was: load every client and find this one. The rule looks it up scoped to
   // its owner, which is both the cheaper query and the same one the API uses.
-  const result = await getClientCompany(session.user.id, clientId);
+  const result = await loadClient(session.user.id, clientId);
   if (!result.ok) notFound();
   const client = result.data;
 

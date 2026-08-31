@@ -1,10 +1,15 @@
 import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EncryptionNotice } from "@/app/(app)/_components/encryption-notice";
 import { cn } from "@/lib/utils";
 import { listSenderProfiles } from "@/lib/workspace-records";
+
+export const metadata: Metadata = {
+  title: "Sender profiles",
+};
 
 export const dynamic = "force-dynamic";
 

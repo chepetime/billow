@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ApiReference } from "@/app/docs/api/api-reference";
 
 export const metadata: Metadata = {
-  title: "API Reference | Billow",
+  title: "API reference",
   description: "Billow's personal API reference.",
 };
 

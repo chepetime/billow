@@ -1,11 +1,16 @@
 import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { InvoiceStatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatInvoiceDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { INVOICE_PAGE_SIZE, listInvoices } from "@/lib/workspace/invoices";
+
+export const metadata: Metadata = {
+  title: "Invoices",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +67,10 @@ export default async function InvoicesPage() {
                   <span className="font-medium tabular-nums">
                     {formatCurrency(invoice.total, invoice.currency)}
                   </span>
-                  <InvoiceStatusBadge status={invoice.status} />
+                  <InvoiceStatusBadge
+                    status={invoice.status}
+                    sentAt={invoice.sentAt}
+                  />
                 </div>
               </Link>
             </li>

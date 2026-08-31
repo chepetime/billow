@@ -1,12 +1,32 @@
-import { requireSession } from "@billow/auth";
+import { getSession, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { EncryptionNotice } from "@/app/(app)/_components/encryption-notice";
 import { BankForm } from "@/app/(app)/banks/_components/bank-form";
 import { listBankAccounts, listSenderProfiles } from "@/lib/workspace-records";
 
 export const dynamic = "force-dynamic";
+
+/** Shared by `generateMetadata` and the page, so the lookup happens once. */
+const loadAccounts = cache(listBankAccounts);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const session = await getSession();
+  const { id } = await params;
+  const accountId = Number.parseInt(id, 10);
+  if (!session || Number.isNaN(accountId)) return { title: "Bank account" };
+
+  const { accounts } = await loadAccounts(session.user.id);
+  const account = accounts.find((candidate) => candidate.id === accountId);
+  return { title: account?.label ?? "Bank account" };
+}
 
 export default async function EditBankPage({
   params,
@@ -20,7 +40,7 @@ export default async function EditBankPage({
   if (Number.isNaN(accountId)) notFound();
 
   const [{ accounts, encrypted }, { profiles }] = await Promise.all([
-    listBankAccounts(session.user.id),
+    loadAccounts(session.user.id),
     listSenderProfiles(session.user.id),
   ]);
   const account = accounts.find((candidate) => candidate.id === accountId);

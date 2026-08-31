@@ -1,5 +1,10 @@
 import { getRegistrationEnabled, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { RegistrationSection } from "@/app/(app)/settings/_components/registration-section";
+
+export const metadata: Metadata = {
+  title: "Access",
+};
 
 export const dynamic = "force-dynamic";
 

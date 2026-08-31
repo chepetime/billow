@@ -29,7 +29,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
     <div className="mx-auto w-full max-w-3xl rounded-xl border bg-card p-6 shadow-sm sm:p-10 print:m-0 print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
       <div className="flex flex-wrap items-start justify-between gap-4 leading-tight print:justify-end">
         <div className="flex items-center gap-2 print:hidden">
-          <InvoiceStatusBadge status={invoice.status} />
+          <InvoiceStatusBadge status={invoice.status} sentAt={invoice.sentAt} />
           <span className="text-sm text-muted-foreground">
             {invoice.currency}
           </span>

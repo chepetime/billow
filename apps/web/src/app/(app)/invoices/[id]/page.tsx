@@ -1,7 +1,9 @@
-import { requireSession } from "@billow/auth";
+import { getSession, requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { EncryptionNotice } from "@/app/(app)/_components/encryption-notice";
 import { DuplicateButton } from "@/app/(app)/invoices/_components/duplicate-button";
 import { InvoicePreview } from "@/app/(app)/invoices/_components/invoice-preview";
@@ -11,10 +13,46 @@ import {
 } from "@/app/(app)/invoices/_components/invoice-workflow-panel";
 import { PrintButton } from "@/app/(app)/invoices/_components/print-button";
 import { toDateInputValue } from "@/lib/date-only";
+import { invoiceDocumentTitle } from "@/lib/document-title";
 import { formatCurrency, formatInvoiceDate } from "@/lib/format";
 import { getInvoiceById, getTaxPeriodForMonth } from "@/lib/invoice-workspace";
 import { invoicePublicIdSchema } from "@/lib/schemas/workspace";
 import { cn } from "@/lib/utils";
+
+/**
+ * `generateMetadata` and the page below both need the invoice, and both run
+ * inside the same request. `cache` collapses that into one query — the same
+ * trick `getSession` uses, for the same reason.
+ */
+const loadInvoice = cache(getInvoiceById);
+
+/**
+ * The title here is the filename the print dialog offers, so it is built as a
+ * filename and set `absolute` to keep the " · Billow" suffix out of it.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!invoicePublicIdSchema.safeParse(id).success) {
+    return { title: "Invoice not found" };
+  }
+
+  // Not `requireSession`: metadata for a signed-out request should fall back
+  // to a generic title, not redirect out from under the page's own check.
+  const session = await getSession();
+  const invoice = session && (await loadInvoice(id, session.user.id));
+
+  if (!invoice) {
+    return { title: "Invoice not found" };
+  }
+
+  return {
+    title: { absolute: invoiceDocumentTitle(invoice) },
+  };
+}
 
 export default async function InvoiceDetailPage({
   params,
@@ -28,7 +66,7 @@ export default async function InvoiceDetailPage({
     notFound();
   }
 
-  const invoice = await getInvoiceById(id, session.user.id);
+  const invoice = await loadInvoice(id, session.user.id);
 
   if (!invoice) {
     notFound();

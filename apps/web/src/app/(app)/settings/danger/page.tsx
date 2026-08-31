@@ -1,5 +1,10 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { DeleteAccountSection } from "@/app/(app)/settings/_components/delete-account-section";
+
+export const metadata: Metadata = {
+  title: "Danger zone",
+};
 
 export const dynamic = "force-dynamic";
 

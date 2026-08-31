@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { TwoFactorForm } from "@/app/(auth)/_components/two-factor-form";
+
+export const metadata: Metadata = {
+  title: "Two-factor authentication",
+};
 
 export const dynamic = "force-dynamic";
 

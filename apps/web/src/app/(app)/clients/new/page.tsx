@@ -1,7 +1,12 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClientForm } from "@/app/(app)/clients/_components/client-form";
+
+export const metadata: Metadata = {
+  title: "New client",
+};
 
 export const dynamic = "force-dynamic";
 

@@ -4,6 +4,7 @@ import {
   deriveInvoiceStatus,
   invoiceAttentionLabel,
   invoiceStatusLabel,
+  isScheduledInvoice,
   nextInvoiceStatus,
   parseInvoiceStatus,
   previousInvoiceStatus,
@@ -139,6 +140,87 @@ describe("invoiceAttentionLabel", () => {
         hasCfdiPdf: false,
       }),
     ).toBe("Record client approval");
+  });
+
+  it("stays quiet about an invoice scheduled to go out later", () => {
+    const future = new Date();
+    future.setDate(future.getDate() + 7);
+
+    expect(
+      invoiceAttentionLabel({
+        currentStatus: InvoiceStatus.SENT,
+        sentAt: future,
+        approvedAt: null,
+        paidAt: null,
+        cfdiIssuedAt: null,
+        hasCfdiXml: false,
+        hasCfdiPdf: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("still asks for approval once the send date has passed", () => {
+    const past = new Date();
+    past.setDate(past.getDate() - 7);
+
+    expect(
+      invoiceAttentionLabel({
+        currentStatus: InvoiceStatus.SENT,
+        sentAt: past,
+        approvedAt: null,
+        paidAt: null,
+        cfdiIssuedAt: null,
+        hasCfdiXml: false,
+        hasCfdiPdf: false,
+      }),
+    ).toBe("Record client approval");
+  });
+});
+
+describe("isScheduledInvoice", () => {
+  const now = new Date(2026, 7, 31); // Aug 31 2026, local.
+
+  it("calls an invoice with a future send date scheduled", () => {
+    // Recording "sent to client" ahead of time is how an invoice is scheduled:
+    // the status column reads SENT the moment the date is saved.
+    expect(
+      isScheduledInvoice(InvoiceStatus.SENT, new Date(2026, 8, 15), now),
+    ).toBe(true);
+  });
+
+  it("does not call an invoice sent today scheduled", () => {
+    // The comparison is by day: today's invoice has gone out.
+    expect(
+      isScheduledInvoice(InvoiceStatus.SENT, new Date(2026, 7, 31), now),
+    ).toBe(false);
+  });
+
+  it("does not call a past send date scheduled", () => {
+    expect(
+      isScheduledInvoice(InvoiceStatus.SENT, new Date(2026, 7, 1), now),
+    ).toBe(false);
+  });
+
+  it("leaves every other status alone", () => {
+    // Once the invoice moves past SENT, a future send date is a typo to fix,
+    // not a schedule — the later facts already happened.
+    const future = new Date(2026, 8, 15);
+    expect(isScheduledInvoice(InvoiceStatus.DRAFT, future, now)).toBe(false);
+    expect(isScheduledInvoice(InvoiceStatus.APPROVED, future, now)).toBe(false);
+    expect(isScheduledInvoice(InvoiceStatus.PAID, future, now)).toBe(false);
+    expect(isScheduledInvoice(InvoiceStatus.VOID, future, now)).toBe(false);
+  });
+
+  it("is never scheduled without a send date", () => {
+    expect(isScheduledInvoice(InvoiceStatus.SENT, null, now)).toBe(false);
+  });
+
+  it("reads a date-only string as the day it names", () => {
+    // Through the Date constructor "2026-09-01" is UTC midnight, which is
+    // Aug 31 in Mexico City — the same day as `now`, and so not scheduled.
+    expect(isScheduledInvoice(InvoiceStatus.SENT, "2026-09-01", now)).toBe(
+      true,
+    );
   });
 });
 

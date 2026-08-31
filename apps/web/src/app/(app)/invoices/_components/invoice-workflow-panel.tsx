@@ -848,7 +848,10 @@ export function InvoiceWorkflowPanel({
             editable.
           </CardDescription>
           <CardAction>
-            <InvoiceStatusBadge status={invoice.status} />
+            <InvoiceStatusBadge
+              status={invoice.status}
+              sentAt={invoice.sentOn}
+            />
           </CardAction>
         </CardHeader>
         <CardContent>

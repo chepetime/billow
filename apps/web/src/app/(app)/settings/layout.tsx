@@ -1,7 +1,20 @@
 import { isAdmin, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { SettingsSidebar } from "@/app/(app)/settings/_components/settings-sidebar";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Settings pages set a bare section name ("Security") and land as
+ * "Security · Settings · Billow". The suffix is spelled out because a
+ * template replaces the parent's rather than nesting inside it.
+ */
+export const metadata: Metadata = {
+  title: {
+    default: "Settings",
+    template: "%s · Settings · Billow",
+  },
+};
 
 export default async function SettingsLayout({
   children,

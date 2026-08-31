@@ -1,10 +1,15 @@
 import { auth, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import {
   type ApiKeySummary,
   ApiKeysSection,
 } from "@/app/(app)/_components/api-keys-section";
 import { recordError } from "@/lib/error-log";
+
+export const metadata: Metadata = {
+  title: "API keys",
+};
 
 export const dynamic = "force-dynamic";
 

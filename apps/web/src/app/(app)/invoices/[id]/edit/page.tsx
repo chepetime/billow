@@ -1,6 +1,8 @@
-import { requireSession } from "@billow/auth";
+import { getSession, requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { InvoiceForm } from "@/app/(app)/invoices/_components/invoice-form";
 import type { InvoiceFormValues } from "@/lib/schemas/workspace";
@@ -12,6 +14,28 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** Shared by `generateMetadata` and the page, so the lookup happens once. */
+const loadInvoice = cache(getInvoiceForEdit);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const session = await getSession();
+  const { id } = await params;
+  if (!session || !invoicePublicIdSchema.safeParse(id).success) {
+    return { title: "Edit invoice" };
+  }
+
+  const invoice = await loadInvoice(id, session.user.id);
+  return {
+    title: invoice
+      ? `Edit invoice #${invoice.values.invoiceNumber}`
+      : "Edit invoice",
+  };
+}
+
 export default async function EditInvoicePage({
   params,
 }: {
@@ -22,7 +46,7 @@ export default async function EditInvoicePage({
   if (!invoicePublicIdSchema.safeParse(id).success) notFound();
 
   const [invoice, options] = await Promise.all([
-    getInvoiceForEdit(id, session.user.id),
+    loadInvoice(id, session.user.id),
     getInvoiceFormOptions(session.user.id),
   ]);
 

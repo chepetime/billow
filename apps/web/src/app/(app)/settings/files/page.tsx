@@ -1,6 +1,11 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { FilesSection } from "@/app/(app)/settings/_components/files-section";
 import { listUploads } from "@/lib/uploads";
+
+export const metadata: Metadata = {
+  title: "Files",
+};
 
 export const dynamic = "force-dynamic";
 

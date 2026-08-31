@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@billow/shadcn/components/card";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/ui/badge";
 import { formatInvoiceDate, formatMoney } from "@/lib/format";
@@ -14,6 +15,9 @@ import { getInvoiceWorkspace } from "@/lib/invoice-workspace";
 import { maskAccountNumber } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
 export default async function DashboardPage() {
   const session = await requireSession();
   const workspace = await getInvoiceWorkspace(session.user.id);
@@ -210,7 +214,10 @@ export default async function DashboardPage() {
                         <span className="font-medium">
                           {formatMoney(invoice.total)}
                         </span>
-                        <InvoiceStatusBadge status={invoice.status} />
+                        <InvoiceStatusBadge
+                          status={invoice.status}
+                          sentAt={invoice.sentAt}
+                        />
                       </div>
                     </Link>
                   </li>

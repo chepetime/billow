@@ -1,6 +1,11 @@
 import { requireGuest } from "@billow/auth";
 import { getEmailCapability } from "@billow/email";
+import type { Metadata } from "next";
 import { SignInForm } from "@/app/(auth)/_components/sign-in-form";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+};
 
 export const dynamic = "force-dynamic";
 

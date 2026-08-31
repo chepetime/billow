@@ -1,6 +1,11 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import { AccountForm } from "@/app/(app)/_components/account-form";
 import { LanguageSection } from "@/app/(app)/_components/language-section";
+
+export const metadata: Metadata = {
+  title: "Account",
+};
 
 export const dynamic = "force-dynamic";
 

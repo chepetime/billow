@@ -1,7 +1,12 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SenderForm } from "@/app/(app)/senders/_components/sender-form";
+
+export const metadata: Metadata = {
+  title: "New sender",
+};
 
 export const dynamic = "force-dynamic";
 

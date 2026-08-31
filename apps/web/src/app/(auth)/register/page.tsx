@@ -2,8 +2,13 @@ import { getRegistrationEnabled, requireGuest } from "@billow/auth";
 import { canRegister } from "@billow/auth/env";
 import { getPrisma } from "@billow/db";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SignUpForm } from "@/app/(auth)/_components/sign-up-form";
+
+export const metadata: Metadata = {
+  title: "Create account",
+};
 
 export const dynamic = "force-dynamic";
 

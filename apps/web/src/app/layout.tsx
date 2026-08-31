@@ -15,7 +15,14 @@ const notoSansHeading = Noto_Sans({
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Billow",
+  // Every page below sets a bare title ("Invoices") and gets "Invoices ·
+  // Billow" from the template. The one deliberate exception is the invoice
+  // page, which prints: it sets `title.absolute` so the suffix stays out of
+  // the PDF filename the browser derives from the title.
+  title: {
+    default: "Billow",
+    template: "%s · Billow",
+  },
   description:
     "A self-hosted app starter built on Next.js, React, Prisma, Postgres and better-auth.",
 };

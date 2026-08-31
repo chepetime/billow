@@ -1,9 +1,14 @@
 import { requireSession } from "@billow/auth";
 import { buttonVariants } from "@billow/shadcn/components/button";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 import { listClientCompanies } from "@/lib/workspace/clients";
+
+export const metadata: Metadata = {
+  title: "Clients",
+};
 
 export const dynamic = "force-dynamic";
 

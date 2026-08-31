@@ -1,4 +1,5 @@
 import { requireSession } from "@billow/auth";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { InvoiceForm } from "@/app/(app)/invoices/_components/invoice-form";
@@ -6,6 +7,10 @@ import { WorkspaceSetupNotice } from "@/app/(app)/invoices/_components/workspace
 import { endOfMonth } from "@/lib/date-only";
 import { CURRENCIES } from "@/lib/schemas/workspace";
 import { getInvoiceFormOptions } from "@/lib/workspace-records";
+
+export const metadata: Metadata = {
+  title: "New invoice",
+};
 
 export const dynamic = "force-dynamic";
 
