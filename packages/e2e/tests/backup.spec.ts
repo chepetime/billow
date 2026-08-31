@@ -178,8 +178,11 @@ test("the Backup settings page offers both the archive and a CSV export", async 
   request,
 }) => {
   await page.goto("/settings/backup");
+  // level: 1 on purpose. The page heading and the archive section's own
+  // heading are both exactly "Backup", so an unqualified match is a strict
+  // mode violation rather than an assertion.
   await expect(
-    page.getByRole("heading", { name: "Backup", exact: true }),
+    page.getByRole("heading", { name: "Backup", exact: true, level: 1 }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Download backup" }),

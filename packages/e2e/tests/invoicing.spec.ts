@@ -194,7 +194,13 @@ async function recordMilestone(
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Date").fill(date);
   await dialog.getByRole("button", { name: "Save date" }).click();
-  await expect(page.getByText(expectedStatus, { exact: true })).toBeVisible();
+  // The invoice page renders InvoiceStatusBadge twice — once in the workflow
+  // panel, once in the printable preview — and the two always agree, so
+  // matching the first is the same assertion without the strict mode
+  // violation an unqualified match now raises.
+  await expect(
+    page.getByText(expectedStatus, { exact: true }).first(),
+  ).toBeVisible();
 }
 
 async function clearMilestone(
@@ -205,7 +211,13 @@ async function clearMilestone(
   await page.goto(originalInvoiceUrl);
   await progressRow(page, title).getByRole("button", { name: "Edit" }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
-  await expect(page.getByText(expectedStatus, { exact: true })).toBeVisible();
+  // The invoice page renders InvoiceStatusBadge twice — once in the workflow
+  // panel, once in the printable preview — and the two always agree, so
+  // matching the first is the same assertion without the strict mode
+  // violation an unqualified match now raises.
+  await expect(
+    page.getByText(expectedStatus, { exact: true }).first(),
+  ).toBeVisible();
 }
 
 async function editInvoice(page: Page) {

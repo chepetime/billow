@@ -30,6 +30,31 @@ function isTransientConnectionError(error: unknown): boolean {
   );
 }
 
+/**
+ * Is this a Prisma unique-constraint violation (P2002)?
+ *
+ * Duck-typed on `code`, never `instanceof
+ * Prisma.PrismaClientKnownRequestError`, for the same reason
+ * `isTransientConnectionError` above is. The check has to hold in the
+ * production bundle, and there it does not: Next splits the generated client
+ * and the `Prisma` namespace an importing module names into different server
+ * chunks, so the class the error is constructed from is not the class the
+ * `instanceof` compares against and every such test is silently false.
+ *
+ * That failure is invisible in dev and in vitest, where the module graph is
+ * loaded once and both sides are the same object. It cost a released version
+ * in which no second account could be created at all: the P2002 that
+ * `claimFoundingOwner` exists to swallow escaped instead, and sign-up
+ * answered 500.
+ */
+export function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
 // Operations where re-issuing the query after a dropped connection cannot
 // change what the database observed: no matter which side of the round trip
 // the connection failed on, nothing was written, so retrying is exactly

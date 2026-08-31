@@ -86,6 +86,16 @@ jobs:
 
       - name: Boot the app
         run: |
+          # Create the bind-mount source before Docker does. Docker creates a
+          # missing source directory as root, and the image runs as uid 1000
+          # with no privileged phase left to repair it (see the Dockerfile's
+          # note on dropping the entrypoint chown), so every upload failed
+          # with EACCES and four specs failed on a missing list row. Umbrel
+          # gets this right by creating ${APP_DATA_DIR} as 1000:1000; the
+          # workflow has to do the same thing by hand.
+          mkdir -p "${{ runner.temp }}/uploads"
+          sudo chown 1000:1000 "${{ runner.temp }}/uploads"
+
           docker run -d --name billow-e2e --network host \
             -v "${{ runner.temp }}/uploads:/data/uploads" \
             -e DATABASE_URL='postgresql://billow:e2e-only-password@localhost:5432/billow' \

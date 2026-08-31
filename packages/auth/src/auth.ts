@@ -1,8 +1,7 @@
 import "server-only";
 
 import { apiKey } from "@better-auth/api-key";
-import { getPrisma } from "@billow/db";
-import { Prisma } from "@billow/db/client";
+import { getPrisma, isUniqueConstraintError } from "@billow/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError, createAuthMiddleware } from "better-auth/api";
@@ -110,10 +109,11 @@ export async function claimFoundingOwner(
     await prisma.installationOwner.create({ data: { userId } });
     return true;
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    // Duck-typed, not `instanceof`: see isUniqueConstraintError. An
+    // `instanceof` here is false in the production bundle, which turned the
+    // losing racer's expected P2002 into a 500 and made a second account
+    // impossible to create on a real install.
+    if (isUniqueConstraintError(error)) {
       return false;
     }
     throw error;

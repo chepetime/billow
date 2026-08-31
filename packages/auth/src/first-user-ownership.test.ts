@@ -157,3 +157,53 @@ describe("the count()-based promotion this replaced (regression harness)", () =>
     expect(winners).toHaveLength(0);
   });
 });
+
+describe("claimFoundingOwner across a chunk boundary", () => {
+  it("swallows a P2002 that is not an instance of the bundled error class", async () => {
+    const { claimFoundingOwner } = await import("./auth");
+
+    // The regression this pins. In the production bundle Next splits the
+    // generated Prisma client and the `Prisma` namespace an importing module
+    // names into different server chunks, so the error thrown is not an
+    // instance of the class the importer would compare against. The old
+    // `instanceof` guard was therefore false in production and only in
+    // production: the P2002 escaped, sign-up answered 500, and no second
+    // account could be created on a real install. Every earlier test here
+    // used a real PrismaClientKnownRequestError and so could never see it.
+    //
+    // A bare object carrying `code` is exactly what the guard has to cope
+    // with, and is the shape the duck-typed check reads.
+    const foreignError = Object.assign(
+      new Error("Unique constraint failed on the fields: (`id`)"),
+      { code: "P2002" },
+    );
+
+    const prisma = {
+      installationOwner: {
+        create: async () => {
+          throw foreignError;
+        },
+      },
+    } as unknown as Parameters<typeof claimFoundingOwner>[0];
+
+    await expect(claimFoundingOwner(prisma, "second-user")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("still rethrows an error that is not a unique-constraint violation", async () => {
+    const { claimFoundingOwner } = await import("./auth");
+
+    const prisma = {
+      installationOwner: {
+        create: async () => {
+          throw Object.assign(new Error("connection lost"), { code: "P1001" });
+        },
+      },
+    } as unknown as Parameters<typeof claimFoundingOwner>[0];
+
+    await expect(claimFoundingOwner(prisma, "second-user")).rejects.toThrow(
+      "connection lost",
+    );
+  });
+});
