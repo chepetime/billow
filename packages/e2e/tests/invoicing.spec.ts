@@ -230,7 +230,7 @@ async function editInvoice(page: Page) {
   await page.getByRole("button", { name: "Save invoice" }).click();
 
   await expect(page).toHaveURL(new RegExp(`${originalInvoiceUrl}$`));
-  await expect(page.getByText("Sent", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sent", { exact: true }).first()).toBeVisible();
 
   await page.goto(`${originalInvoiceUrl}/edit`);
   await expect(page.getByLabel("Rate")).toHaveValue("1000");
@@ -252,7 +252,7 @@ async function recordCfdi(page: Page) {
     .setInputFiles(validPdfFile(`cfdi-${suffix}.pdf`));
   await dialog.getByRole("button", { name: "Save CFDI" }).click();
 
-  await expect(page.getByText("Done", { exact: true })).toBeVisible();
+  await expect(page.getByText("Done", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(`cfdi-${suffix}.xml`)).toBeVisible();
   await expect(page.getByText(`cfdi-${suffix}.pdf`)).toBeVisible();
 }
@@ -264,7 +264,7 @@ async function clearCfdi(page: Page) {
   await page.getByRole("button", { name: "Clear CFDI" }).click();
   await page.getByRole("button", { name: "Yes, clear CFDI" }).click();
 
-  await expect(page.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(`cfdi-${suffix}.xml`)).toHaveCount(0);
   await expect(page.getByText(`cfdi-${suffix}.pdf`)).toHaveCount(0);
 }
@@ -319,5 +319,5 @@ async function duplicateInvoice(page: Page) {
   expect(Number(copyNumber)).toBeGreaterThan(Number(invoiceNumber));
 
   await page.getByRole("link", { name: "Cancel" }).click();
-  await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+  await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
 }

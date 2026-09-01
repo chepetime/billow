@@ -36,6 +36,18 @@ export default defineConfig({
   // that depends on the toggle inside a single file so no other spec can
   // observe it mid-flight.
   fullyParallel: false,
+  // One worker, so separate files cannot overlap either. `fullyParallel:
+  // false` only serialises tests *within* a file; different files still run
+  // concurrently, and that is not enough here. Every project signs in as the
+  // same owner through OWNER_STORAGE_STATE, so while auth-flows.spec has
+  // two-factor enrolled on that account any other file's sign-in lands on
+  // /two-factor instead of /dashboard. Unlike the registration toggle, that
+  // state cannot be contained inside one file, because the account it belongs
+  // to is shared by all of them.
+  //
+  // This is a nightly suite of about thirty tests; determinism is worth more
+  // than the parallelism.
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   // A cold container (fresh image pull, first request after `migrate
