@@ -253,8 +253,8 @@ async function recordCfdi(page: Page) {
   await dialog.getByRole("button", { name: "Save CFDI" }).click();
 
   await expect(page.getByText("Done", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(`cfdi-${suffix}.xml`)).toBeVisible();
-  await expect(page.getByText(`cfdi-${suffix}.pdf`)).toBeVisible();
+  await expect(page.getByText(`cfdi-${suffix}.xml`).first()).toBeVisible();
+  await expect(page.getByText(`cfdi-${suffix}.pdf`).first()).toBeVisible();
 }
 
 async function clearCfdi(page: Page) {
@@ -279,7 +279,9 @@ async function recordMonthlyTaxFiling(page: Page) {
     .setInputFiles(validPdfFile(`tax-return-${suffix}.pdf`));
   await dialog.getByRole("button", { name: "Save filing" }).click();
 
-  await expect(page.getByText(`tax-return-${suffix}.pdf`)).toBeVisible();
+  await expect(
+    page.getByText(`tax-return-${suffix}.pdf`).first(),
+  ).toBeVisible();
 }
 
 async function recordMonthlyTaxPayment(page: Page) {
@@ -294,7 +296,9 @@ async function recordMonthlyTaxPayment(page: Page) {
     .setInputFiles(validPngFile(`tax-payment-${suffix}.png`));
   await dialog.getByRole("button", { name: "Save payment" }).click();
 
-  await expect(page.getByText(`tax-payment-${suffix}.png`)).toBeVisible();
+  await expect(
+    page.getByText(`tax-payment-${suffix}.png`).first(),
+  ).toBeVisible();
   await expect(progressRow(page, "Tax payment confirmed")).toContainText(
     "MXN 1,234.56",
   );
