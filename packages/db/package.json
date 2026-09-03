@@ -20,11 +20,11 @@
   },
   "dependencies": {
     "@billow/crypto": "workspace:*",
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "dotenv": "^17.4.2",
     "pg": "^8.23.0",
-    "prisma": "^7.9.1"
+    "prisma": "^7.10.0"
   },
   "devDependencies": {
     "@billow/vitest-config": "workspace:*",
