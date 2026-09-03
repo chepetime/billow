@@ -169,4 +169,15 @@ async function signIn(
 async function signOut(page: Page) {
   await page.getByRole("button", { name: "Open account menu" }).click();
   await page.getByRole("menuitem", { name: /Log out/ }).click();
+  // Wait for the sign-out to land, not just to start. The menu item kicks off
+  // `authClient.signOut()` and only then `router.push("/login")`; returning
+  // before that resolves lets the caller's next navigation race a session that
+  // is still valid, and the server answers /login for a signed-in visitor by
+  // redirecting to /dashboard. That is exactly how the two-factor spec failed
+  // two nightlies running -- it asked for /login, got the dashboard, and timed
+  // out waiting for a sign-in field that was never going to render.
+  //
+  // The wait lives here rather than in each caller because two of the three
+  // already asserted it and the third did not, which is the whole bug.
+  await page.waitForURL(/\/login$/);
 }
