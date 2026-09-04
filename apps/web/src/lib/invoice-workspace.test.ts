@@ -35,6 +35,7 @@ type Seed = {
   invoiceNumber: number;
   invoiceDate: Date;
   status: Status;
+  currency: string;
   userId: string;
   amounts: number[];
 };
@@ -51,7 +52,7 @@ type Seed = {
  */
 function fakePrisma(seeds: Seed[]) {
   const listQueries: { take?: number }[] = [];
-  const aggregateQueries: Record<string, unknown>[] = [];
+  const lineTotalQueries: Record<string, unknown>[] = [];
 
   const matchesInvoice = (
     seed: Seed,
@@ -120,6 +121,7 @@ function fakePrisma(seeds: Seed[]) {
             invoiceNumber: seed.invoiceNumber,
             invoiceDate: seed.invoiceDate,
             status: seed.status,
+            currency: seed.currency,
             sentAt: null,
             approvedAt: null,
             paidAt: null,
@@ -142,28 +144,29 @@ function fakePrisma(seeds: Seed[]) {
       },
     },
     invoiceLineItem: {
-      aggregate: async (args: {
+      groupBy: async (args: {
         where: { invoice: Record<string, unknown> };
       }) => {
-        aggregateQueries.push(args as unknown as Record<string, unknown>);
+        lineTotalQueries.push(args as unknown as Record<string, unknown>);
         const matched = seeds.filter((seed) =>
           matchesInvoice(seed, args.where.invoice),
         );
-        const amounts = matched.flatMap((seed) => seed.amounts);
-        // Postgres returns NULL, not 0, when SUM() sees no rows at all.
-        return {
+        return matched.map((seed) => ({
+          invoiceId: seed.id,
           _sum: {
-            amount: amounts.length
-              ? new Prisma.Decimal(amounts.reduce((sum, n) => sum + n, 0))
+            amount: seed.amounts.length
+              ? new Prisma.Decimal(
+                  seed.amounts.reduce((sum, amount) => sum + amount, 0),
+                )
               : null,
           },
-        };
+        }));
       },
     },
     taxPeriod: { findUnique: async () => null },
   };
 
-  return { prisma, listQueries, aggregateQueries };
+  return { prisma, listQueries, lineTotalQueries };
 }
 
 // Fixed clock: every date below is constructed in server-local time, matching
@@ -176,6 +179,7 @@ function seed(overrides: Partial<Seed> & { id: number }): Seed {
     invoiceNumber: overrides.id,
     invoiceDate: new Date(2026, 6, 10),
     status: "SENT",
+    currency: "MXN",
     userId: "user-1",
     amounts: [100],
     ...overrides,
@@ -305,20 +309,24 @@ describe("getInvoiceWorkspace totals", () => {
 
     expect(workspace.recentInvoices).toHaveLength(RECENT_INVOICE_LIMIT);
     expect(workspace.stats.invoiceCount).toBe(40);
-    expect(workspace.stats.openTotal).toBe(4000);
-    expect(workspace.stats.currentTotal).toBe(4000);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "MXN", amount: 4000 },
+    ]);
+    expect(workspace.stats.currentTotals).toEqual([
+      { currency: "MXN", amount: 4000 },
+    ]);
 
     // The bound must come from the query, not from slicing afterwards.
     expect(fake.listQueries).toEqual([{ take: RECENT_INVOICE_LIMIT }]);
   });
 
-  it("never bounds the aggregate queries", async () => {
+  it("does not bound the grouped line-item totals query", async () => {
     const fake = install([seed({ id: 1 })]);
 
     await getInvoiceWorkspace("user-1", NOW);
 
-    expect(fake.aggregateQueries).toHaveLength(3);
-    for (const query of fake.aggregateQueries) {
+    expect(fake.lineTotalQueries).toHaveLength(1);
+    for (const query of fake.lineTotalQueries) {
       expect(query.take).toBeUndefined();
       expect(query.skip).toBeUndefined();
     }
@@ -337,10 +345,16 @@ describe("getInvoiceWorkspace totals", () => {
 
     const workspace = await getInvoiceWorkspace("user-1", NOW);
 
-    expect(workspace.stats.openTotal).toBe(30);
-    expect(workspace.stats.paidTotal).toBe(600);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "MXN", amount: 30 },
+    ]);
+    expect(workspace.stats.paidTotals).toEqual([
+      { currency: "MXN", amount: 600 },
+    ]);
     // VOID is in neither bucket, but still in the count and this month's total.
-    expect(workspace.stats.currentTotal).toBe(1270);
+    expect(workspace.stats.currentTotals).toEqual([
+      { currency: "MXN", amount: 1270 },
+    ]);
     expect(workspace.stats.invoiceCount).toBe(7);
   });
 
@@ -349,7 +363,9 @@ describe("getInvoiceWorkspace totals", () => {
 
     const workspace = await getInvoiceWorkspace("user-1", NOW);
 
-    expect(workspace.stats.openTotal).toBe(6.75);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "MXN", amount: 6.75 },
+    ]);
     expect(workspace.recentInvoices[0].total).toBe(6.75);
   });
 
@@ -364,8 +380,12 @@ describe("getInvoiceWorkspace totals", () => {
 
     const workspace = await getInvoiceWorkspace("user-1", NOW);
 
-    expect(workspace.stats.currentTotal).toBe(200);
-    expect(workspace.stats.openTotal).toBe(400);
+    expect(workspace.stats.currentTotals).toEqual([
+      { currency: "MXN", amount: 200 },
+    ]);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "MXN", amount: 400 },
+    ]);
   });
 
   it("scopes every total to the signed-in user", async () => {
@@ -376,8 +396,12 @@ describe("getInvoiceWorkspace totals", () => {
 
     const workspace = await getInvoiceWorkspace("user-1", NOW);
 
-    expect(workspace.stats.openTotal).toBe(100);
-    expect(workspace.stats.currentTotal).toBe(100);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "MXN", amount: 100 },
+    ]);
+    expect(workspace.stats.currentTotals).toEqual([
+      { currency: "MXN", amount: 100 },
+    ]);
     expect(workspace.stats.invoiceCount).toBe(1);
   });
 
@@ -388,9 +412,9 @@ describe("getInvoiceWorkspace totals", () => {
 
     expect(workspace.stats).toEqual({
       invoiceCount: 0,
-      currentTotal: 0,
-      openTotal: 0,
-      paidTotal: 0,
+      currentTotals: [],
+      openTotals: [],
+      paidTotals: [],
     });
     expect(workspace.recentInvoices).toEqual([]);
     expect(workspace.nextInvoiceNumber).toBe(1);
@@ -403,6 +427,28 @@ describe("getInvoiceWorkspace totals", () => {
 
     expect(workspace.databaseAvailable).toBe(false);
     expect(workspace.recentInvoices).toEqual([]);
-    expect(workspace.stats.openTotal).toBe(0);
+    expect(workspace.stats.openTotals).toEqual([]);
+  });
+
+  it("keeps each dashboard total in its invoice currency", async () => {
+    install([
+      seed({ id: 1, currency: "USD", amounts: [10], status: "SENT" }),
+      seed({ id: 2, currency: "MXN", amounts: [20], status: "PAID" }),
+      seed({ id: 3, currency: "EUR", amounts: [30], status: "VOID" }),
+    ]);
+
+    const workspace = await getInvoiceWorkspace("user-1", NOW);
+
+    expect(workspace.stats.currentTotals).toEqual([
+      { currency: "EUR", amount: 30 },
+      { currency: "MXN", amount: 20 },
+      { currency: "USD", amount: 10 },
+    ]);
+    expect(workspace.stats.openTotals).toEqual([
+      { currency: "USD", amount: 10 },
+    ]);
+    expect(workspace.stats.paidTotals).toEqual([
+      { currency: "MXN", amount: 20 },
+    ]);
   });
 });

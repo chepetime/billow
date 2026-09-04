@@ -185,12 +185,11 @@ The reads are in `lib/workspace/income.ts`; the fold is
 `lib/income-summary.ts`, which is pure and is where the tests are.
 
 <Callout type="warn">
-**Amounts are grouped by currency and never summed across it.** The dashboard
-adds every invoice into one figure and labels it MXN — a documented
-simplification for a glance at a screen, and one a tax summary cannot make. A
-USD invoice is not worth its face value in pesos, and no exchange rate is
-stored anywhere to convert it. A consumer that wants a single number has to
-supply the rate it used, which means saying so.
+**Amounts are grouped by currency and never summed across it.** This applies
+to the dashboard and income summary: a USD invoice is not worth its face value
+in pesos, and no exchange rate is stored anywhere to convert it. A consumer
+that wants a single number has to supply the rate it used, which means saying
+so.
 </Callout>
 
 All twelve months are returned, including empty ones: "nothing was invoiced in

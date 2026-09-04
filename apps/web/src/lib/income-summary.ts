@@ -5,13 +5,10 @@
  * logic — currency grouping, month bucketing, what counts as paid — and it is
  * worth testing without a database. `lib/workspace/income.ts` does the reading.
  *
- * **Everything is grouped by currency, never summed across it.** The dashboard
- * adds every invoice into one figure and labels it MXN, which is a documented
- * simplification for a glance at the screen. It is not one a tax summary can
- * make: a USD invoice is not worth its face value in pesos, and there is no
- * rate stored anywhere to convert it. So a month reports one row per currency
- * it actually billed in, and a consumer that wants a single number has to say
- * which rate it used.
+ * **Everything is grouped by currency, never summed across it.** A USD invoice
+ * is not worth its face value in pesos, and no exchange rate is stored. A month
+ * reports one row per currency it actually billed in, and a consumer that
+ * wants a single number has to supply and disclose the rate it used.
  */
 
 export type CurrencyAmount = {

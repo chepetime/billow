@@ -10,14 +10,28 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/ui/badge";
-import { formatInvoiceDate, formatMoney } from "@/lib/format";
-import { getInvoiceWorkspace } from "@/lib/invoice-workspace";
+import { formatCurrency, formatInvoiceDate } from "@/lib/format";
+import {
+  type CurrencyTotal,
+  getInvoiceWorkspace,
+} from "@/lib/invoice-workspace";
 import { maskAccountNumber } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
+
+function CurrencyTotals({ totals }: { totals: CurrencyTotal[] }) {
+  if (totals.length === 0) return <span>—</span>;
+
+  return totals.map((total) => (
+    <span key={total.currency} className="block">
+      {formatCurrency(total.amount, total.currency)}
+    </span>
+  ));
+}
+
 export default async function DashboardPage() {
   const session = await requireSession();
   const workspace = await getInvoiceWorkspace(session.user.id);
@@ -112,25 +126,25 @@ export default async function DashboardPage() {
               <h2 className="text-sm font-medium text-muted-foreground">
                 This month
               </h2>
-              <p className="mt-1 text-2xl font-semibold tracking-normal">
-                {formatMoney(workspace.stats.currentTotal)}
-              </p>
+              <div className="mt-1 text-2xl font-semibold tracking-normal">
+                <CurrencyTotals totals={workspace.stats.currentTotals} />
+              </div>
             </div>
             <div className="rounded-lg border bg-card p-5">
               <h2 className="text-sm font-medium text-muted-foreground">
                 Open
               </h2>
-              <p className="mt-1 text-2xl font-semibold tracking-normal">
-                {formatMoney(workspace.stats.openTotal)}
-              </p>
+              <div className="mt-1 text-2xl font-semibold tracking-normal">
+                <CurrencyTotals totals={workspace.stats.openTotals} />
+              </div>
             </div>
             <div className="rounded-lg border bg-card p-5">
               <h2 className="text-sm font-medium text-muted-foreground">
                 Paid
               </h2>
-              <p className="mt-1 text-2xl font-semibold tracking-normal">
-                {formatMoney(workspace.stats.paidTotal)}
-              </p>
+              <div className="mt-1 text-2xl font-semibold tracking-normal">
+                <CurrencyTotals totals={workspace.stats.paidTotals} />
+              </div>
             </div>
             <div className="rounded-lg border bg-card p-5">
               <h2 className="text-sm font-medium text-muted-foreground">
@@ -212,7 +226,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-medium">
-                          {formatMoney(invoice.total)}
+                          {formatCurrency(invoice.total, invoice.currency)}
                         </span>
                         <InvoiceStatusBadge
                           status={invoice.status}
