@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma } from "@billow/db/client";
+import { type InvoiceStatus, Prisma } from "@billow/db/client";
 import { recordError } from "@/lib/error-log";
 import {
   CLOSED_INVOICE_STATUSES,
@@ -8,6 +8,9 @@ import {
   PAID_INVOICE_STATUSES,
 } from "@/lib/invoice-status";
 import { getWorkspacePrisma } from "@/lib/workspace-prisma";
+
+const CLOSED_STATUSES = new Set<InvoiceStatus>(CLOSED_INVOICE_STATUSES);
+const PAID_STATUSES = new Set<InvoiceStatus>(PAID_INVOICE_STATUSES);
 
 /**
  * How many invoices the workspace list carries. The dashboard is the only
@@ -39,8 +42,40 @@ export function currentMonthRange(now: Date) {
  * the old per-row `Number(amount)` accumulation carried: money stays exact
  * through the sum and is converted once, at the end.
  */
-export function sumToNumber(sum: Prisma.Decimal | null) {
-  return sum === null ? 0 : sum.toNumber();
+export type CurrencyTotal = { currency: string; amount: number };
+
+type DashboardTotalInvoice = {
+  id: number;
+  currency: string;
+  invoiceDate: Date;
+  status: InvoiceStatus;
+};
+
+/**
+ * Folds line-item totals into the currency of the invoice that owns them.
+ *
+ * `Invoice.currency` and `InvoiceLineItem.amount` live on separate tables,
+ * so Prisma cannot group them together. We keep line items grouped in SQL,
+ * then fold the one total per invoice here. Decimal arithmetic remains exact
+ * until the values cross the server-to-UI boundary.
+ */
+function totalsByCurrency(
+  invoices: DashboardTotalInvoice[],
+  totalByInvoiceId: Map<number, Prisma.Decimal>,
+): CurrencyTotal[] {
+  const totals = new Map<string, Prisma.Decimal>();
+
+  for (const invoice of invoices) {
+    const current = totals.get(invoice.currency) ?? new Prisma.Decimal(0);
+    totals.set(
+      invoice.currency,
+      current.add(totalByInvoiceId.get(invoice.id) ?? 0),
+    );
+  }
+
+  return [...totals.entries()]
+    .map(([currency, amount]) => ({ currency, amount: amount.toNumber() }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
 export type WorkspaceInvoice = Awaited<
@@ -123,9 +158,8 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       recentInvoices,
       invoiceCount,
       nextInvoice,
-      currentSum,
-      openSum,
-      paidSum,
+      totalInvoices,
+      lineTotals,
       attentionInvoices,
       currentTaxPeriod,
       currentMonthInvoice,
@@ -164,32 +198,18 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
         orderBy: { invoiceNumber: "desc" },
         select: { invoiceNumber: true },
       }),
-      // The three totals below are the reason the list above can be bounded.
-      // Each is a single indexed aggregate over EVERY invoice the user has,
-      // not over the page of them fetched for display, so bounding the list
-      // cannot turn "open across all invoices" into "open across the most
-      // recent eight". They aggregate line items and filter through the
-      // relation because an invoice's total is the sum of its line items;
-      // summing the leaves directly is the same number as summing per-invoice
-      // subtotals, without hydrating either.
-      prisma.invoiceLineItem.aggregate({
-        _sum: { amount: true },
-        where: { invoice: { userId, invoiceDate: month } },
+      // Stat tiles cover every invoice, not only the bounded recent list.
+      // The invoice supplies the currency and the line-item query supplies one
+      // exact Decimal subtotal per invoice; summing face values across their
+      // different currencies would be invalid.
+      prisma.invoice.findMany({
+        where: { userId },
+        select: { id: true, currency: true, invoiceDate: true, status: true },
       }),
-      prisma.invoiceLineItem.aggregate({
+      prisma.invoiceLineItem.groupBy({
+        by: ["invoiceId"],
         _sum: { amount: true },
-        where: {
-          invoice: {
-            userId,
-            status: { notIn: [...CLOSED_INVOICE_STATUSES] },
-          },
-        },
-      }),
-      prisma.invoiceLineItem.aggregate({
-        _sum: { amount: true },
-        where: {
-          invoice: { userId, status: { in: [...PAID_INVOICE_STATUSES] } },
-        },
+        where: { invoice: { userId } },
       }),
       prisma.invoice.findMany({
         where: {
@@ -242,6 +262,30 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       const { id: _internalId, publicId, ...fields } = invoice;
       return { ...fields, id: publicId, total };
     });
+
+    const totalByInvoiceId = new Map(
+      lineTotals.map((row) => [
+        row.invoiceId,
+        row._sum.amount ?? new Prisma.Decimal(0),
+      ]),
+    );
+    const isCurrentMonth = (invoice: DashboardTotalInvoice) =>
+      invoice.invoiceDate >= month.gte && invoice.invoiceDate < month.lt;
+    const stats = {
+      invoiceCount,
+      currentTotals: totalsByCurrency(
+        totalInvoices.filter(isCurrentMonth),
+        totalByInvoiceId,
+      ),
+      openTotals: totalsByCurrency(
+        totalInvoices.filter((invoice) => !CLOSED_STATUSES.has(invoice.status)),
+        totalByInvoiceId,
+      ),
+      paidTotals: totalsByCurrency(
+        totalInvoices.filter((invoice) => PAID_STATUSES.has(invoice.status)),
+        totalByInvoiceId,
+      ),
+    };
 
     const attention = attentionInvoices.flatMap((invoice) => {
       const label = invoiceAttentionLabel({
@@ -318,12 +362,7 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
         bankAccounts.length > 0 &&
         clientCompanies.length > 0,
       nextInvoiceNumber: (nextInvoice?.invoiceNumber ?? 0) + 1,
-      stats: {
-        invoiceCount,
-        currentTotal: sumToNumber(currentSum._sum.amount),
-        openTotal: sumToNumber(openSum._sum.amount),
-        paidTotal: sumToNumber(paidSum._sum.amount),
-      },
+      stats,
       error: null as string | null,
     };
   } catch (error) {
@@ -341,9 +380,9 @@ export async function getInvoiceWorkspace(userId: string, now = new Date()) {
       nextInvoiceNumber: 1,
       stats: {
         invoiceCount: 0,
-        currentTotal: 0,
-        openTotal: 0,
-        paidTotal: 0,
+        currentTotals: [],
+        openTotals: [],
+        paidTotals: [],
       },
       error: "Billow could not reach the database yet.",
     };

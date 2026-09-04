@@ -13,22 +13,11 @@
  * cannot be mistaken for USD the way a bare "$1,000.00" can, and both
  * currencies are in play here.
  */
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "MXN",
-  currencyDisplay: "code",
-});
-
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
 });
-
-/** Totals shown in the workspace's own currency (MXN). */
-export function formatMoney(value: number) {
-  return currencyFormatter.format(value);
-}
 
 export function formatInvoiceDate(value: Date) {
   return dateFormatter.format(value);
