@@ -36,6 +36,13 @@ minimumReleaseAgeExclude:
   - next@16.3.0
   - typescript-eslint@8.66.0
 overrides:
+  # ajv permits this compatible fast-uri 3.x patch. Version 3.1.5 has SSRF
+  # and host-confusion advisories that 3.1.6 fixes.
+  fast-uri: ^3.1.6
+  # Prisma 7.9.1 pins mysql2 3.15.3 even though Billow uses PostgreSQL. Keep
+  # the optional driver on its patched 3.x line so it cannot reintroduce its
+  # plaintext-auth downgrade vulnerability if a MySQL adapter is ever used.
+  mysql2: ^3.24.3
   # sharp 0.34.5 carries a high-severity libvips advisory fixed in 0.35.0, and
   # ships in the production image as an optional dependency of Next. Next
   # declares ^0.34.5, which cannot reach the fix, and 0.34.5 is the last release
