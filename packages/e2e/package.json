@@ -10,8 +10,8 @@
   },
   "devDependencies": {
     "@billow/typescript-config": "workspace:*",
-    "@playwright/test": "^1.62.1",
-    "@types/node": "^26.2.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4",
     "typescript": "^7.0.2"
   }
 }
